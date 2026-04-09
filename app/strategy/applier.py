@@ -46,6 +46,9 @@ BOUNDS: dict[str, tuple] = {
     "STOP_ATR_MULT":          (0.0,  10.0, float),
     "RISK_PER_TRADE_PCT":     (0.0,  0.05, float),
     "MAX_TRADES_PER_SESSION": (0,    500,  int),
+    # Entry quality confirmation
+    "MR_CONFIRM_TICKS": (0,   20,  int),
+    "MR_REBOUND_CAP":   (0.1, 3.0, float),
 }
 
 

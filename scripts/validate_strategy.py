@@ -25,6 +25,10 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+# Allow importing from app/ when run directly from project root
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from app.trade_review import compare as _trade_review_compare
+
 SEEDS      = [42, 7, 99, 123, 256, 512, 777]
 TICK_SIZES = [2000, 5000]
 MODE       = "mean_reversion"
@@ -34,7 +38,7 @@ TRADE_FLOOR_RATIO = 0.70   # candidate avg_trades must be >= 70% of baseline
 VALIDATION_DIR = pathlib.Path("data/validation_runs")
 CANDIDATE_CFG  = pathlib.Path("data/candidate_config.json")
 
-_BASE = ["python", "-m", "app.experiment", "--mode", MODE, "--no-save"]
+_BASE = [sys.executable, "-m", "app.experiment", "--mode", MODE, "--no-save"]
 
 
 def _run(ticks: int, seed: int, candidate: bool) -> dict:
@@ -159,6 +163,7 @@ def _save_record(
     accepted: bool,
     failures: list[str],
     rows: list[dict],
+    trade_review: dict | None = None,
 ) -> pathlib.Path:
     VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
     ts  = datetime.now(timezone.utc)
@@ -174,6 +179,7 @@ def _save_record(
         "baseline":         baseline_stats,
         "candidate":        candidate_stats,
         "candidate_config": _load_candidate_cfg(),
+        "trade_review":     trade_review,
         "runs":             rows,
     }
     slug = ts.strftime("%Y%m%dT%H%M%S")
@@ -233,9 +239,39 @@ def main() -> None:
         for f in failures:
             print(f"  - {f}")
 
+    # ── Trade review ─────────────────────────────────────────────────────────────
+    tr = _trade_review_compare(baseline_runs, candidate_runs)
+    cm = tr["candidate"]["metrics"]
+    bm = tr["baseline"]["metrics"]
+    print()
+    print("Trade review")
+    print(f"  Labels      : {tr['all_labels'] or ['none']}")
+    print(
+        f"  Stop rate   : {(cm['avg_stop_rate'] or 0)*100:.1f}%"
+        f"  (baseline {(bm['avg_stop_rate'] or 0)*100:.1f}%)"
+    )
+    print(
+        f"  Win rate    : {(cm['avg_win_rate'] or 0)*100:.1f}%"
+        f"  (baseline {(bm['avg_win_rate'] or 0)*100:.1f}%)"
+    )
+    print(
+        f"  Churn       : {cm['avg_churn_score'] or 0:.4f}"
+        f"  (baseline {bm['avg_churn_score'] or 0:.4f})"
+    )
+    print(
+        f"  Avg hold    : {cm['avg_holding_ticks'] or 0:.1f} ticks"
+        f"  (baseline {bm['avg_holding_ticks'] or 0:.1f} ticks)"
+    )
+    if cm["loss_win_ratio"] is not None:
+        print(
+            f"  Loss/win    : {cm['loss_win_ratio']:.2f}"
+            f"  (baseline {bm['loss_win_ratio'] or 0:.2f})"
+            f"  — {'bad (>1)' if cm['loss_win_ratio'] > 1 else 'good (≤1)'}"
+        )
+
     if not args.no_save:
         rows = _run_rows(baseline_runs, candidate_runs)
-        path = _save_record(args.experiment_name, b, c, accepted, failures, rows)
+        path = _save_record(args.experiment_name, b, c, accepted, failures, rows, tr)
         print(f"\nSaved → {path}")
 
 

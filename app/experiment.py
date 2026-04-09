@@ -130,8 +130,18 @@ def _mr_signal(
     min_vol: float = 0.0,
     min_entry_depth: float = 0.0,
     max_er: float = 1.0,
+    confirm_ticks: int = 0,
+    rebound_cap: float = 0.5,
 ) -> str:
-    """Mean reversion signal with exit fraction, volatility, depth, and ER filters."""
+    """
+    Mean reversion signal with exit fraction, volatility, depth, and ER filters.
+
+    When confirm_ticks > 0, applies two-step reversal confirmation:
+      1. recent_low (over last confirm_ticks prices) must be <= lower_band (overshoot confirmed)
+      2. current > recent_low (price has turned — not still falling)
+      3. current - recent_low <= rebound_cap * std (hasn't recovered past the entry window)
+    This replaces the immediate band-touch trigger and prevents catching falling knives.
+    """
     if len(prices) < window:
         return "HOLD"
     recent = prices[-window:]
@@ -143,13 +153,30 @@ def _mr_signal(
     lower_band  = mean - threshold * std
     exit_target = mean - (1.0 - exit_fraction) * threshold * std
     low_vol     = (min_vol > 0.0 and std < min_vol)
-    if not low_vol and current <= lower_band:
-        depth_val = (lower_band - current) / std
-        if depth_val >= min_entry_depth:
-            # Market condition filter: skip if price action is too directional
-            er = _efficiency_ratio(prices, window)
-            if er <= max_er:
-                return "BUY"
+    if not low_vol:
+        if confirm_ticks > 0 and len(prices) >= confirm_ticks + 1:
+            # Two-step: look at the N ticks BEFORE current for the overshoot low, then
+            # confirm current price has turned up from it — still within the entry zone.
+            # Using prices[:-1] (prior ticks only) prevents firing on every oscillation
+            # below the band; we require the turn to have already happened.
+            prior_low = min(prices[-confirm_ticks - 1:-1])
+            rebound   = current - prior_low
+            if (prior_low <= lower_band                                         # overshoot confirmed in prior ticks
+                    and current <= lower_band                                    # still in entry zone
+                    and rebound > 0                                             # price turned up from prior low
+                    and rebound <= rebound_cap * std                            # not over-recovered
+                    and (lower_band - prior_low) / std >= min_entry_depth):     # deep enough
+                er = _efficiency_ratio(prices, window)
+                if er <= max_er:
+                    return "BUY"
+        else:
+            if current <= lower_band:
+                depth_val = (lower_band - current) / std
+                if depth_val >= min_entry_depth:
+                    # Market condition filter: skip if price action is too directional
+                    er = _efficiency_ratio(prices, window)
+                    if er <= max_er:
+                        return "BUY"
     if current >= exit_target:
         return "SELL"
     return "HOLD"
@@ -234,6 +261,8 @@ def _route_signal(
     mnv: float = 0.0,
     med: float = 0.0,
     mxer: float = 1.0,
+    confirm_ticks: int = 0,
+    rebound_cap: float = 0.5,
 ) -> tuple[str, str]:
     """
     Regime-routed signal. Returns (signal, active_strategy_name).
@@ -242,7 +271,7 @@ def _route_signal(
     er = _efficiency_ratio(prices, rw)
     if er >= rt:
         return _signal(prices, sw, lw, mg), MODE_MA
-    return _mr_signal(prices, mrw, mrt, mref, mnv, med, mxer), MODE_MR
+    return _mr_signal(prices, mrw, mrt, mref, mnv, med, mxer, confirm_ticks, rebound_cap), MODE_MR
 
 
 # ── Core simulation ─────────────────────────────────────────────────────────────
@@ -287,6 +316,9 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
     stop_atr_m = float(params.get("STOP_ATR_MULT", 0.0))
     risk_pct   = float(params.get("RISK_PER_TRADE_PCT", 0.0))
     max_trades = int(params.get("MAX_TRADES_PER_SESSION", 0))
+    # Entry quality params (experiment-path only — not wired to live mean_reversion.py)
+    confirm_ticks = int(params.get("MR_CONFIRM_TICKS", 0))
+    rebound_cap   = float(params.get("MR_REBOUND_CAP", 0.5))
 
     prices:           list[float] = []
     last_trade_tick:  int         = -9999
@@ -299,6 +331,8 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
     total_buys_count: int         = 0    # running BUY count for cap enforcement
     skips_cap:        int         = 0    # BUYs blocked by MAX_TRADES_PER_SESSION
     skips_cooldown:   int         = 0    # ticks skipped due to TRADE_COOLDOWN
+    entry_tick:       int         = 0    # tick at which current position was opened
+    holding_durations: list[int]  = []   # ticks held per completed round-trip
 
     for tick in range(1, n_ticks + 1):
         price = round(port.last_price + rng.uniform(-PRICE_STEP, PRICE_STEP), 2)
@@ -313,12 +347,14 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
             entry = port.avg_cost
             if active_stop_pct > 0 and price < entry * (1 - active_stop_pct):
                 port.sell(price, trigger="stop_loss")
+                holding_durations.append(tick - entry_tick)
                 recent_pnls = (recent_pnls + [port.trades[-1]["pnl"]])[-pfl:]
                 active_stop_pct = sl          # reset to config default
                 last_trade_tick = tick
                 continue
             if tp > 0 and price >= entry * (1 + tp):
                 port.sell(price, trigger="take_profit")
+                holding_durations.append(tick - entry_tick)
                 recent_pnls = (recent_pnls + [port.trades[-1]["pnl"]])[-pfl:]
                 active_stop_pct = sl          # reset
                 last_trade_tick = tick
@@ -331,7 +367,7 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
         # Select signal based on mode; track whether MR sizing applies
         use_mr_sizing = False
         if mode == MODE_REGIME:
-            sig, active = _route_signal(prices, sw, lw, mg, rw, rt, mrw, mrt, mref, mnv, med, mxer)
+            sig, active = _route_signal(prices, sw, lw, mg, rw, rt, mrw, mrt, mref, mnv, med, mxer, confirm_ticks, rebound_cap)
             cur_regime  = "trending" if active == MODE_MA else "ranging"
             if cur_regime == "trending":
                 ticks_trending += 1
@@ -342,7 +378,7 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
             last_regime    = cur_regime
             use_mr_sizing  = (active == MODE_MR)
         elif mode == MODE_MR:
-            sig           = _mr_signal(prices, mrw, mrt, mref, mnv, med, mxer)
+            sig           = _mr_signal(prices, mrw, mrt, mref, mnv, med, mxer, confirm_ticks, rebound_cap)
             use_mr_sizing = True
         else:
             sig = _signal(prices, sw, lw, mg)
@@ -382,18 +418,22 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
             if allow_buy:
                 port.buy(price, buy_size)
                 if port.trades and port.trades[-1]["side"] == "BUY":
+                    entry_tick       = tick
                     total_buys_count += 1
                     last_trade_tick  = tick
                     active_stop_pct  = entry_stop
         elif sig == "SELL" and port.has_position:
             port.sell(price, trigger="signal")
+            holding_durations.append(tick - entry_tick)
             recent_pnls = (recent_pnls + [port.trades[-1]["pnl"]])[-pfl:]
             active_stop_pct = sl              # reset
             last_trade_tick = tick
 
-    sells = [t for t in port.trades if t["side"] == "SELL"]
-    pnls  = [t["pnl"] for t in sells]
-    wins  = [p for p in pnls if p > 0]
+    sells  = [t for t in port.trades if t["side"] == "SELL"]
+    pnls   = [t["pnl"] for t in sells]
+    wins   = [p for p in pnls if p > 0]
+    losses = [p for p in pnls if p < 0]
+    n_sl   = sum(1 for t in sells if t.get("trigger") == "stop_loss")
 
     result = {
         "mode":              mode,
@@ -402,7 +442,7 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
         "total_trades":      len(port.trades),
         "total_buys":        sum(1 for t in port.trades if t["side"] == "BUY"),
         "total_sells":       len(sells),
-        "stop_loss_hits":    sum(1 for t in sells if t.get("trigger") == "stop_loss"),
+        "stop_loss_hits":    n_sl,
         "take_profit_hits":  sum(1 for t in sells if t.get("trigger") == "take_profit"),
         "win_rate":          round(len(wins) / len(sells), 4) if sells else 0.0,
         "realized_pnl":      round(port.realized_pnl, 2),
@@ -413,6 +453,14 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
         "worst_trade":       round(min(pnls), 2) if pnls else 0.0,
         "skips_cooldown":    skips_cooldown,
         "skips_cap":         skips_cap,
+        # Trade quality fields consumed by app.trade_review
+        "stop_loss_rate":    round(n_sl / max(len(sells), 1), 4),
+        "churn_score":       round(len(port.trades) / n_ticks, 4),
+        "avg_win_pnl":       round(sum(wins)   / len(wins),   2) if wins   else 0.0,
+        "avg_loss_pnl":      round(sum(losses) / len(losses), 2) if losses else 0.0,
+        "n_wins":            len(wins),
+        "n_losses":          len(losses),
+        "avg_holding_ticks": round(sum(holding_durations) / len(holding_durations), 1) if holding_durations else 0.0,
         "params":            params,
     }
     if mode == MODE_REGIME:

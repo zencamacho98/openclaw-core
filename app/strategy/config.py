@@ -46,6 +46,9 @@ DEFAULTS: dict[str, Any] = {
     "STOP_ATR_MULT":          0.0,   # stop_pct = ATR*mult/entry_price (0 = use STOP_LOSS_PCT)
     "RISK_PER_TRADE_PCT":     0.0,   # equity fraction to risk per trade (0 = use POSITION_SIZE)
     "MAX_TRADES_PER_SESSION": 0,     # hard BUY cap per session/run (0 = unlimited)
+    # High-quality MR entry confirmation (experiment-path only — not wired to live mean_reversion.py)
+    "MR_CONFIRM_TICKS": 0,    # ticks to look back for a confirmed overshoot low; 0 = off (original)
+    "MR_REBOUND_CAP":   0.5,  # max rebound from that low in std-dev units; beyond = entry blocked
 }
 
 _cache: dict | None = None
