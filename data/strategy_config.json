@@ -1,0 +1,9 @@
+{
+  "SHORT_WINDOW": 5,
+  "LONG_WINDOW": 12,
+  "STOP_LOSS_PCT": 0.015,
+  "TAKE_PROFIT_PCT": 0.04,
+  "POSITION_SIZE": 0.08,
+  "TRADE_COOLDOWN": 3
+}
+"MODE": "mean_reversion"
