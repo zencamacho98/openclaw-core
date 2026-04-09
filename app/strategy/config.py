@@ -28,6 +28,11 @@ DEFAULTS: dict[str, Any] = {
     "MAX_POSITION_SIZE":        0.5,   # hard cap on MR position fraction (caps dynamic sizing)
     "MIN_ENTRY_DEPTH":          0.0,   # min depth below lower band to allow entry (0 = disabled)
     "MAX_EFFICIENCY_RATIO":     1.0,   # block MR entry when ER exceeds this (1.0 = disabled)
+    # Regime confidence filter (candidate-only experiment params)
+    "REGIME_CONF_LOOKBACK":          50,   # bars of history to assess MR suitability
+    "REGIME_CONF_GOOD_THRESHOLD":    0.7,  # confidence >= this → trade normally
+    "REGIME_CONF_OK_THRESHOLD":      0.5,  # confidence >= this → trade at reduced size
+    "REGIME_CONF_REDUCED_SIZE_MULT": 0.5,  # multiply position size when confidence is marginal
     # Risk management
     "STOP_LOSS_PCT":            0.02,  # exit if price drops this far below entry
     "TAKE_PROFIT_PCT":          0.04,  # exit if price rises this far above entry (0 = disabled)
@@ -36,6 +41,11 @@ DEFAULTS: dict[str, Any] = {
     "MIN_STOP_LOSS_PCT":        0.01,  # floor so dynamic stops never become unrealistically tight
     "POSITION_SIZE":      0.1,   # fraction of available cash to deploy per BUY
     "TRADE_COOLDOWN":     0,     # minimum ticks between trades (0 = no cooldown)
+    # Stability patch: volatility-aware sizing and stops
+    "ATR_WINDOW":             14,    # lookback for ATR (simple |Δprice| proxy)
+    "STOP_ATR_MULT":          0.0,   # stop_pct = ATR*mult/entry_price (0 = use STOP_LOSS_PCT)
+    "RISK_PER_TRADE_PCT":     0.0,   # equity fraction to risk per trade (0 = use POSITION_SIZE)
+    "MAX_TRADES_PER_SESSION": 0,     # hard BUY cap per session/run (0 = unlimited)
 }
 
 _cache: dict | None = None

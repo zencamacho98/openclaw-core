@@ -30,33 +30,10 @@ from typing import Any
 RESULTS_DIR    = pathlib.Path("data/experiments")
 CANDIDATE_CFG  = pathlib.Path("data/candidate_config.json")
 
-# Fallback defaults — used when live config is unavailable (e.g. offline test)
-_FALLBACK_PARAMS: dict[str, Any] = {
-    "SHORT_WINDOW":       3,
-    "LONG_WINDOW":        7,
-    "MIN_SIGNAL_GAP":     0.0,
-    "REGIME_WINDOW":          20,
-    "REGIME_THRESHOLD":       0.3,
-    "MEAN_REV_WINDOW":        20,
-    "MEAN_REV_THRESHOLD":     1.0,
-    "MEAN_REV_EXIT_FRACTION":   1.0,
-    "MIN_VOLATILITY":           0.0,
-    "MEAN_REV_SIZE_MULTIPLIER": 0.0,
-    "MAX_POSITION_SIZE":        0.5,
-    "MIN_ENTRY_DEPTH":          0.0,
-    "MAX_EFFICIENCY_RATIO":     1.0,
-    "MEAN_REV_STOP_VOL_MULT":  0.0,
-    "MIN_STOP_LOSS_PCT":       0.01,
-    # Regime confidence filter (candidate-only)
-    "REGIME_CONF_LOOKBACK":          50,
-    "REGIME_CONF_GOOD_THRESHOLD":    0.7,
-    "REGIME_CONF_OK_THRESHOLD":      0.5,
-    "REGIME_CONF_REDUCED_SIZE_MULT": 0.5,
-    "STOP_LOSS_PCT":      0.02,
-    "TAKE_PROFIT_PCT":    0.04,
-    "POSITION_SIZE":      0.1,
-    "TRADE_COOLDOWN":     0,
-}
+# Parameter defaults and the authoritative list of valid param names come from
+# app.strategy.config.DEFAULTS — there is no separate fallback list here.
+# Adding a new param to config.DEFAULTS automatically makes it available in
+# _live_params(), _candidate_params(), _merge_params(), and the allowlist filter.
 
 # Valid mode values for run() / compare()
 MODE_MA     = "ma_crossover"    # MA crossover only (default, original behaviour)
@@ -241,19 +218,11 @@ def _efficiency_ratio(prices: list[float], window: int) -> float:
     return net_move / total_path if total_path > 0 else 0.0
 
 
-def _regime_confidence(prices: list[float], lookback: int, window: int, max_er: float) -> float:
-    """
-    Fraction of the last `lookback` bars where ER <= max_er (i.e., market was mean-reverting).
-    Returns 1.0 (full confidence) when there is insufficient history.
-    """
-    if len(prices) < lookback + window:
-        return 1.0
-    good = 0
-    for i in range(lookback):
-        end = len(prices) - lookback + i + 1
-        if _efficiency_ratio(prices[:end], window) <= max_er:
-            good += 1
-    return good / lookback
+def _atr(prices: list[float], window: int) -> float:
+    """ATR proxy: SMA of |price[t] - price[t-1]| over last `window` bars. Returns 0 if too short."""
+    if len(prices) < window + 1:
+        return 0.0
+    return sum(abs(prices[i] - prices[i - 1]) for i in range(-window, 0)) / window
 
 
 def _route_signal(
@@ -284,7 +253,7 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
     Execute n_ticks and return a compact result dict. Fully deterministic given seed.
 
     mode:          MODE_MA (default), MODE_MR, or MODE_REGIME
-    use_candidate: activate candidate-only logic (regime confidence filter)
+    use_candidate: activate candidate-only logic (performance-based adaptation)
     """
     rng  = random.Random(seed)
     port = _Portfolio()
@@ -308,11 +277,16 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
     tp   = float(params["TAKE_PROFIT_PCT"])
     ps   = float(params["POSITION_SIZE"])
     cd   = int(params["TRADE_COOLDOWN"])
-    # Candidate-only: regime confidence filter params
-    rcl  = int(params.get("REGIME_CONF_LOOKBACK", 50))
-    rcgt = float(params.get("REGIME_CONF_GOOD_THRESHOLD", 0.7))
-    rcot = float(params.get("REGIME_CONF_OK_THRESHOLD", 0.5))
-    rcsm = float(params.get("REGIME_CONF_REDUCED_SIZE_MULT", 0.5))
+    # Candidate-only: performance-based adaptation params
+    pfl  = int(params.get("PERFORMANCE_LOOKBACK", 20))
+    pfgt = float(params.get("PERFORMANCE_GOOD_THRESHOLD", 0.6))
+    pfbt = float(params.get("PERFORMANCE_BAD_THRESHOLD", 0.4))
+    pfsm = float(params.get("PERFORMANCE_REDUCED_SIZE_MULT", 0.5))
+    # Stability patch params
+    atr_w      = int(params.get("ATR_WINDOW", 14))
+    stop_atr_m = float(params.get("STOP_ATR_MULT", 0.0))
+    risk_pct   = float(params.get("RISK_PER_TRADE_PCT", 0.0))
+    max_trades = int(params.get("MAX_TRADES_PER_SESSION", 0))
 
     prices:           list[float] = []
     last_trade_tick:  int         = -9999
@@ -321,6 +295,10 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
     regime_switches:  int         = 0
     last_regime:      str         = ""
     active_stop_pct:  float       = sl   # per-position stop; updated on BUY, reset on SELL
+    recent_pnls:      list[float] = []   # rolling window of completed sell PnLs
+    total_buys_count: int         = 0    # running BUY count for cap enforcement
+    skips_cap:        int         = 0    # BUYs blocked by MAX_TRADES_PER_SESSION
+    skips_cooldown:   int         = 0    # ticks skipped due to TRADE_COOLDOWN
 
     for tick in range(1, n_ticks + 1):
         price = round(port.last_price + rng.uniform(-PRICE_STEP, PRICE_STEP), 2)
@@ -335,16 +313,19 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
             entry = port.avg_cost
             if active_stop_pct > 0 and price < entry * (1 - active_stop_pct):
                 port.sell(price, trigger="stop_loss")
+                recent_pnls = (recent_pnls + [port.trades[-1]["pnl"]])[-pfl:]
                 active_stop_pct = sl          # reset to config default
                 last_trade_tick = tick
                 continue
             if tp > 0 and price >= entry * (1 + tp):
                 port.sell(price, trigger="take_profit")
+                recent_pnls = (recent_pnls + [port.trades[-1]["pnl"]])[-pfl:]
                 active_stop_pct = sl          # reset
                 last_trade_tick = tick
                 continue
 
         if in_cooldown:
+            skips_cooldown += 1
             continue
 
         # Select signal based on mode; track whether MR sizing applies
@@ -367,30 +348,46 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
             sig = _signal(prices, sw, lw, mg)
 
         if sig == "BUY" and not port.has_position:
-            buy_size = (
-                _mr_position_size(prices, mrw, mrt, msm, ps, mps)
-                if use_mr_sizing and msm > 0.0
-                else ps
-            )
+            # Hard cap on total buys per session
+            if max_trades > 0 and total_buys_count >= max_trades:
+                skips_cap += 1
+                continue
+
+            # Determine stop pct for this entry: ATR-based > vol-mult > fixed
+            if stop_atr_m > 0.0:
+                atr = _atr(prices, atr_w)
+                entry_stop = max(min_sl, atr * stop_atr_m / price) if atr > 0.0 else sl
+            elif use_mr_sizing and mrsv > 0.0:
+                entry_stop = _mr_dynamic_stop(prices, mrw, price, mrsv, min_sl, sl)
+            else:
+                entry_stop = sl
+
+            # Determine position size: risk-based > MR dynamic > fixed
+            if risk_pct > 0.0 and entry_stop > 0.0:
+                # size = risk_pct / stop_pct (fraction of cash, since equity ≈ cash at entry)
+                buy_size = min(risk_pct / entry_stop, mps)
+            elif use_mr_sizing and msm > 0.0:
+                buy_size = _mr_position_size(prices, mrw, mrt, msm, ps, mps)
+            else:
+                buy_size = ps
+
             allow_buy = True
-            if use_candidate and use_mr_sizing:
-                conf = _regime_confidence(prices, rcl, mrw, mxer)
-                if conf < rcot:
-                    allow_buy = False       # block: market conditions too poor
-                elif conf < rcgt:
-                    buy_size *= rcsm        # reduce: conditions marginal
+            if use_candidate and use_mr_sizing and len(recent_pnls) >= pfl:
+                win_rate = sum(1 for p in recent_pnls if p > 0) / pfl
+                if win_rate < pfbt:
+                    allow_buy = False   # block: recent performance too poor
+                elif win_rate < pfgt:
+                    buy_size *= pfsm    # reduce: recent performance marginal
+
             if allow_buy:
                 port.buy(price, buy_size)
                 if port.trades and port.trades[-1]["side"] == "BUY":
-                    last_trade_tick = tick
-                    # Dynamic stop for MR entries; fixed stop otherwise
-                    active_stop_pct = (
-                        _mr_dynamic_stop(prices, mrw, price, mrsv, min_sl, sl)
-                        if use_mr_sizing and mrsv > 0.0
-                        else sl
-                    )
+                    total_buys_count += 1
+                    last_trade_tick  = tick
+                    active_stop_pct  = entry_stop
         elif sig == "SELL" and port.has_position:
             port.sell(price, trigger="signal")
+            recent_pnls = (recent_pnls + [port.trades[-1]["pnl"]])[-pfl:]
             active_stop_pct = sl              # reset
             last_trade_tick = tick
 
@@ -414,6 +411,8 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
         "avg_pnl_per_sell":  round(sum(pnls) / len(sells), 2) if sells else 0.0,
         "best_trade":        round(max(pnls), 2) if pnls else 0.0,
         "worst_trade":       round(min(pnls), 2) if pnls else 0.0,
+        "skips_cooldown":    skips_cooldown,
+        "skips_cap":         skips_cap,
         "params":            params,
     }
     if mode == MODE_REGIME:
@@ -424,31 +423,43 @@ def _run_ticks(n_ticks: int, params: dict[str, Any], seed: int,
 
 
 # ── Param helpers ───────────────────────────────────────────────────────────────
+#
+# config.DEFAULTS is the single source of truth for valid parameter names.
+# Both the fallback values and the allowlist filter derive from it, so a new
+# parameter registered there is automatically accepted everywhere below.
 
 def _live_params() -> dict[str, Any]:
-    """Load live config; fall back to hardcoded defaults if unavailable."""
+    """Load live config. Falls back to config.DEFAULTS if disk load fails."""
+    from app.strategy.config import get_config, DEFAULTS
     try:
-        from app.strategy.config import get_config
         return dict(get_config())
     except Exception:
-        return dict(_FALLBACK_PARAMS)
+        return dict(DEFAULTS)
 
 
 def _candidate_params() -> dict[str, Any]:
-    """Load candidate params from data/candidate_config.json, merged onto live params."""
+    """
+    Load candidate params from data/candidate_config.json, merged onto live params.
+    Only keys present in config.DEFAULTS are accepted; unknown keys are dropped.
+    """
+    from app.strategy.config import DEFAULTS
     base = _live_params()
     try:
         overrides = json.loads(CANDIDATE_CFG.read_text())
-        valid = {k: v for k, v in overrides.items() if k in base}
+        valid = {k: v for k, v in overrides.items() if k in DEFAULTS}
         return {**base, **valid}
     except Exception:
         return base
 
 
 def _merge_params(overrides: dict, use_candidate: bool = False) -> dict[str, Any]:
-    """Merge caller-supplied overrides onto live (or candidate) params. Unknown keys are ignored."""
+    """
+    Merge caller-supplied overrides onto live (or candidate) params.
+    Only keys present in config.DEFAULTS are accepted; unknown keys are dropped.
+    """
+    from app.strategy.config import DEFAULTS
     base = _candidate_params() if use_candidate else _live_params()
-    valid = {k: v for k, v in overrides.items() if k in base}
+    valid = {k: v for k, v in overrides.items() if k in DEFAULTS}
     return {**base, **valid}
 
 

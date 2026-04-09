@@ -33,6 +33,13 @@ def _compute_er(history: list[float], window: int) -> float:
     return net_move / total_path if total_path > 0 else 0.0
 
 
+def _atr(history: list[float], window: int) -> float:
+    """ATR proxy: SMA of |price[t] - price[t-1]| over last `window` bars. Returns 0 if too short."""
+    if len(history) < window + 1:
+        return 0.0
+    return sum(abs(history[i] - history[i - 1]) for i in range(-window, 0)) / window
+
+
 def record_price(symbol: str, price: float) -> None:
     """Append a price observation, trim to MEAN_REV_WINDOW * 2."""
     cfg = get_config()
@@ -79,6 +86,12 @@ def get_signal(symbol: str) -> str:
             er = _compute_er(history, window)
             if er <= max_er:
                 return "BUY"
+            # Regime gate fired: price is stretched but market is trending — log it
+            try:
+                from app.logger import log
+                log(f"[MR] Regime gate blocked entry: ER={er:.3f} > max_er={max_er:.3f}")
+            except Exception:
+                pass
     if current >= exit_target:
         return "SELL"
     return "HOLD"
@@ -88,51 +101,70 @@ def compute_dynamic_stop(symbol: str, entry_price: float) -> float:
     """
     Compute the stop loss pct for a mean reversion entry.
 
-    Formula: max(MIN_STOP_LOSS_PCT, (std / entry_price) * MEAN_REV_STOP_VOL_MULT)
-    Returns STOP_LOSS_PCT unchanged when MEAN_REV_STOP_VOL_MULT == 0 (disabled).
+    Priority:
+      1. STOP_ATR_MULT > 0 → stop_pct = ATR * mult / entry_price
+      2. MEAN_REV_STOP_VOL_MULT > 0 → stop_pct = (std / entry_price) * vol_mult
+      3. fallback → STOP_LOSS_PCT
 
-    Tighter in calm markets (low std), wider in volatile markets (high std).
+    All results are floored at MIN_STOP_LOSS_PCT.
     """
     cfg      = get_config()
-    vol_mult = float(cfg.get("MEAN_REV_STOP_VOL_MULT", 0.0))
     fallback = float(cfg.get("STOP_LOSS_PCT", 0.02))
-
-    if vol_mult == 0.0 or entry_price <= 0:
-        return fallback
-
     min_stop = float(cfg.get("MIN_STOP_LOSS_PCT", 0.01))
-    window   = int(cfg.get("MEAN_REV_WINDOW", 20))
     history  = _price_history.get(symbol, [])
 
-    if len(history) < window:
+    if entry_price <= 0:
         return fallback
 
-    recent = history[-window:]
-    mean   = sum(recent) / window
-    std    = math.sqrt(sum((p - mean) ** 2 for p in recent) / window)
+    # ATR-based stop takes precedence
+    atr_mult = float(cfg.get("STOP_ATR_MULT", 0.0))
+    if atr_mult > 0.0:
+        atr_w = int(cfg.get("ATR_WINDOW", 14))
+        atr   = _atr(history, atr_w)
+        if atr > 0.0:
+            return max(min_stop, atr * atr_mult / entry_price)
 
-    if std == 0.0:
-        return fallback
+    # Vol-mult (std-based) stop
+    vol_mult = float(cfg.get("MEAN_REV_STOP_VOL_MULT", 0.0))
+    if vol_mult > 0.0:
+        window = int(cfg.get("MEAN_REV_WINDOW", 20))
+        if len(history) >= window:
+            recent = history[-window:]
+            mean   = sum(recent) / window
+            std    = math.sqrt(sum((p - mean) ** 2 for p in recent) / window)
+            if std > 0.0:
+                return max(min_stop, (std / entry_price) * vol_mult)
 
-    return max(min_stop, (std / entry_price) * vol_mult)
+    return fallback
 
 
 def compute_position_size(symbol: str, price: float, cash: float) -> float:
     """
     Return the number of shares to buy for a mean reversion entry.
 
-    When MEAN_REV_SIZE_MULTIPLIER == 0: POSITION_SIZE * cash / price (fixed baseline).
-    When multiplier > 0: size scales with signal depth, capped at MAX_POSITION_SIZE:
-      scaled_fraction = min(POSITION_SIZE * (1 + multiplier * depth), MAX_POSITION_SIZE)
-    where depth = (lower_band - price) / std  (clamped to ≥ 0).
+    Priority:
+      1. RISK_PER_TRADE_PCT > 0 → shares = cash * risk_pct / stop_distance
+      2. MEAN_REV_SIZE_MULTIPLIER > 0 → size scales with signal depth
+      3. fallback → POSITION_SIZE fraction of cash
+
+    All results are capped at MAX_POSITION_SIZE fraction of cash.
     """
     if price <= 0 or cash <= 0:
         return 0.0
 
-    cfg        = get_config()
+    cfg      = get_config()
+    max_frac = float(cfg.get("MAX_POSITION_SIZE", 0.5))
+
+    # Risk-per-trade sizing: overrides both fixed and dynamic sizing
+    risk_pct = float(cfg.get("RISK_PER_TRADE_PCT", 0.0))
+    if risk_pct > 0.0:
+        stop_pct = compute_dynamic_stop(symbol, price)
+        if stop_pct > 0.0:
+            buy_frac = min(risk_pct / stop_pct, max_frac)
+            return round(cash * buy_frac / price, 4)
+
     base_frac  = float(cfg.get("POSITION_SIZE", 0.1))
     multiplier = float(cfg.get("MEAN_REV_SIZE_MULTIPLIER", 0.0))
-    max_frac   = float(cfg.get("MAX_POSITION_SIZE", 0.5))
 
     if multiplier == 0.0:
         return round(cash * base_frac / price, 4)

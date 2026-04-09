@@ -1,0 +1,188 @@
+{
+  "timestamp": "2026-04-09T11:42:46.151555+00:00",
+  "experiment_name": "sweep_017",
+  "mode": "mean_reversion",
+  "seeds": [
+    42,
+    7,
+    99,
+    123,
+    256,
+    512,
+    777
+  ],
+  "tick_sizes": [
+    2000,
+    5000
+  ],
+  "trade_floor_ratio": 0.7,
+  "decision": "REJECTED",
+  "rejection_reasons": [
+    "median_pnl $155.92 < baseline $1,275.72",
+    "worst_pnl $-2,867.14 < baseline $23.25",
+    "avg_trades 71.0 is 22% of baseline (317.4) \u2014 minimum 70%"
+  ],
+  "baseline": {
+    "avg_pnl": 1399.75,
+    "median_pnl": 1275.72,
+    "worst_pnl": 23.25,
+    "avg_trades": 317.4,
+    "n": 14
+  },
+  "candidate": {
+    "avg_pnl": 454.96,
+    "median_pnl": 155.92,
+    "worst_pnl": -2867.14,
+    "avg_trades": 71.0,
+    "n": 14
+  },
+  "candidate_config": {
+    "TRADE_COOLDOWN": 40,
+    "MEAN_REV_THRESHOLD": 1.2,
+    "STOP_ATR_MULT": 1.5,
+    "RISK_PER_TRADE_PCT": 0.0025,
+    "MAX_EFFICIENCY_RATIO": 1.0
+  },
+  "runs": [
+    {
+      "seed": 42,
+      "ticks": 2000,
+      "base_pnl": 1433.86,
+      "cand_pnl": 1455.58,
+      "pnl_delta": 21.72,
+      "base_trades": 193,
+      "cand_trades": 40,
+      "trade_delta": -153
+    },
+    {
+      "seed": 7,
+      "ticks": 2000,
+      "base_pnl": 1069.55,
+      "cand_pnl": -1844.54,
+      "pnl_delta": -2914.09,
+      "base_trades": 172,
+      "cand_trades": 41,
+      "trade_delta": -131
+    },
+    {
+      "seed": 99,
+      "ticks": 2000,
+      "base_pnl": 1192.81,
+      "cand_pnl": -1333.37,
+      "pnl_delta": -2526.18,
+      "base_trades": 176,
+      "cand_trades": 41,
+      "trade_delta": -135
+    },
+    {
+      "seed": 123,
+      "ticks": 2000,
+      "base_pnl": 709.07,
+      "cand_pnl": -295.76,
+      "pnl_delta": -1004.83,
+      "base_trades": 192,
+      "cand_trades": 38,
+      "trade_delta": -154
+    },
+    {
+      "seed": 256,
+      "ticks": 2000,
+      "base_pnl": 203.49,
+      "cand_pnl": -400.5,
+      "pnl_delta": -603.99,
+      "base_trades": 156,
+      "cand_trades": 43,
+      "trade_delta": -113
+    },
+    {
+      "seed": 512,
+      "ticks": 2000,
+      "base_pnl": 23.25,
+      "cand_pnl": -680.96,
+      "pnl_delta": -704.21,
+      "base_trades": 177,
+      "cand_trades": 41,
+      "trade_delta": -136
+    },
+    {
+      "seed": 777,
+      "ticks": 2000,
+      "base_pnl": 1836.01,
+      "cand_pnl": 2450.05,
+      "pnl_delta": 614.04,
+      "base_trades": 187,
+      "cand_trades": 42,
+      "trade_delta": -145
+    },
+    {
+      "seed": 42,
+      "ticks": 5000,
+      "base_pnl": 359.87,
+      "cand_pnl": 2020.2,
+      "pnl_delta": 1660.33,
+      "base_trades": 476,
+      "cand_trades": 102,
+      "trade_delta": -374
+    },
+    {
+      "seed": 7,
+      "ticks": 5000,
+      "base_pnl": 2200.36,
+      "cand_pnl": -2867.14,
+      "pnl_delta": -5067.5,
+      "base_trades": 441,
+      "cand_trades": 98,
+      "trade_delta": -343
+    },
+    {
+      "seed": 99,
+      "ticks": 5000,
+      "base_pnl": 1839.31,
+      "cand_pnl": 1232.31,
+      "pnl_delta": -607.0,
+      "base_trades": 442,
+      "cand_trades": 102,
+      "trade_delta": -340
+    },
+    {
+      "seed": 123,
+      "ticks": 5000,
+      "base_pnl": 4646.77,
+      "cand_pnl": 1540.67,
+      "pnl_delta": -3106.1,
+      "base_trades": 498,
+      "cand_trades": 96,
+      "trade_delta": -402
+    },
+    {
+      "seed": 256,
+      "ticks": 5000,
+      "base_pnl": 1209.27,
+      "cand_pnl": 529.34,
+      "pnl_delta": -679.93,
+      "base_trades": 450,
+      "cand_trades": 106,
+      "trade_delta": -344
+    },
+    {
+      "seed": 512,
+      "ticks": 5000,
+      "base_pnl": 1342.18,
+      "cand_pnl": -217.51,
+      "pnl_delta": -1559.69,
+      "base_trades": 448,
+      "cand_trades": 101,
+      "trade_delta": -347
+    },
+    {
+      "seed": 777,
+      "ticks": 5000,
+      "base_pnl": 1530.76,
+      "cand_pnl": 4781.06,
+      "pnl_delta": 3250.3,
+      "base_trades": 435,
+      "cand_trades": 103,
+      "trade_delta": -332
+    }
+  ]
+}

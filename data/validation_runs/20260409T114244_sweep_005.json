@@ -1,0 +1,187 @@
+{
+  "timestamp": "2026-04-09T11:42:44.266168+00:00",
+  "experiment_name": "sweep_005",
+  "mode": "mean_reversion",
+  "seeds": [
+    42,
+    7,
+    99,
+    123,
+    256,
+    512,
+    777
+  ],
+  "tick_sizes": [
+    2000,
+    5000
+  ],
+  "trade_floor_ratio": 0.7,
+  "decision": "REJECTED",
+  "rejection_reasons": [
+    "median_pnl $1,083.00 < baseline $1,275.72",
+    "worst_pnl $-256.18 < baseline $23.25"
+  ],
+  "baseline": {
+    "avg_pnl": 1399.75,
+    "median_pnl": 1275.72,
+    "worst_pnl": 23.25,
+    "avg_trades": 317.4,
+    "n": 14
+  },
+  "candidate": {
+    "avg_pnl": 1074.19,
+    "median_pnl": 1083.0,
+    "worst_pnl": -256.18,
+    "avg_trades": 232.7,
+    "n": 14
+  },
+  "candidate_config": {
+    "TRADE_COOLDOWN": 5,
+    "MEAN_REV_THRESHOLD": 1.2,
+    "STOP_ATR_MULT": 1.0,
+    "RISK_PER_TRADE_PCT": 0.001,
+    "MAX_EFFICIENCY_RATIO": 1.0
+  },
+  "runs": [
+    {
+      "seed": 42,
+      "ticks": 2000,
+      "base_pnl": 1433.86,
+      "cand_pnl": 1265.26,
+      "pnl_delta": -168.6,
+      "base_trades": 193,
+      "cand_trades": 138,
+      "trade_delta": -55
+    },
+    {
+      "seed": 7,
+      "ticks": 2000,
+      "base_pnl": 1069.55,
+      "cand_pnl": 1319.74,
+      "pnl_delta": 250.19,
+      "base_trades": 172,
+      "cand_trades": 136,
+      "trade_delta": -36
+    },
+    {
+      "seed": 99,
+      "ticks": 2000,
+      "base_pnl": 1192.81,
+      "cand_pnl": 900.74,
+      "pnl_delta": -292.07,
+      "base_trades": 176,
+      "cand_trades": 133,
+      "trade_delta": -43
+    },
+    {
+      "seed": 123,
+      "ticks": 2000,
+      "base_pnl": 709.07,
+      "cand_pnl": -195.11,
+      "pnl_delta": -904.18,
+      "base_trades": 192,
+      "cand_trades": 126,
+      "trade_delta": -66
+    },
+    {
+      "seed": 256,
+      "ticks": 2000,
+      "base_pnl": 203.49,
+      "cand_pnl": 706.37,
+      "pnl_delta": 502.88,
+      "base_trades": 156,
+      "cand_trades": 128,
+      "trade_delta": -28
+    },
+    {
+      "seed": 512,
+      "ticks": 2000,
+      "base_pnl": 23.25,
+      "cand_pnl": -256.18,
+      "pnl_delta": -279.43,
+      "base_trades": 177,
+      "cand_trades": 133,
+      "trade_delta": -44
+    },
+    {
+      "seed": 777,
+      "ticks": 2000,
+      "base_pnl": 1836.01,
+      "cand_pnl": 1663.57,
+      "pnl_delta": -172.44,
+      "base_trades": 187,
+      "cand_trades": 134,
+      "trade_delta": -53
+    },
+    {
+      "seed": 42,
+      "ticks": 5000,
+      "base_pnl": 359.87,
+      "cand_pnl": 738.19,
+      "pnl_delta": 378.32,
+      "base_trades": 476,
+      "cand_trades": 340,
+      "trade_delta": -136
+    },
+    {
+      "seed": 7,
+      "ticks": 5000,
+      "base_pnl": 2200.36,
+      "cand_pnl": 1753.89,
+      "pnl_delta": -446.47,
+      "base_trades": 441,
+      "cand_trades": 332,
+      "trade_delta": -109
+    },
+    {
+      "seed": 99,
+      "ticks": 5000,
+      "base_pnl": 1839.31,
+      "cand_pnl": 1747.49,
+      "pnl_delta": -91.82,
+      "base_trades": 442,
+      "cand_trades": 329,
+      "trade_delta": -113
+    },
+    {
+      "seed": 123,
+      "ticks": 5000,
+      "base_pnl": 4646.77,
+      "cand_pnl": 2304.11,
+      "pnl_delta": -2342.66,
+      "base_trades": 498,
+      "cand_trades": 338,
+      "trade_delta": -160
+    },
+    {
+      "seed": 256,
+      "ticks": 5000,
+      "base_pnl": 1209.27,
+      "cand_pnl": 229.95,
+      "pnl_delta": -979.32,
+      "base_trades": 450,
+      "cand_trades": 326,
+      "trade_delta": -124
+    },
+    {
+      "seed": 512,
+      "ticks": 5000,
+      "base_pnl": 1342.18,
+      "cand_pnl": 814.09,
+      "pnl_delta": -528.09,
+      "base_trades": 448,
+      "cand_trades": 330,
+      "trade_delta": -118
+    },
+    {
+      "seed": 777,
+      "ticks": 5000,
+      "base_pnl": 1530.76,
+      "cand_pnl": 2046.54,
+      "pnl_delta": 515.78,
+      "base_trades": 435,
+      "cand_trades": 335,
+      "trade_delta": -100
+    }
+  ]
+}

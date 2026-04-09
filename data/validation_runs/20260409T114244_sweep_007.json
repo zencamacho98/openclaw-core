@@ -1,0 +1,188 @@
+{
+  "timestamp": "2026-04-09T11:42:44.527421+00:00",
+  "experiment_name": "sweep_007",
+  "mode": "mean_reversion",
+  "seeds": [
+    42,
+    7,
+    99,
+    123,
+    256,
+    512,
+    777
+  ],
+  "tick_sizes": [
+    2000,
+    5000
+  ],
+  "trade_floor_ratio": 0.7,
+  "decision": "REJECTED",
+  "rejection_reasons": [
+    "median_pnl $245.43 < baseline $1,275.72",
+    "worst_pnl $-4,138.66 < baseline $23.25",
+    "avg_trades 73.0 is 23% of baseline (317.4) \u2014 minimum 70%"
+  ],
+  "baseline": {
+    "avg_pnl": 1399.75,
+    "median_pnl": 1275.72,
+    "worst_pnl": 23.25,
+    "avg_trades": 317.4,
+    "n": 14
+  },
+  "candidate": {
+    "avg_pnl": 591.27,
+    "median_pnl": 245.43,
+    "worst_pnl": -4138.66,
+    "avg_trades": 73.0,
+    "n": 14
+  },
+  "candidate_config": {
+    "TRADE_COOLDOWN": 40,
+    "MEAN_REV_THRESHOLD": 1.0,
+    "STOP_ATR_MULT": 1.5,
+    "RISK_PER_TRADE_PCT": 0.0025,
+    "MAX_EFFICIENCY_RATIO": 0.5
+  },
+  "runs": [
+    {
+      "seed": 42,
+      "ticks": 2000,
+      "base_pnl": 1433.86,
+      "cand_pnl": 1276.79,
+      "pnl_delta": -157.07,
+      "base_trades": 193,
+      "cand_trades": 41,
+      "trade_delta": -152
+    },
+    {
+      "seed": 7,
+      "ticks": 2000,
+      "base_pnl": 1069.55,
+      "cand_pnl": -2523.28,
+      "pnl_delta": -3592.83,
+      "base_trades": 172,
+      "cand_trades": 41,
+      "trade_delta": -131
+    },
+    {
+      "seed": 99,
+      "ticks": 2000,
+      "base_pnl": 1192.81,
+      "cand_pnl": -161.21,
+      "pnl_delta": -1354.02,
+      "base_trades": 176,
+      "cand_trades": 43,
+      "trade_delta": -133
+    },
+    {
+      "seed": 123,
+      "ticks": 2000,
+      "base_pnl": 709.07,
+      "cand_pnl": 2611.63,
+      "pnl_delta": 1902.56,
+      "base_trades": 192,
+      "cand_trades": 40,
+      "trade_delta": -152
+    },
+    {
+      "seed": 256,
+      "ticks": 2000,
+      "base_pnl": 203.49,
+      "cand_pnl": -872.33,
+      "pnl_delta": -1075.82,
+      "base_trades": 156,
+      "cand_trades": 43,
+      "trade_delta": -113
+    },
+    {
+      "seed": 512,
+      "ticks": 2000,
+      "base_pnl": 23.25,
+      "cand_pnl": -824.48,
+      "pnl_delta": -847.73,
+      "base_trades": 177,
+      "cand_trades": 41,
+      "trade_delta": -136
+    },
+    {
+      "seed": 777,
+      "ticks": 2000,
+      "base_pnl": 1836.01,
+      "cand_pnl": 1196.94,
+      "pnl_delta": -639.07,
+      "base_trades": 187,
+      "cand_trades": 43,
+      "trade_delta": -144
+    },
+    {
+      "seed": 42,
+      "ticks": 5000,
+      "base_pnl": 359.87,
+      "cand_pnl": -1520.41,
+      "pnl_delta": -1880.28,
+      "base_trades": 476,
+      "cand_trades": 104,
+      "trade_delta": -372
+    },
+    {
+      "seed": 7,
+      "ticks": 5000,
+      "base_pnl": 2200.36,
+      "cand_pnl": -4138.66,
+      "pnl_delta": -6339.02,
+      "base_trades": 441,
+      "cand_trades": 99,
+      "trade_delta": -342
+    },
+    {
+      "seed": 99,
+      "ticks": 5000,
+      "base_pnl": 1839.31,
+      "cand_pnl": 5278.74,
+      "pnl_delta": 3439.43,
+      "base_trades": 442,
+      "cand_trades": 107,
+      "trade_delta": -335
+    },
+    {
+      "seed": 123,
+      "ticks": 5000,
+      "base_pnl": 4646.77,
+      "cand_pnl": 5840.29,
+      "pnl_delta": 1193.52,
+      "base_trades": 498,
+      "cand_trades": 103,
+      "trade_delta": -395
+    },
+    {
+      "seed": 256,
+      "ticks": 5000,
+      "base_pnl": 1209.27,
+      "cand_pnl": 1677.36,
+      "pnl_delta": 468.09,
+      "base_trades": 450,
+      "cand_trades": 109,
+      "trade_delta": -341
+    },
+    {
+      "seed": 512,
+      "ticks": 5000,
+      "base_pnl": 1342.18,
+      "cand_pnl": -215.68,
+      "pnl_delta": -1557.86,
+      "base_trades": 448,
+      "cand_trades": 105,
+      "trade_delta": -343
+    },
+    {
+      "seed": 777,
+      "ticks": 5000,
+      "base_pnl": 1530.76,
+      "cand_pnl": 652.07,
+      "pnl_delta": -878.69,
+      "base_trades": 435,
+      "cand_trades": 103,
+      "trade_delta": -332
+    }
+  ]
+}

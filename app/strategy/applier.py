@@ -29,6 +29,11 @@ BOUNDS: dict[str, tuple] = {
     "MAX_POSITION_SIZE":        (0.05, 1.0,  float),
     "MIN_ENTRY_DEPTH":          (0.0,  3.0,  float),
     "MAX_EFFICIENCY_RATIO":     (0.0,  1.0,  float),
+    # Regime confidence filter
+    "REGIME_CONF_LOOKBACK":          (10,  200,  int),
+    "REGIME_CONF_GOOD_THRESHOLD":    (0.0, 1.0,  float),
+    "REGIME_CONF_OK_THRESHOLD":      (0.0, 1.0,  float),
+    "REGIME_CONF_REDUCED_SIZE_MULT": (0.0, 1.0,  float),
     # Risk management
     "STOP_LOSS_PCT":          (0.005, 0.1,  float),
     "TAKE_PROFIT_PCT":        (0.0,   0.5,  float),
@@ -36,6 +41,11 @@ BOUNDS: dict[str, tuple] = {
     "MIN_STOP_LOSS_PCT":      (0.001, 0.05, float),
     "POSITION_SIZE":      (0.01,  0.5,  float),
     "TRADE_COOLDOWN":     (0,     300,  int),
+    # Stability patch
+    "ATR_WINDOW":             (5,    100,  int),
+    "STOP_ATR_MULT":          (0.0,  10.0, float),
+    "RISK_PER_TRADE_PCT":     (0.0,  0.05, float),
+    "MAX_TRADES_PER_SESSION": (0,    500,  int),
 }
 
 

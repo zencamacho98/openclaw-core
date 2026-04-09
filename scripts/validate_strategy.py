@@ -14,18 +14,25 @@ params from data/candidate_config.json instead of the live config.
 
 Usage:
     python scripts/validate_strategy.py
+    python scripts/validate_strategy.py --experiment-name my_filter_v1
 """
 
+import argparse
 import json
+import pathlib
 import statistics
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 SEEDS      = [42, 7, 99, 123, 256, 512, 777]
 TICK_SIZES = [2000, 5000]
 MODE       = "mean_reversion"
 
 TRADE_FLOOR_RATIO = 0.70   # candidate avg_trades must be >= 70% of baseline
+
+VALIDATION_DIR = pathlib.Path("data/validation_runs")
+CANDIDATE_CFG  = pathlib.Path("data/candidate_config.json")
 
 _BASE = ["python", "-m", "app.experiment", "--mode", MODE, "--no-save"]
 
@@ -50,6 +57,31 @@ def _collect(candidate: bool) -> list[dict]:
             r = _run(ticks, seed, candidate)
             results.append(r)
     return results
+
+
+def _print_run_table(baseline_runs: list[dict], candidate_runs: list[dict]) -> None:
+    hdr = (
+        f"{'seed':>6}  {'ticks':>5}  "
+        f"{'base_pnl':>12}  {'cand_pnl':>12}  {'pnl_delta':>12}  "
+        f"{'base_tr':>7}  {'cand_tr':>7}  {'tr_delta':>8}"
+    )
+    sep = "-" * len(hdr)
+    print(sep)
+    print(hdr)
+    print(sep)
+    for b, c in zip(baseline_runs, candidate_runs):
+        pnl_delta = c["realized_pnl"] - b["realized_pnl"]
+        tr_delta  = c["total_trades"] - b["total_trades"]
+        pnl_sign  = "+" if pnl_delta >= 0 else ""
+        tr_sign   = "+" if tr_delta  >= 0 else ""
+        print(
+            f"{b['seed']:>6}  {b['ticks']:>5}  "
+            f"{b['realized_pnl']:>12,.2f}  {c['realized_pnl']:>12,.2f}  "
+            f"{pnl_sign}{pnl_delta:>11,.2f}  "
+            f"{b['total_trades']:>7}  {c['total_trades']:>7}  "
+            f"{tr_sign}{tr_delta:>7}"
+        )
+    print(sep)
 
 
 def _stats(results: list[dict]) -> dict:
@@ -96,20 +128,94 @@ def _evaluate(b: dict, c: dict) -> tuple[bool, list[str]]:
     return len(failures) == 0, failures
 
 
+def _run_rows(baseline_runs: list[dict], candidate_runs: list[dict]) -> list[dict]:
+    """Build the per-run breakdown list for the saved record."""
+    rows = []
+    for b, c in zip(baseline_runs, candidate_runs):
+        rows.append({
+            "seed":           b["seed"],
+            "ticks":          b["ticks"],
+            "base_pnl":       b["realized_pnl"],
+            "cand_pnl":       c["realized_pnl"],
+            "pnl_delta":      round(c["realized_pnl"] - b["realized_pnl"], 2),
+            "base_trades":    b["total_trades"],
+            "cand_trades":    c["total_trades"],
+            "trade_delta":    c["total_trades"] - b["total_trades"],
+        })
+    return rows
+
+
+def _load_candidate_cfg() -> dict | None:
+    try:
+        return json.loads(CANDIDATE_CFG.read_text())
+    except Exception:
+        return None
+
+
+def _save_record(
+    experiment_name: str,
+    baseline_stats: dict,
+    candidate_stats: dict,
+    accepted: bool,
+    failures: list[str],
+    rows: list[dict],
+) -> pathlib.Path:
+    VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
+    ts  = datetime.now(timezone.utc)
+    record = {
+        "timestamp":        ts.isoformat(),
+        "experiment_name":  experiment_name,
+        "mode":             MODE,
+        "seeds":            SEEDS,
+        "tick_sizes":       TICK_SIZES,
+        "trade_floor_ratio": TRADE_FLOOR_RATIO,
+        "decision":         "ACCEPTED" if accepted else "REJECTED",
+        "rejection_reasons": failures,
+        "baseline":         baseline_stats,
+        "candidate":        candidate_stats,
+        "candidate_config": _load_candidate_cfg(),
+        "runs":             rows,
+    }
+    slug = ts.strftime("%Y%m%dT%H%M%S")
+    safe_name = experiment_name.replace(" ", "_")
+    path = VALIDATION_DIR / f"{slug}_{safe_name}.json"
+    path.write_text(json.dumps(record, indent=2))
+    return path
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Strategy validation harness.")
+    parser.add_argument(
+        "--experiment-name",
+        default="unnamed",
+        help="Label for this validation run (used in saved filename and record)",
+    )
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        help="Skip saving result to disk",
+    )
+    args = parser.parse_args()
+
     n_runs = len(SEEDS) * len(TICK_SIZES)
-    print(f"Strategy validation — mode={MODE}")
+    print(f"Strategy validation — mode={MODE}  experiment={args.experiment_name}")
     print(f"Seeds     : {SEEDS}")
     print(f"Tick sizes: {TICK_SIZES}")
     print(f"Runs      : {n_runs} baseline + {n_runs} candidate = {n_runs * 2} total")
     print()
 
     print("Running baseline ...")
-    b = _stats(_collect(candidate=False))
+    baseline_runs = _collect(candidate=False)
 
     print("Running candidate ...")
-    c = _stats(_collect(candidate=True))
+    candidate_runs = _collect(candidate=True)
 
+    b = _stats(baseline_runs)
+    c = _stats(candidate_runs)
+
+    print()
+    print("Per-run breakdown")
+    _print_run_table(baseline_runs, candidate_runs)
     print()
     print("-" * 50)
     _print_stats("BASELINE",  b)
@@ -126,6 +232,11 @@ def main() -> None:
         print("REJECTED")
         for f in failures:
             print(f"  - {f}")
+
+    if not args.no_save:
+        rows = _run_rows(baseline_runs, candidate_runs)
+        path = _save_record(args.experiment_name, b, c, accepted, failures, rows)
+        print(f"\nSaved → {path}")
 
 
 if __name__ == "__main__":

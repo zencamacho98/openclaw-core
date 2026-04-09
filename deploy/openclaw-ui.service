@@ -1,0 +1,25 @@
+[Unit]
+Description=OpenClaw UI (Streamlit dashboard)
+After=network.target openclaw-backend.service
+Wants=openclaw-backend.service
+
+[Service]
+Type=simple
+User=zenca
+WorkingDirectory=/home/zenca/openclaw-core
+EnvironmentFile=-/home/zenca/openclaw-core/.env
+Environment=HOME=/home/zenca
+ExecStart=/home/zenca/openclaw-core/.venv/bin/streamlit run ui/dashboard.py \
+    --server.port 8501 \
+    --server.address 0.0.0.0 \
+    --server.headless true \
+    --server.fileWatcherType none \
+    --browser.gatherUsageStats false
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw-ui
+
+[Install]
+WantedBy=multi-user.target

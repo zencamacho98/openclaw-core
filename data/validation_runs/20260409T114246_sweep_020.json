@@ -1,0 +1,188 @@
+{
+  "timestamp": "2026-04-09T11:42:46.800573+00:00",
+  "experiment_name": "sweep_020",
+  "mode": "mean_reversion",
+  "seeds": [
+    42,
+    7,
+    99,
+    123,
+    256,
+    512,
+    777
+  ],
+  "tick_sizes": [
+    2000,
+    5000
+  ],
+  "trade_floor_ratio": 0.7,
+  "decision": "REJECTED",
+  "rejection_reasons": [
+    "median_pnl $395.27 < baseline $1,275.72",
+    "worst_pnl $-1,175.70 < baseline $23.25",
+    "avg_trades 127.5 is 40% of baseline (317.4) \u2014 minimum 70%"
+  ],
+  "baseline": {
+    "avg_pnl": 1399.75,
+    "median_pnl": 1275.72,
+    "worst_pnl": 23.25,
+    "avg_trades": 317.4,
+    "n": 14
+  },
+  "candidate": {
+    "avg_pnl": 397.5,
+    "median_pnl": 395.27,
+    "worst_pnl": -1175.7,
+    "avg_trades": 127.5,
+    "n": 14
+  },
+  "candidate_config": {
+    "TRADE_COOLDOWN": 20,
+    "MEAN_REV_THRESHOLD": 1.0,
+    "STOP_ATR_MULT": 1.5,
+    "RISK_PER_TRADE_PCT": 0.001,
+    "MAX_EFFICIENCY_RATIO": 1.0
+  },
+  "runs": [
+    {
+      "seed": 42,
+      "ticks": 2000,
+      "base_pnl": 1433.86,
+      "cand_pnl": 1314.84,
+      "pnl_delta": -119.02,
+      "base_trades": 193,
+      "cand_trades": 69,
+      "trade_delta": -124
+    },
+    {
+      "seed": 7,
+      "ticks": 2000,
+      "base_pnl": 1069.55,
+      "cand_pnl": -971.7,
+      "pnl_delta": -2041.25,
+      "base_trades": 172,
+      "cand_trades": 69,
+      "trade_delta": -103
+    },
+    {
+      "seed": 99,
+      "ticks": 2000,
+      "base_pnl": 1192.81,
+      "cand_pnl": 359.63,
+      "pnl_delta": -833.18,
+      "base_trades": 176,
+      "cand_trades": 70,
+      "trade_delta": -106
+    },
+    {
+      "seed": 123,
+      "ticks": 2000,
+      "base_pnl": 709.07,
+      "cand_pnl": 614.72,
+      "pnl_delta": -94.35,
+      "base_trades": 192,
+      "cand_trades": 78,
+      "trade_delta": -114
+    },
+    {
+      "seed": 256,
+      "ticks": 2000,
+      "base_pnl": 203.49,
+      "cand_pnl": -534.02,
+      "pnl_delta": -737.51,
+      "base_trades": 156,
+      "cand_trades": 67,
+      "trade_delta": -89
+    },
+    {
+      "seed": 512,
+      "ticks": 2000,
+      "base_pnl": 23.25,
+      "cand_pnl": -563.99,
+      "pnl_delta": -587.24,
+      "base_trades": 177,
+      "cand_trades": 76,
+      "trade_delta": -101
+    },
+    {
+      "seed": 777,
+      "ticks": 2000,
+      "base_pnl": 1836.01,
+      "cand_pnl": 856.65,
+      "pnl_delta": -979.36,
+      "base_trades": 187,
+      "cand_trades": 78,
+      "trade_delta": -109
+    },
+    {
+      "seed": 42,
+      "ticks": 5000,
+      "base_pnl": 359.87,
+      "cand_pnl": 430.92,
+      "pnl_delta": 71.05,
+      "base_trades": 476,
+      "cand_trades": 186,
+      "trade_delta": -290
+    },
+    {
+      "seed": 7,
+      "ticks": 5000,
+      "base_pnl": 2200.36,
+      "cand_pnl": -98.2,
+      "pnl_delta": -2298.56,
+      "base_trades": 441,
+      "cand_trades": 175,
+      "trade_delta": -266
+    },
+    {
+      "seed": 99,
+      "ticks": 5000,
+      "base_pnl": 1839.31,
+      "cand_pnl": 2100.37,
+      "pnl_delta": 261.06,
+      "base_trades": 442,
+      "cand_trades": 174,
+      "trade_delta": -268
+    },
+    {
+      "seed": 123,
+      "ticks": 5000,
+      "base_pnl": 4646.77,
+      "cand_pnl": 2404.32,
+      "pnl_delta": -2242.45,
+      "base_trades": 498,
+      "cand_trades": 188,
+      "trade_delta": -310
+    },
+    {
+      "seed": 256,
+      "ticks": 5000,
+      "base_pnl": 1209.27,
+      "cand_pnl": -1175.7,
+      "pnl_delta": -2384.97,
+      "base_trades": 450,
+      "cand_trades": 178,
+      "trade_delta": -272
+    },
+    {
+      "seed": 512,
+      "ticks": 5000,
+      "base_pnl": 1342.18,
+      "cand_pnl": 802.67,
+      "pnl_delta": -539.51,
+      "base_trades": 448,
+      "cand_trades": 192,
+      "trade_delta": -256
+    },
+    {
+      "seed": 777,
+      "ticks": 5000,
+      "base_pnl": 1530.76,
+      "cand_pnl": 24.45,
+      "pnl_delta": -1506.31,
+      "base_trades": 435,
+      "cand_trades": 185,
+      "trade_delta": -250
+    }
+  ]
+}

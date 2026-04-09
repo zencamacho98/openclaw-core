@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-04-09T09:52:52.280025+00:00",
+  "experiment_name": "perf_filter_v1",
+  "mode": "mean_reversion",
+  "seeds": [
+    42,
+    7,
+    99,
+    123,
+    256,
+    512,
+    777
+  ],
+  "tick_sizes": [
+    2000,
+    5000
+  ],
+  "trade_floor_ratio": 0.7,
+  "decision": "ACCEPTED",
+  "rejection_reasons": [],
+  "baseline": {
+    "avg_pnl": 1200.0,
+    "median_pnl": 1100.0,
+    "worst_pnl": -300.0,
+    "avg_trades": 120.0,
+    "n": 14
+  },
+  "candidate": {
+    "avg_pnl": 1350.0,
+    "median_pnl": 1250.0,
+    "worst_pnl": -200.0,
+    "avg_trades": 115.0,
+    "n": 14
+  },
+  "candidate_config": {
+    "PERFORMANCE_LOOKBACK": 20,
+    "PERFORMANCE_GOOD_THRESHOLD": 0.6,
+    "PERFORMANCE_BAD_THRESHOLD": 0.4,
+    "PERFORMANCE_REDUCED_SIZE_MULT": 0.5
+  },
+  "runs": [
+    {
+      "seed": 42,
+      "ticks": 2000,
+      "base_pnl": 1200.0,
+      "cand_pnl": 1350.0,
+      "pnl_delta": 150.0,
+      "base_trades": 120,
+      "cand_trades": 115,
+      "trade_delta": -5
+    }
+  ]
+}
