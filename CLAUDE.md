@@ -8,6 +8,11 @@ See:
 - @docs/abode_product_rules.md
 - @docs/abode_cost_policy.md
 
+## Skills
+- @skills/abode-neighborhood-pass/SKILL.md
+- @skills/abode-role-boundary-check/SKILL.md
+- @skills/abode-delivery-report/SKILL.md
+
 ## Working style
 - Complete one coherent vertical slice per prompt.
 - Bundle only closely related tasks on the same surface.

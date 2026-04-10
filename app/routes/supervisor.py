@@ -57,7 +57,15 @@ def supervisor_state() -> dict:
 
 
 @router.post("/supervisor/enable")
-def supervisor_enable() -> dict:
+def supervisor_enable(body: dict = Body(default={})) -> dict:
+    """
+    Enable continuous learning loop.
+    Optionally accepts {goal: str} to seed the next campaign with a trigger-derived goal.
+    """
+    goal = ((body or {}).get("goal") or "").strip()
+    if goal:
+        from app.supervisor import write_pending_goal
+        write_pending_goal(goal)
     return enable_continuous()
 
 

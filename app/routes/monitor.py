@@ -136,6 +136,16 @@ def trading_reset(body: dict = Body(default={})):
     except Exception:
         pass
 
+    # Write learning snapshot for the session being ended (before wipe).
+    try:
+        from app.routes.belfort_learning import _build_snapshot
+        from app.routes.belfort_memory import append_snapshot
+        snap_entry = _build_snapshot()
+        if snap_entry:
+            append_snapshot(snap_entry)
+    except Exception:
+        pass
+
     result = reset_portfolio(reason)
 
     # Record adoption context so the readiness scorecard can track clean eval windows.

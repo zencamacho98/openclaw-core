@@ -13,6 +13,8 @@ from app.routes.test_sentinel import router as sentinel_router
 from app.routes.cost_warden import router as warden_router
 from app.routes.neighborhood import router as neighborhood_router
 from app.routes.belfort_readiness import router as readiness_router
+from app.routes.belfort_learning import router as learning_router
+from app.routes.belfort_diagnostics import router as diagnostics_router
 
 
 @asynccontextmanager
@@ -44,6 +46,8 @@ app.include_router(sentinel_router)
 app.include_router(warden_router)
 app.include_router(neighborhood_router)
 app.include_router(readiness_router)
+app.include_router(learning_router)
+app.include_router(diagnostics_router)
 
 
 @app.get("/health")

@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0",
+  "session_id": "session_20260410T211700",
+  "generated_at": "2026-04-10T21:17:11.387460+00:00",
+  "notes": "Campaign: campaign_20260410T211647 | Goal: A valid research goal here",
+  "what_ran": {
+    "session_id": "session_20260410T211700",
+    "batches_completed": 3,
+    "total_experiments": 9,
+    "total_accepted": 4,
+    "total_rejected": 5,
+    "classes_tested": [
+      "entry_quality",
+      "profit_taking"
+    ]
+  },
+  "best_candidate": {
+    "experiment_id": "batch_20260410T211704_001",
+    "experiment_class": "profit_taking",
+    "score": 52.0,
+    "tier": "noisy",
+    "decision": "ACCEPTED",
+    "pnl_delta": 0.0,
+    "worst_pnl_delta": 0.0,
+    "candidate_config": {
+      "TAKE_PROFIT_PCT": 0.03
+    },
+    "quality_labels": [
+      "wins too small for risk"
+    ],
+    "hypothesis": "Tighten take-profit from 4% to 3% to capture mean-reversion completions before price drifts back \u2014 tests whether faster exits improve win rate.",
+    "batch_id": "batch_20260410T211704"
+  },
+  "dominant_findings": [
+    "4/9 experiments accepted across 3 batches.",
+    "Dominant failure mode across batches: median PnL regression (central performance concern).",
+    "Classes with consistent worst-case failure (deprioritized): entry_quality, loss_structure.",
+    "Session best score: 52 on profit_taking."
+  ],
+  "repeated_failures": [
+    "entry_quality",
+    "loss_structure"
+  ],
+  "next_direction": {
+    "recommendation": "retest_accepted",
+    "rationale": "Accepted candidates are noisy. Consider running validate_strategy.py with extended seeds before promoting.",
+    "focus_classes": [
+      "profit_taking"
+    ]
+  },
+  "human_review_recommended": true,
+  "human_review_reason": "Best accepted candidate: batch_20260410T211632_001 (class=profit_taking, score=52.0, tier=noisy). Identify its record path from the ledger summary and run scripts/promote_candidate.py --record <path>.",
+  "stop_condition": "max_batches_reached",
+  "stop_reason": "Completed 3/3 planned batches.",
+  "batch_summaries": [
+    {
+      "batch_id": "batch_20260410T211701",
+      "n_accepted": 0,
+      "n_total": 3,
+      "best_score": 38.0,
+      "best_tier": "weak",
+      "next_action": "retry_with_adjustment"
+    },
+    {
+      "batch_id": "batch_20260410T211704",
+      "n_accepted": 2,
+      "n_total": 3,
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "next_action": "retest_accepted"
+    },
+    {
+      "batch_id": "batch_20260410T211707",
+      "n_accepted": 2,
+      "n_total": 3,
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "next_action": "retest_accepted"
+    }
+  ],
+  "diagnosis_snapshot": {
+    "focus_classes": [
+      "profit_taking"
+    ],
+    "deprioritized": [
+      "entry_quality",
+      "loss_structure"
+    ],
+    "dominant_failure": "median_pnl",
+    "session_best_score": 52.0,
+    "session_best_class": "profit_taking",
+    "n_consecutive_no_progress": 0,
+    "diagnosis_reason": "Deprioritizing ['entry_quality', 'loss_structure'] \u2014 consecutive worst-case failures; Dominant failure mode: median_pnl"
+  }
+}

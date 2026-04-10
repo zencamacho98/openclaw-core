@@ -69,6 +69,7 @@ from observability.event_log import append_event
 
 _ROOT             = pathlib.Path(__file__).resolve().parent.parent
 _STATE_PATH       = _ROOT / "data" / "supervisor_state.json"
+_PENDING_GOAL_PATH = _ROOT / "data" / "pending_research_goal.json"
 
 TICK_INTERVAL     = 10    # seconds between ticks
 _MAX_START_ERRORS = 3     # consecutive start failures before auto-disable
@@ -112,6 +113,30 @@ def supervisor_enabled() -> bool:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def write_pending_goal(goal: str) -> None:
+    """Store a trigger-derived goal to seed the next auto-started campaign."""
+    _ROOT.joinpath("data").mkdir(exist_ok=True)
+    _PENDING_GOAL_PATH.write_text(
+        json.dumps({"goal": goal.strip(), "written_at": _now()}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def read_and_clear_pending_goal() -> str | None:
+    """
+    Read the pending goal file and delete it.
+    Returns the goal string or None if not present / empty.
+    """
+    if not _PENDING_GOAL_PATH.exists():
+        return None
+    try:
+        g = json.loads(_PENDING_GOAL_PATH.read_text(encoding="utf-8")).get("goal", "").strip()
+        _PENDING_GOAL_PATH.unlink(missing_ok=True)
+        return g or None
+    except Exception:
+        return None
 
 
 def _load_state() -> dict:
@@ -434,8 +459,9 @@ def _start_next_cycle(state: dict) -> None:
     if resumable:
         r = resume_campaign(resumable[0]["campaign_id"])
     else:
-        goal = auto_continue_goal(list_campaigns())
-        r    = start_campaign(goal=goal)
+        pending = read_and_clear_pending_goal()
+        goal    = pending or auto_continue_goal(list_campaigns())
+        r       = start_campaign(goal=goal)
 
     if r.get("ok"):
         _update_state(

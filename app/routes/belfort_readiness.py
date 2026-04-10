@@ -25,9 +25,17 @@ _MIN_TRADES_EVALUATION   = 10    # trades needed to reach MONITORING level
 _MIN_TRADES_PRELIVE      = 25    # trades needed for PRE-LIVE CANDIDATE
 _MIN_OBS_HOURS           = 1.0   # wall-clock hours since baseline reset (for MONITORING)
 _MAX_PNL_DRAWDOWN_PCT    = 0.05  # realized P&L must stay above -5% of starting cash
-_MIN_CLOSED_FOR_WIN_RATE = 5     # closed trades needed before win-rate gate is enforced
+_MIN_CLOSED_FOR_WIN_RATE = 5     # closed trades needed before win-rate/expectancy gates are enforced
 _MIN_WIN_RATE            = 0.40  # minimum win rate for PRE-LIVE CANDIDATE
 _STARTING_CASH           = 100_000.0
+
+# ── Research trigger thresholds ───────────────────────────────────────────────
+_RESEARCH_MIN_TRADES       = 10    # minimum closed trades before most triggers activate
+_RESEARCH_PNL_PCT          = -0.02 # -2%: sustained loss trigger
+_RESEARCH_DRAWDOWN_WARNING = -0.03 # -3%: early drawdown warning (before hard -5% gate)
+_RESEARCH_WIN_RATE_MIN     = 0.30  # below 30% after enough data: critically low
+_RESEARCH_EXPECTANCY_MIN   = -5.0  # avg trade P&L below -$5: negative edge trigger
+_RESEARCH_WR_REGRESSION    = 0.15  # 15pp win-rate decline vs prior session: regression trigger
 
 
 # ── Baseline adoption record ──────────────────────────────────────────────────
@@ -155,6 +163,174 @@ def _compute_win_rate() -> dict:
     }
 
 
+def _regime_context() -> dict:
+    """
+    Lightweight market-regime label from the existing strategy router.
+    No new data sources — reads from app.strategy.router.get_state().
+    Returns: {regime, label, efficiency_ratio, strategy_fit, vol_note, warmed_up}
+    strategy_fit: 'good' (ranging) / 'ok' (mildly trending) / 'poor' (trending) / 'unknown'
+    """
+    try:
+        from app.strategy.router import get_state as router_state
+        state    = router_state("SPY")
+        regime   = state.get("regime", "unknown")   # 'trending' or 'ranging'
+        er       = state.get("efficiency_ratio")     # float 0-1 or None
+        mr       = state.get("mean_reversion", {})
+        warmed   = mr.get("warmed_up", False)
+        std      = mr.get("std")
+        mean_p   = mr.get("mean")
+
+        if not warmed:
+            label, fit = "warming up", "unknown"
+        elif er is None:
+            label, fit = regime, "ok"
+        elif er >= 0.50:
+            label, fit = "trending", "poor"      # MR underperforms in trend
+        elif er >= 0.30:
+            label, fit = "mildly trending", "ok"
+        else:
+            label, fit = "ranging / choppy", "good"  # MR designed for this
+
+        vol_note = None
+        if std is not None and mean_p and mean_p > 0:
+            vol_pct = std / mean_p * 100
+            if vol_pct < 0.10:
+                vol_note = "low vol"
+            elif vol_pct > 0.40:
+                vol_note = "high vol"
+
+        return {
+            "regime":           regime,
+            "label":            label,
+            "efficiency_ratio": er,
+            "strategy_fit":     fit,
+            "vol_note":         vol_note,
+            "warmed_up":        warmed,
+        }
+    except Exception:
+        return {"regime": "unknown", "label": "unknown",
+                "efficiency_ratio": None, "strategy_fit": "unknown",
+                "vol_note": None, "warmed_up": False}
+
+
+def _expectancy_data() -> dict:
+    """
+    Per-trade quality metrics from closed (SELL) trade history.
+    Returns: {total_closed, expectancy, avg_win, avg_loss, profit_factor, gross_profit, gross_loss}
+    All values are None when there are no closed trades.
+    """
+    try:
+        from app.portfolio import get_trades
+        trades = get_trades()
+    except Exception:
+        return {"total_closed": 0, "expectancy": None, "avg_win": None,
+                "avg_loss": None, "profit_factor": None,
+                "gross_profit": None, "gross_loss": None}
+
+    closed = [t for t in trades if t.get("side") == "SELL" and t.get("pnl") is not None]
+    if not closed:
+        return {"total_closed": 0, "expectancy": None, "avg_win": None,
+                "avg_loss": None, "profit_factor": None,
+                "gross_profit": None, "gross_loss": None}
+
+    wins   = [t["pnl"] for t in closed if t["pnl"] > 0]
+    losses = [t["pnl"] for t in closed if t["pnl"] <= 0]
+    total  = sum(t["pnl"] for t in closed)
+
+    avg_win  = round(sum(wins)   / len(wins),   2) if wins   else 0.0
+    avg_loss = round(sum(losses) / len(losses), 2) if losses else 0.0
+    expect   = round(total / len(closed), 2)
+
+    g_profit = sum(wins)
+    g_loss   = abs(sum(losses))
+    pf       = round(g_profit / g_loss, 3) if g_loss > 0 else None
+
+    return {
+        "total_closed":  len(closed),
+        "expectancy":    expect,
+        "avg_win":       avg_win,
+        "avg_loss":      avg_loss,
+        "profit_factor": pf,
+        "gross_profit":  round(g_profit, 2),
+        "gross_loss":    round(g_loss, 2),
+    }
+
+
+def _research_triggers(
+    snap:          dict,
+    win_rate_data: dict,
+    exp_data:      dict,
+    baseline_comp: dict | None,
+    regime_ctx:    dict,
+) -> dict:
+    """
+    Explicit deterministic triggers for recommending new research.
+    Returns: {triggered, count, reasons, recommendation}
+    All thresholds are intentionally softer than the hard readiness gates.
+    """
+    reasons      = []
+    total_closed = win_rate_data.get("total_closed", 0)
+    realized_pnl = snap.get("realized_pnl", 0.0)
+    win_rate     = win_rate_data.get("win_rate")
+    expectancy   = exp_data.get("expectancy")
+
+    # 1. Sustained loss after enough trades
+    if (total_closed >= _RESEARCH_MIN_TRADES
+            and realized_pnl < _STARTING_CASH * _RESEARCH_PNL_PCT):
+        reasons.append(
+            f"Sustained loss: P&L {realized_pnl:+.2f} after {total_closed} closed trades"
+        )
+
+    # 2. Early drawdown warning (softer than hard -5% gate)
+    if realized_pnl < _STARTING_CASH * _RESEARCH_DRAWDOWN_WARNING:
+        reasons.append(
+            f"Drawdown warning: P&L {realized_pnl:+.2f} — approaching safety floor"
+        )
+
+    # 3. Critically low win rate after enough data
+    if (win_rate is not None and total_closed >= _RESEARCH_MIN_TRADES
+            and win_rate < _RESEARCH_WIN_RATE_MIN):
+        reasons.append(
+            f"Critical win rate: {win_rate*100:.0f}% after {total_closed} trades"
+        )
+
+    # 4. Negative edge / expectancy
+    if (expectancy is not None and total_closed >= _RESEARCH_MIN_TRADES
+            and expectancy < _RESEARCH_EXPECTANCY_MIN):
+        reasons.append(
+            f"Negative edge: avg trade P&L {expectancy:+.2f} — strategy not generating value"
+        )
+
+    # 5. Regime mismatch (MR strategy in trending market)
+    if regime_ctx.get("strategy_fit") == "poor" and regime_ctx.get("warmed_up"):
+        reasons.append(
+            f"Regime mismatch: market is {regime_ctx.get('label', '?')} — MR needs ranging conditions"
+        )
+
+    # 6. Win-rate regression vs previous baseline session
+    if baseline_comp and baseline_comp.get("available") and total_closed >= 5:
+        prev_wr = baseline_comp.get("prev_win_rate")
+        curr_wr = baseline_comp.get("curr_win_rate")
+        if (prev_wr is not None and curr_wr is not None
+                and curr_wr < prev_wr - _RESEARCH_WR_REGRESSION):
+            reasons.append(
+                f"Win rate regressed: {curr_wr*100:.0f}% vs {prev_wr*100:.0f}% previous session"
+            )
+
+    triggered = bool(reasons)
+    n         = len(reasons)
+    if not triggered:
+        rec = "Continue trading — no issues detected."
+    elif n == 1 and "Regime mismatch" in reasons[0]:
+        rec = "Monitor regime — no performance failure yet."
+    elif n >= 2 or (realized_pnl < _STARTING_CASH * _RESEARCH_PNL_PCT and total_closed >= _RESEARCH_MIN_TRADES):
+        rec = "Recommend research — multiple performance issues detected."
+    else:
+        rec = "Consider targeted parameter adjustment or focused research."
+
+    return {"triggered": triggered, "count": n, "reasons": reasons, "recommendation": rec}
+
+
 def _baseline_comparison(
     baseline_record: dict,
     current_snap:    dict,
@@ -179,6 +355,22 @@ def _baseline_comparison(
     def _fmt_pnl(p):
         return ("+" if p >= 0 else "") + f"${p:.2f}"
 
+    # Performance verdict: improving / declining / similar
+    total_closed = win_rate_data.get("total_closed", 0)
+    if curr_wr is not None and prev_wr is not None and total_closed >= 5:
+        if curr_wr > prev_wr + 0.05:
+            verdict = "improving"
+        elif curr_wr < prev_wr - 0.10:
+            verdict = "declining"
+        else:
+            verdict = "similar"
+    elif curr_pnl > prev_pnl + 50:
+        verdict = "improving"
+    elif curr_pnl < prev_pnl - 50:
+        verdict = "declining"
+    else:
+        verdict = "similar"
+
     return {
         "available":     True,
         "prev_trades":   prev.get("trade_count", 0),
@@ -188,7 +380,7 @@ def _baseline_comparison(
         "curr_pnl":      curr_pnl,
         "curr_win_rate": curr_wr,
         "pnl_delta":     round(curr_pnl - prev_pnl, 2),
-        # Human-readable summary line
+        "verdict":       verdict,
         "summary": (
             f"Prev session: {prev.get('trade_count', 0)} trades, "
             f"P\u0026L {_fmt_pnl(prev_pnl)}, win rate {_fmt_wr(prev_wr)}. "
@@ -228,10 +420,13 @@ def _evaluate_gates(
     baseline_record: dict,
     last_promo:      dict | None,
     win_rate_data:   dict | None = None,
+    exp_data:        dict | None = None,
 ) -> list[dict]:
     """Evaluate all readiness gates. Returns list of {id, label, pass, note}."""
     if win_rate_data is None:
         win_rate_data = {}
+    if exp_data is None:
+        exp_data = {}
 
     status       = belfort_state.get("status", "unknown")
     trade_count  = portfolio_snap.get("trade_count", 0)
@@ -279,7 +474,22 @@ def _evaluate_gates(
         wr_note_pass   = "No closed trades yet \u2014 will evaluate once trading starts"
         wr_label       = f"Win rate \u2265 {_MIN_WIN_RATE*100:.0f}% (no data)"
 
-    # ── Gate 7: P&L quality ──
+    # ── Gate 7: expectancy / average trade quality ──
+    exp_val = exp_data.get("expectancy")
+    if total_closed < _MIN_CLOSED_FOR_WIN_RATE:
+        expectancy_ok  = True
+        exp_note_pass  = f"Not enough data yet ({total_closed}/{_MIN_CLOSED_FOR_WIN_RATE} closed trades needed to evaluate)"
+        exp_gate_label = f"Positive trade expectancy (pending \u2014 {total_closed}/{_MIN_CLOSED_FOR_WIN_RATE} trades)"
+    elif exp_val is not None:
+        expectancy_ok  = exp_val >= 0.0
+        exp_note_pass  = f"Avg trade P\u0026L: {exp_val:+.2f}"
+        exp_gate_label = f"Positive trade expectancy ({exp_val:+.2f} per trade)"
+    else:
+        expectancy_ok  = True
+        exp_note_pass  = "No closed trades yet"
+        exp_gate_label = "Positive trade expectancy (no data)"
+
+    # ── Gate 8: P&L quality ──
     pnl_floor  = -(_STARTING_CASH * _MAX_PNL_DRAWDOWN_PCT)
     pnl_ok     = realized_pnl >= pnl_floor
     pnl_pct    = (realized_pnl / _STARTING_CASH) * 100
@@ -343,6 +553,13 @@ def _evaluate_gates(
                       else f"Win rate {win_rate*100:.0f}% is below {_MIN_WIN_RATE*100:.0f}% threshold \u2014 strategy may need adjustment"),
         },
         {
+            "id":    "expectancy_ok",
+            "label": exp_gate_label,
+            "pass":  expectancy_ok,
+            "note":  (exp_note_pass if expectancy_ok
+                      else f"Avg trade P\u0026L {exp_val:+.2f} \u2014 negative edge, review strategy"),
+        },
+        {
             "id":    "pnl_quality",
             "label": f"P\u0026L above safety floor ({pnl_pct:+.1f}% / floor \u2212{_MAX_PNL_DRAWDOWN_PCT*100:.0f}%)",
             "pass":  pnl_ok,
@@ -392,7 +609,7 @@ def _compute_level(gates: list[dict]) -> tuple[str, str]:
     passed       = {g["id"] for g in gates if g["pass"]}
     need_eval    = {"strategy_adopted", "baseline_reset"}
     need_monitor = need_eval | {"enough_trades", "no_review_pending", "observation_window"}
-    need_prelive = need_monitor | {"deep_trades", "win_rate_ok", "pnl_quality", "no_warnings", "system_healthy", "budget_ok", "sentinel_ok"}
+    need_prelive = need_monitor | {"deep_trades", "win_rate_ok", "expectancy_ok", "pnl_quality", "no_warnings", "system_healthy", "budget_ok", "sentinel_ok"}
 
     if need_prelive.issubset(passed):
         return "pre_live_candidate", "PRE-LIVE CANDIDATE"
@@ -577,14 +794,17 @@ def _gather_readiness() -> dict:
     last_promo      = _last_promotion()
     strategy_desc   = _strategy_description()
     win_rate_data   = _compute_win_rate()
+    exp_data        = _expectancy_data()
+    regime_ctx      = _regime_context()
 
     reset_at      = baseline_record.get("reset_at")
     hours_elapsed = _elapsed_hours(reset_at) if reset_at else 0.0
 
-    gates = _evaluate_gates(snap, belfort, checker, custodian, sentinel, baseline_record, last_promo, win_rate_data)
-    level, level_label = _compute_level(gates)
-    blockers           = _top_blockers(gates)
+    gates               = _evaluate_gates(snap, belfort, checker, custodian, sentinel, baseline_record, last_promo, win_rate_data, exp_data)
+    level, level_label  = _compute_level(gates)
+    blockers            = _top_blockers(gates)
     baseline_comparison = _baseline_comparison(baseline_record, snap, win_rate_data)
+    res_triggers        = _research_triggers(snap, win_rate_data, exp_data, baseline_comparison, regime_ctx)
 
     trade_count  = snap.get("trade_count", 0)
     realized_pnl = snap.get("realized_pnl", 0.0)
@@ -617,6 +837,9 @@ def _gather_readiness() -> dict:
         "last_baseline_reset_at": baseline_record.get("reset_at"),
         "blockers":               blockers,
         "baseline_comparison":    baseline_comparison,
+        "regime_context":         regime_ctx,
+        "expectancy_data":        exp_data,
+        "research_triggers":      res_triggers,
         "timestamp":              datetime.now(timezone.utc).isoformat(),
     }
 

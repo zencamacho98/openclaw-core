@@ -1,7 +1,7 @@
 {
-  "reset_at": "2026-04-10T12:28:06.021881+00:00",
-  "reason": "Fresh start after strategy adoption 2026-04-10",
-  "strategy_label": "MR strategy v2",
+  "reset_at": "2026-04-10T19:33:23.079358+00:00",
+  "reason": "Operator reset from neighborhood",
+  "strategy_label": "Mean-reversion (20-bar window, 1.0\u00a0std-dev trigger); MA crossover filter (3/7-bar); Stop 1.5%, target 4.0%; 5-tick cooldown",
   "config_snapshot": {
     "SHORT_WINDOW": 3,
     "LONG_WINDOW": 7,
@@ -34,5 +34,14 @@
     "MR_REBOUND_CAP": 0.5
   },
   "promotion_ref": "2026-04-10T03:00:42.491550+00:00",
-  "promotion_param": "promotion:batch_20260410T021930_004"
+  "promotion_param": "promotion:batch_20260410T021930_004",
+  "prev_portfolio": {
+    "trade_count": 55,
+    "realized_pnl": -59.0,
+    "cash": 89946.89,
+    "win_rate": 0.4074074074074074,
+    "wins": 11,
+    "losses": 16,
+    "total_closed": 27
+  }
 }

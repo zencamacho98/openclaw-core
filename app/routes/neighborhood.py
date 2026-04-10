@@ -932,6 +932,41 @@ body {
 .review-reject  { background:#1a0000; border-color:#ef5350; color:#ef5350; }
 .review-reject:hover:not(:disabled)  { background:#2a0000; }
 
+/* ── Learning pulse ──────────────────────────────────────────────────────── */
+.learning-verdict-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.verdict-badge { font-size:8px; font-weight:600; letter-spacing:0.8px; padding:1px 6px; border-radius:2px; flex-shrink:0; }
+.verdict-continue { background:#0a2310; color:#00e676; border:1px solid #1a4a30; }
+.verdict-monitor  { background:#0d1a25; color:#90a4ae; border:1px solid #1e2d45; }
+.verdict-tune     { background:#1a1200; color:#ffd54f; border:1px solid #3b2c00; }
+.verdict-research { background:#2a0808; color:#ef5350; border:1px solid #5a1010; }
+.learning-item {
+  font-size:9px; letter-spacing:0.3px; line-height:1.5; padding:1px 0;
+}
+.learning-hurting { color:#ef9a9a; }
+.learning-helping { color:#a5d6a7; }
+.learning-recommendation {
+  font-size:9px; color:#546e7a; letter-spacing:0.3px; line-height:1.5;
+  padding:3px 8px; background:#040d1a; border:1px solid #1e2d45; border-radius:2px;
+  margin-top:3px;
+}
+.learning-research-goal {
+  font-size:8px; color:#546e7a; letter-spacing:0.3px; line-height:1.4;
+  padding:3px 8px; background:#040d1a; border:1px solid #1a2535;
+  border-radius:2px; margin-top:4px; font-style:italic; display:none;
+}
+.learning-history {
+  font-size:8px; color:#37474f; letter-spacing:0.3px; line-height:1.5;
+  padding:3px 8px; background:#040d1a; border:1px solid #131f2e;
+  border-radius:2px; margin-top:3px; display:none;
+}
+.learning-history b { color:#455a64; }
+.learning-research-btn {
+  margin-top:4px; width:100%; padding:4px 0; font-size:9px; letter-spacing:0.8px;
+  font-weight:600; background:#1a0808; color:#ef5350; border:1px solid #5a1010;
+  border-radius:2px; cursor:pointer;
+}
+.learning-research-btn:hover { background:#2a0a0a; }
+
 /* ── Readiness scorecard ─────────────────────────────────────────────────── */
 .readiness-strategy {
   font-size:9px; color:#546e7a; letter-spacing:0.5px; line-height:1.5;
@@ -945,6 +980,19 @@ body {
 .rgate::before { content:'\2713'; position:absolute; left:0; color:#00e676; font-size:9px; }
 .rgate.fail { color:#546e7a; }
 .rgate.fail::before { content:'\2717'; color:#ef5350; }
+.readiness-regime {
+  font-size:8px; color:#546e7a; letter-spacing:0.4px; padding:0 0 4px;
+}
+.readiness-regime .regime-good { color:#00e676; }
+.readiness-regime .regime-ok { color:#b0bec5; }
+.readiness-regime .regime-poor { color:#ef9a9a; }
+.readiness-regime .regime-unknown { color:#455a64; font-style:italic; }
+.readiness-research-trigger {
+  font-size:9px; color:#ffd54f; letter-spacing:0.3px; line-height:1.5;
+  padding:4px 8px; background:#1a1200; border:1px solid #3b2c00; border-radius:2px;
+  margin-top:4px; display:none;
+}
+.readiness-research-trigger b { color:#ffb300; font-weight:600; }
 .readiness-blockers {
   font-size:9px; color:#ef9a9a; letter-spacing:0.3px; line-height:1.6;
   padding:4px 8px; background:#1a0808; border:1px solid #3b1010; border-radius:2px;
@@ -957,14 +1005,23 @@ body {
   margin-top:4px; display:none;
 }
 .readiness-comparison b { color:#607d8b; font-weight:600; }
-.readiness-summary {
-  font-size:9px; color:#546e7a; letter-spacing:0.3px; line-height:1.6;
-  padding:6px 8px; background:#040d1a; border:1px solid #1e2d45; border-radius:2px;
-  margin-top:2px;
-}
 .readiness-badge-prelive { background:#003322; color:#00e676; }
 .readiness-badge-monitoring { background:#332800; color:#ffd600; }
 .readiness-badge-evaluation { background:#00204a; color:#4fc3f7; }
+#readiness-detail > summary {
+  font-size:9px; color:#546e7a; letter-spacing:0.5px; cursor:pointer;
+  list-style:none; user-select:none; margin-top:4px;
+}
+#readiness-detail > summary::-webkit-details-marker { display:none; }
+.diag-block { margin-bottom:5px; }
+.diag-row { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+.diag-label { font-size:7px; letter-spacing:1.5px; color:#37474f; flex-shrink:0; }
+.diag-ok   { font-size:9px; color:#00e676; }
+.diag-warn { font-size:9px; color:#ef9a9a; }
+.diag-warn-text { font-size:9px; color:#ef9a9a; letter-spacing:0.3px; padding-left:4px; line-height:1.5; }
+.diag-muted { font-size:9px; color:#546e7a; letter-spacing:0.3px; line-height:1.5; }
+.diag-detail-toggle { list-style:none; font-size:9px; color:#455a64; cursor:pointer; margin-top:3px; }
+.diag-detail-toggle::-webkit-details-marker { display:none; }
 </style>
 </head>
 <body>
@@ -1196,16 +1253,41 @@ body {
         <!-- Readiness scorecard (always shown in Belfort panel) -->
         <div id="belfort-readiness-section" style="display:none">
           <div class="dp-divider" style="margin-top:8px"></div>
-          <div class="dp-section-label" style="margin-top:8px">READINESS SCORECARD</div>
+          <div class="dp-section-label" style="margin-top:8px">READINESS</div>
           <div class="dp-status-row" style="margin-bottom:5px;gap:8px">
             <span id="readiness-badge" class="dp-badge idle">—</span>
             <span id="readiness-gates-count" class="dp-detail-text"></span>
           </div>
-          <div id="readiness-strategy" class="readiness-strategy"></div>
-          <div id="readiness-gates" class="readiness-gates"></div>
+          <div id="readiness-research-trigger" class="readiness-research-trigger"></div>
           <div id="readiness-blockers" class="readiness-blockers"></div>
-          <div id="readiness-comparison" class="readiness-comparison"></div>
-          <div id="readiness-summary" class="readiness-summary"></div>
+          <details id="readiness-detail">
+            <summary>Detail &#9658;</summary>
+            <div id="readiness-strategy" class="readiness-strategy"></div>
+            <div id="readiness-regime" class="readiness-regime"></div>
+            <div id="readiness-gates" class="readiness-gates"></div>
+            <div id="readiness-comparison" class="readiness-comparison"></div>
+          </details>
+        </div>
+        <!-- Learning pulse (loaded from /belfort/learning) -->
+        <div id="belfort-learning-section" style="display:none">
+          <div class="dp-divider" style="margin-top:8px"></div>
+          <div class="dp-section-label" style="margin-top:8px">LEARNING PULSE</div>
+          <div id="learning-verdict-row" class="learning-verdict-row"></div>
+          <div id="learning-hurting"        class="learning-item learning-hurting"></div>
+          <div id="learning-helping"        class="learning-item learning-helping"></div>
+          <div id="learning-recommendation" class="learning-recommendation"></div>
+          <div id="learning-history"        class="learning-history"></div>
+          <div id="learning-research-goal"  class="learning-research-goal"></div>
+          <button id="learning-research-btn" class="learning-research-btn" style="display:none"
+                  onclick="belfortResearchWithGoal()">\u25b6 Begin Research</button>
+        </div>
+        <!-- Diagnostics (loaded from /belfort/diagnostics) -->
+        <div id="belfort-diagnostics-section" style="display:none">
+          <div class="dp-divider" style="margin-top:8px"></div>
+          <div class="dp-section-label" style="margin-top:8px">DIAGNOSTICS</div>
+          <div id="diag-strategy" class="diag-block"></div>
+          <div id="diag-pnl"      class="diag-block"></div>
+          <div id="diag-triggers" class="diag-block"></div>
         </div>
       </div>
     </div>
@@ -1221,10 +1303,14 @@ const DASH_URL  = 'http://localhost:8502';
 const POLL_MS   = 5000;
 
 // ── Global state ─────────────────────────────────────────────────────────
-let _lastState            = null;
-let _currentSelection     = null;
-let _sentinelPanelAutoRan = false;
-let _lastReadiness        = null;
+let _lastState               = null;
+let _currentSelection        = null;
+let _sentinelPanelAutoRan    = false;
+let _lastReadiness           = null;
+let _lastLearning            = null;
+let _belfortReadinessLastLoad    = 0;
+let _belfortLearningLastLoad     = 0;
+let _belfortDiagnosticsLastLoad  = 0;
 
 // Open dashboard tab with a unique timestamp so sessionStorage dedup allows re-fire
 function openDashTab(view) {
@@ -1334,6 +1420,9 @@ function closePanel() {
   document.querySelectorAll('.house.selected, .ops-unit.selected')
     .forEach(el => el.classList.remove('selected'));
   _currentSelection = null;
+  _belfortReadinessLastLoad   = 0;
+  _belfortLearningLastLoad    = 0;
+  _belfortDiagnosticsLastLoad = 0;
 }
 
 // ── Panel population ──────────────────────────────────────────────────────
@@ -1391,8 +1480,8 @@ function setActions(actions) {
   ).join('');
 }
 
-function populatePanel(id, state) {
-  setBasicPanel(id);
+function populatePanel(id, state, _skipClear) {
+  if (!_skipClear) setBasicPanel(id);
   const belfort    = state.belfort    || {};
   const supervisor = state.supervisor || {};
   const checker    = state.checker    || {};
@@ -1410,8 +1499,7 @@ function populatePanel(id, state) {
     const cls   = reviewNeeded ? 'review' : (warns || custBad || sentBad) ? 'warning' : loopOn ? 'active' : 'idle';
     const label = reviewNeeded ? 'REVIEW NEEDED' : loopOn ? 'RESEARCH ON' : 'IDLE';
     setBadge(cls, label);
-    document.getElementById('dp-status-detail').textContent =
-      loopOn ? `Cycle ${supervisor.cycle_count || 0}` : '';
+    document.getElementById('dp-status-detail').textContent = '';
 
     const sit = [];
     if (reviewNeeded)              sit.push({text: 'A research result is ready for your review', cls: 'warn'});
@@ -1461,10 +1549,6 @@ function populatePanel(id, state) {
 
     // Trading-first situation
     const openPos = belfort.open_positions || [];
-    const pnl     = (belfort.realized_pnl || 0) + (belfort.unrealized_pnl || 0);
-    const trades  = belfort.trade_count || 0;
-    const pnlAbs  = Math.abs(pnl);
-    const pnlStr  = (pnl >= 0 ? '+$' : '-$') + (pnlAbs >= 1000 ? (pnlAbs/1000).toFixed(2)+'k' : pnlAbs.toFixed(2));
     const sit = [];
     if (['waiting_for_review','review_held'].includes(bStatus))
       sit.push({text: '\u26a1 Research result ready \u2014 approve or reject below', cls: 'warn'});
@@ -1479,8 +1563,6 @@ function populatePanel(id, state) {
       const ltCls = lt.pnl != null && lt.pnl < 0 ? 'warn' : lt.pnl != null && lt.pnl > 0 ? 'ok' : '';
       sit.push({text: 'Last trade: ' + lt.side + '\u00a0' + (lt.symbol || '?') + ' @ $' + (lt.price != null ? lt.price.toFixed(2) : '?') + ltP, cls: ltCls});
     }
-    sit.push({text: trades + ' trade' + (trades !== 1 ? 's' : '') + ' \u00b7 P\u0026L ' + pnlStr + ' \u00b7 Cash $' + ((belfort.cash || 100000)/1000).toFixed(1) + 'k',
-              cls: pnl > 0.005 ? 'ok' : pnl < -0.005 ? 'warn' : ''});
     if (!tradingOn && !loopOn && !['waiting_for_review','review_held'].includes(bStatus))
       sit.push({text: 'Both trading and research are off \u2014 use controls below to start'});
     setItems('dp-situation', sit);
@@ -1498,8 +1580,10 @@ function populatePanel(id, state) {
       const rc = document.getElementById('belfort-review-card');
       if (rc) rc.style.display = 'none';
     }
-    // Load readiness scorecard
+    // Load readiness scorecard, learning pulse, and diagnostics
     loadBelfortReadiness();
+    loadBelfortLearning();
+    loadBelfortDiagnostics();
     setActions([{text: '\ud83d\udcca Open Belfort workspace \u2192', onclick: "openDashTab('belfort')", primary: true}]);
   }
 
@@ -1697,9 +1781,76 @@ function _peterDeterministicAnswer(msg) {
     if (warns > 0)    return 'Check the Loop Checker panel: ' + warns + ' warning' + (warns > 1 ? 's need' : ' needs') + ' review in Controls.';
     if (custBad)      return 'Click Custodian and run a health check to diagnose the system issue.';
     if (sentBad)      return 'Click Sentinel and run a smoke check to clear the safety flag.';
+    // Use learning verdict to guide next action
+    if (_lastLearning) {
+      const lv = _lastLearning.verdict;
+      const rt = _lastLearning.research_triggers;
+      if (lv === 'research' && !loopOn) {
+        return (rt && rt.recommendation ? rt.recommendation : 'Research recommended.') + ' Use the Begin Research button in the Belfort panel or Controls tab.';
+      }
+      if (lv === 'tune') {
+        return 'Strategy may need adjustment \u2014 ' + (_lastLearning.verdict_note || '') + ' Consider running a targeted research campaign.';
+      }
+    }
     if (!tradingOn && !loopOn) return 'Click the Belfort house and use the controls to start mock trading or begin research.';
     if (loopOn)       return 'Research is running on cycle ' + (supervisor.cycle_count || 0) + '. Watch for review-needed status on the Belfort house.';
     return 'Mock trading is active. Watch the Belfort house for position updates.';
+  }
+
+  if (lower.includes('run research') || lower.includes('start research') || lower.includes('begin research')) {
+    if (loopOn) return 'Research is already running on cycle ' + (supervisor.cycle_count || 0) + '. Watch for review-needed status on the Belfort house.';
+    const L = _lastLearning;
+    if (L && L.verdict === 'research') {
+      const rt = L.research_triggers;
+      return (rt && rt.recommendation ? rt.recommendation : 'Research recommended.') + ' Use Begin Research in the Belfort panel or Controls tab.';
+    }
+    const verdict = L ? L.verdict : null;
+    return verdict
+      ? 'No active research trigger. Verdict: ' + verdict.toUpperCase() + ' \u2014 ' + (L.verdict_note || '') + '. You can still start research manually via Controls.'
+      : 'Open the Belfort panel first to load learning status, then use Begin Research in Controls if needed.';
+  }
+
+  if (lower.includes('pattern') || lower.includes('history') || lower.includes('past session') || lower.includes('repeated') || lower.includes('how many session')) {
+    const L = _lastLearning;
+    if (!L) return 'Open the Belfort panel first \u2014 learning data will load automatically.';
+    const hc = L.historical_context;
+    if (!hc || hc.entry_count === 0) return 'No prior sessions in learning history yet \u2014 history builds after the first baseline reset.';
+    const base = `${hc.entry_count} session${hc.entry_count !== 1 ? 's' : ''} in learning history.`;
+    if (hc.patterns && hc.patterns.length > 0) {
+      return base + ' Patterns: ' + hc.patterns.slice(0, 2).join('; ') + '.';
+    }
+    return base + ' ' + (hc.summary || 'No repeated patterns detected yet.');
+  }
+
+  if (lower.includes('what research') || lower.includes('research goal') || lower.includes('why research') || lower.includes('why should belfort')) {
+    const L = _lastLearning;
+    if (!L) return 'Open the Belfort panel first \u2014 learning data will load automatically.';
+    const goal = L.research_goal;
+    const rt   = L.research_triggers;
+    if (goal) {
+      const topReason = rt && rt.reasons && rt.reasons[0] ? ' Reason: ' + rt.reasons[0] + '.' : '';
+      return 'Suggested research goal: \u201c' + goal + '\u201d.' + topReason;
+    }
+    if (rt && rt.triggered) {
+      return 'Research recommended: ' + rt.recommendation + (rt.reasons && rt.reasons[0] ? ' Top trigger: ' + rt.reasons[0] : '') + '.';
+    }
+    return 'No active research trigger. Current verdict: ' + (L.verdict || 'continue').toUpperCase() + '.';
+  }
+
+  if (lower.includes('learn') || lower.includes('how is belfort') || lower.includes('what is hurting') || lower.includes('what is helping') || lower.includes('is the strategy')) {
+    const L = _lastLearning;
+    if (!L) return 'Open the Belfort panel first \u2014 learning data will load automatically.';
+    const topHurt = L.hurting && L.hurting[0] ? L.hurting[0] : 'nothing flagged';
+    const topHelp = L.helping && L.helping[0] ? L.helping[0] : 'nothing noted yet';
+    const pnlStr  = (L.realized_pnl >= 0 ? '+$' : '-$') + Math.abs(L.realized_pnl || 0).toFixed(2);
+    const wrStr   = L.win_rate != null ? (', ' + Math.round(L.win_rate * 100) + '% win rate') : '';
+    return (
+      'Learning verdict: ' + (L.verdict || '?').toUpperCase() + '. '
+      + 'Main issue: ' + topHurt + '. '
+      + 'What\u2019s helping: ' + topHelp + '. '
+      + 'P\u0026L ' + pnlStr + wrStr + ', '
+      + (L.total_closed || 0) + ' closed trades.'
+    );
   }
 
   if (lower.includes('ready') || lower.includes('live') || lower.includes('readiness') || lower.includes('mentor') || lower.includes('progress') || lower.includes('explain belfort')) {
@@ -1872,6 +2023,9 @@ async function belfortReviewAction(action) {
 
 // ── Belfort readiness scorecard ──────────────────────────────────────────
 async function loadBelfortReadiness() {
+  const now = Date.now();
+  if (now - _belfortReadinessLastLoad < 55000) return;
+  _belfortReadinessLastLoad = now;
   const section = document.getElementById('belfort-readiness-section');
   if (!section) return;
   section.style.display = '';
@@ -1879,13 +2033,17 @@ async function loadBelfortReadiness() {
   const badgeEl      = document.getElementById('readiness-badge');
   const countEl      = document.getElementById('readiness-gates-count');
   const stratEl      = document.getElementById('readiness-strategy');
+  const regimeEl     = document.getElementById('readiness-regime');
   const gatesEl      = document.getElementById('readiness-gates');
+  const researchEl   = document.getElementById('readiness-research-trigger');
   const blockersEl   = document.getElementById('readiness-blockers');
   const comparisonEl = document.getElementById('readiness-comparison');
   const summaryEl    = document.getElementById('readiness-summary');
 
   if (badgeEl)      { badgeEl.className = 'dp-badge idle'; badgeEl.textContent = 'Loading\u2026'; }
   if (gatesEl)      gatesEl.innerHTML    = '';
+  if (regimeEl)     regimeEl.innerHTML   = '';
+  if (researchEl)   { researchEl.innerHTML = ''; researchEl.style.display = 'none'; }
   if (blockersEl)   { blockersEl.innerHTML = ''; blockersEl.style.display = 'none'; }
   if (comparisonEl) { comparisonEl.innerHTML = ''; comparisonEl.style.display = 'none'; }
   if (summaryEl)    summaryEl.textContent = '';
@@ -1910,10 +2068,27 @@ async function loadBelfortReadiness() {
     }
     if (countEl) countEl.textContent = (d.gates_passed || 0) + '/' + (d.gates_total || 0) + ' gates passed';
     if (stratEl) stratEl.textContent = d.strategy_description || '';
+
+    // Regime context label
+    if (regimeEl && d.regime_context) {
+      const rc  = d.regime_context;
+      const fitCls = {'good': 'regime-good', 'ok': 'regime-ok', 'poor': 'regime-poor'}[rc.strategy_fit] || 'regime-unknown';
+      const erPart  = (rc.efficiency_ratio != null) ? ` ER\u00a0${rc.efficiency_ratio.toFixed(2)}` : '';
+      const volPart = rc.vol_note ? ` \u00b7 ${rc.vol_note}` : '';
+      regimeEl.innerHTML = `Market: <span class="${fitCls}">${_escHtml(rc.label)}${erPart}${volPart}</span>`;
+    }
+
     if (gatesEl && Array.isArray(d.gates)) {
       gatesEl.innerHTML = d.gates.map(g =>
         `<div class="rgate${g.pass ? '' : ' fail'}" title="${_escHtml(g.note || '')}">${_escHtml(g.label)}</div>`
       ).join('');
+    }
+
+    // Research trigger warning
+    if (researchEl && d.research_triggers && d.research_triggers.triggered) {
+      const rt = d.research_triggers;
+      researchEl.innerHTML = `<b>Research signal (${rt.count}):</b> ${_escHtml(rt.recommendation)}`;
+      researchEl.style.display = '';
     }
 
     // Blockers — top failing gates in plain English
@@ -1922,9 +2097,11 @@ async function loadBelfortReadiness() {
       blockersEl.style.display = '';
     }
 
-    // Baseline comparison — prev session vs current
+    // Baseline comparison — prev session vs current (with verdict badge)
     if (comparisonEl && d.baseline_comparison && d.baseline_comparison.available) {
-      comparisonEl.innerHTML = '<b>vs prev session:</b> ' + _escHtml(d.baseline_comparison.summary);
+      const bc = d.baseline_comparison;
+      const verdictBadge = bc.verdict === 'improving' ? ' \u25b2' : bc.verdict === 'declining' ? ' \u25bc' : '';
+      comparisonEl.innerHTML = `<b>vs prev session${verdictBadge}:</b> ` + _escHtml(bc.summary);
       comparisonEl.style.display = '';
     }
 
@@ -1939,6 +2116,214 @@ async function loadBelfortReadiness() {
   } catch(e) {
     if (badgeEl)   { badgeEl.className = 'dp-badge idle'; badgeEl.textContent = '?'; }
     if (summaryEl) summaryEl.textContent = 'Could not load readiness data.';
+  }
+}
+
+// ── Belfort learning pulse ────────────────────────────────────────────────
+async function loadBelfortLearning() {
+  const now = Date.now();
+  if (now - _belfortLearningLastLoad < 55000) return;
+  _belfortLearningLastLoad = now;
+  const section   = document.getElementById('belfort-learning-section');
+  if (!section) return;
+
+  const verdictEl   = document.getElementById('learning-verdict-row');
+  const hurtingEl   = document.getElementById('learning-hurting');
+  const helpingEl   = document.getElementById('learning-helping');
+  const recEl       = document.getElementById('learning-recommendation');
+  const histEl      = document.getElementById('learning-history');
+  const goalEl      = document.getElementById('learning-research-goal');
+  const researchBtn = document.getElementById('learning-research-btn');
+
+  try {
+    const r = await fetch('/belfort/learning', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    _lastLearning = d;
+    section.style.display = '';
+
+    // Verdict badge + note
+    const vMap = {
+      continue: ['verdict-continue', 'CONTINUE'],
+      monitor:  ['verdict-monitor',  'MONITOR'],
+      tune:     ['verdict-tune',     'TUNE'],
+      research: ['verdict-research', 'RESEARCH NEEDED'],
+    };
+    const [vCls, vLabel] = vMap[d.verdict] || ['verdict-monitor', (d.verdict || '?').toUpperCase()];
+    if (verdictEl) {
+      verdictEl.innerHTML = (
+        `<span class="verdict-badge ${vCls}">${vLabel}</span>` +
+        `<span style="font-size:8px;color:#455a64;letter-spacing:0.3px">${_escHtml(d.verdict_note || '')}</span>`
+      );
+    }
+
+    // Top hurting item (▼ red)
+    const topHurt = Array.isArray(d.hurting) && d.hurting.length ? d.hurting[0] : null;
+    if (hurtingEl) {
+      hurtingEl.textContent   = topHurt ? '\u25bc\u00a0' + topHurt : '';
+      hurtingEl.style.display = topHurt ? '' : 'none';
+    }
+
+    // Top helping item (▲ green)
+    const topHelp = Array.isArray(d.helping) && d.helping.length ? d.helping[0] : null;
+    if (helpingEl) {
+      helpingEl.textContent   = topHelp ? '\u25b2\u00a0' + topHelp : '';
+      helpingEl.style.display = topHelp ? '' : 'none';
+    }
+
+    // Recommendation text (from research triggers if available, else verdict note)
+    const recText = (d.research_triggers && d.research_triggers.recommendation)
+                    || d.verdict_note || '';
+    if (recEl) recEl.textContent = recText;
+
+    // Historical context (pattern memory across sessions)
+    if (histEl) {
+      const hc = d.historical_context;
+      if (hc && hc.entry_count > 0 && hc.summary) {
+        histEl.innerHTML = '<b>History:</b> ' + _escHtml(hc.summary);
+        histEl.style.display = '';
+      } else {
+        histEl.innerHTML = '';
+        histEl.style.display = 'none';
+      }
+    }
+
+    // Trigger-derived research goal
+    if (goalEl) {
+      if (d.research_goal && d.verdict === 'research') {
+        goalEl.textContent   = '\u25b6 Goal: ' + d.research_goal;
+        goalEl.style.display = '';
+      } else {
+        goalEl.textContent   = '';
+        goalEl.style.display = 'none';
+      }
+    }
+
+    // Research button: only visible when research is recommended AND loop is off
+    const loopOn = (_lastState && _lastState.supervisor && _lastState.supervisor.enabled) || false;
+    if (researchBtn) {
+      researchBtn.style.display = (d.verdict === 'research' && !loopOn) ? '' : 'none';
+    }
+
+  } catch(e) {
+    section.style.display = 'none';
+  }
+}
+
+// ── Belfort diagnostics ───────────────────────────────────────────────────
+async function loadBelfortDiagnostics() {
+  const now = Date.now();
+  if (now - _belfortDiagnosticsLastLoad < 30000) return;
+  _belfortDiagnosticsLastLoad = now;
+  const section = document.getElementById('belfort-diagnostics-section');
+  if (!section) return;
+  section.style.display = '';
+
+  try {
+    const r = await fetch('/belfort/diagnostics', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+
+    // ── Strategy drift ────────────────────────────────────────────────────
+    const stratEl = document.getElementById('diag-strategy');
+    if (stratEl) {
+      const dr = d.strategy_drift || {};
+      const driftBadge = dr.drifted
+        ? `<span class="diag-warn">CHANGED (${dr.changed_params.length} param${dr.changed_params.length !== 1 ? 's' : ''})</span>`
+        : `<span class="diag-ok">Unchanged</span>`;
+      const resetDate = dr.reset_at ? dr.reset_at.slice(0, 10) : '\u2014';
+      const promoPart = dr.promotion_param
+        ? `<span class="diag-muted"> · adopted ${_escHtml(dr.promotion_param.replace('promotion:', '').slice(0, 36))}</span>`
+        : '';
+      let html = (
+        `<div class="diag-row"><span class="diag-label">STRATEGY</span>${driftBadge}</div>` +
+        `<div class="diag-muted">${_escHtml((dr.current_label || '\u2014').slice(0, 80))}</div>` +
+        `<div class="diag-muted">Reset: ${resetDate}${promoPart}</div>`
+      );
+      if (dr.changed_params && dr.changed_params.length > 0) {
+        html += `<div class="diag-warn-text">${dr.changed_params.map(p => _escHtml(p)).join(' \u00b7 ')}</div>`;
+      }
+      stratEl.innerHTML = html;
+    }
+
+    // ── Session P&L path ──────────────────────────────────────────────────
+    const pnlEl = document.getElementById('diag-pnl');
+    if (pnlEl) {
+      const s = d.session_pnl || {};
+      const pnl    = s.realized_pnl || 0;
+      const pnlCls = pnl > 0.005 ? 'diag-ok' : pnl < -0.005 ? 'diag-warn' : 'diag-muted';
+      const pnlStr = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+      const wr     = s.win_rate != null ? Math.round(s.win_rate * 100) + '%' : '\u2014';
+      const exp    = s.expectancy    != null ? (s.expectancy    >= 0 ? '+' : '') + s.expectancy.toFixed(2)    : '\u2014';
+      const rExp   = s.recent_expectancy != null ? (s.recent_expectancy >= 0 ? '+' : '') + s.recent_expectancy.toFixed(2) : '\u2014';
+      const awStr  = s.avg_win  != null ? '+$' + s.avg_win.toFixed(2)          : '\u2014';
+      const alStr  = s.avg_loss != null ? '$'  + Math.abs(s.avg_loss).toFixed(2) : '\u2014';
+      const ddStr  = s.drawdown_from_peak != null && s.drawdown_from_peak < -0.01
+        ? `\u00a0\u25bc\u00a0$${Math.abs(s.drawdown_from_peak).toFixed(2)} from peak` : '';
+
+      pnlEl.innerHTML = (
+        `<div class="diag-row"><span class="diag-label">P&amp;L PATH</span><span class="${pnlCls}">${pnlStr}</span></div>` +
+        `<div class="diag-muted">${s.total_closed || 0}\u00a0closed\u00b7 ${wr}\u00a0WR\u00b7 expect\u00a0${exp}/tr\u00b7 recent\u00a0${rExp}/tr${ddStr}</div>` +
+        `<div class="diag-muted">avg win\u00a0${awStr}\u00b7 avg loss\u00a0${alStr}</div>`
+      );
+    }
+
+    // ── Trigger detail ────────────────────────────────────────────────────
+    const trigEl = document.getElementById('diag-triggers');
+    if (trigEl) {
+      const t      = d.trigger_detail || {};
+      const active = t.active_triggers  || [];
+      const inactive = t.inactive_notes || [];
+      const qStatus  = t.queue_status   || 'unknown';
+      const qCls     = qStatus !== 'empty' && qStatus !== 'unavailable' ? 'diag-ok' : 'diag-muted';
+
+      let html = `<div class="diag-row"><span class="diag-label">TRIGGERS</span>`;
+      if (active.length > 0) {
+        html += `<span class="diag-warn">${active.length}\u00a0ACTIVE</span></div>`;
+        active.forEach(r => { html += `<div class="diag-warn-text">\u25b2\u00a0${_escHtml(r)}</div>`; });
+      } else {
+        html += `<span class="diag-ok">NONE</span></div>`;
+        if (t.recommendation) html += `<div class="diag-muted">${_escHtml(t.recommendation)}</div>`;
+      }
+
+      if (inactive.length > 0) {
+        html += `<details><summary class="diag-detail-toggle">Why not active \u25b8</summary>` +
+          inactive.map(n => `<div class="diag-muted">\u00b7\u00a0${_escHtml(n)}</div>`).join('') +
+          `</details>`;
+      }
+
+      html += `<div class="diag-muted" style="margin-top:3px">Queue:\u00a0<span class="${qCls}">${_escHtml(qStatus)}</span></div>`;
+      trigEl.innerHTML = html;
+    }
+
+  } catch(e) {
+    const section = document.getElementById('belfort-diagnostics-section');
+    if (section) section.style.display = 'none';
+  }
+}
+
+// ── Begin Research with trigger-derived goal ──────────────────────────────
+async function belfortResearchWithGoal() {
+  const btn  = document.getElementById('learning-research-btn');
+  const goal = _lastLearning && _lastLearning.research_goal;
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting\u2026'; }
+  try {
+    const body = goal ? JSON.stringify({goal}) : '{}';
+    const r    = await fetch('/supervisor/enable', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body,
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (btn) btn.textContent = '\u2713';
+    setTimeout(async () => {
+      if (btn) btn.disabled = false;
+      const s = await fetchState();
+      if (s) applyState(s);
+    }, 600);
+  } catch(e) {
+    console.error('belfortResearchWithGoal error:', e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '\u25b6 Begin Research'; }
   }
 }
 
@@ -2203,7 +2588,7 @@ function applyState(state) {
   setSpeech('sp-peter',
     reviewNeeded            ? 'Candidate ready for your review' :
     supervisor.stop_requested ? 'Stop requested' :
-    loopEnabled             ? `Cycle ${supervisor.cycle_count || 0}` : 'Ready for instructions',
+    loopEnabled             ? 'Research running' : 'Ready for instructions',
     true);
 
   // Belfort
@@ -2242,8 +2627,8 @@ function applyState(state) {
   // Summary bar
   updateSummary(state);
 
-  // Refresh open panel with new state
-  if (_currentSelection) populatePanel(_currentSelection, state);
+  // Refresh open panel with new state — skip clear to avoid loading flash
+  if (_currentSelection) populatePanel(_currentSelection, state, true);
 
   // Conn bar
   const connDot = document.getElementById('conn-dot');
