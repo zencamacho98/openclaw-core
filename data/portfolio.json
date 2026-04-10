@@ -1,7 +1,7 @@
 {
-  "cash": 99965.753362,
+  "cash": 100002.157785,
   "positions": {},
-  "realized_pnl": -34.24663799999931,
+  "realized_pnl": 2.1577849999968066,
   "trade_history": [
     {
       "timestamp": "2026-04-10T11:45:55.875368",
@@ -18,9 +18,89 @@
       "qty": 19.1322,
       "price": 520.89,
       "pnl": -34.25
+    },
+    {
+      "timestamp": "2026-04-10T11:46:31.880549",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.1417,
+      "price": 522.24,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T11:46:49.882910",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.1417,
+      "price": 524.31,
+      "pnl": 39.62
+    },
+    {
+      "timestamp": "2026-04-10T11:47:10.885893",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.0236,
+      "price": 525.69,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T11:47:37.889403",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.0236,
+      "price": 521.26,
+      "pnl": -84.27
+    },
+    {
+      "timestamp": "2026-04-10T11:47:58.892445",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.1761,
+      "price": 521.07,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T11:48:16.895215",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.1761,
+      "price": 518.4,
+      "pnl": -51.2
+    },
+    {
+      "timestamp": "2026-04-10T11:48:43.898798",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.159,
+      "price": 521.27,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T11:49:01.901557",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.159,
+      "price": 518.48,
+      "pnl": -53.45
+    },
+    {
+      "timestamp": "2026-04-10T11:49:19.904532",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.2047,
+      "price": 519.75,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T11:50:07.910409",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.2047,
+      "price": 529.42,
+      "pnl": 185.71
     }
   ],
   "market_prices": {
-    "SPY": 520.89
+    "SPY": 529.42
   }
 }
