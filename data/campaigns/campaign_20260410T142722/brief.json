@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0",
+  "campaign_id": "campaign_20260410T142722",
+  "generated_at": "2026-04-10T14:27:40.044925+00:00",
+  "goal": "A valid research goal here",
+  "notes": "",
+  "status": "completed",
+  "what_ran": {
+    "sessions_ran": 3,
+    "total_batches": 9,
+    "total_experiments": 27,
+    "total_accepted": 13,
+    "classes_emphasized": [
+      "profit_taking",
+      "entry_quality",
+      "loss_structure"
+    ],
+    "session_ids": [
+      "session_20260410T142722",
+      "session_20260410T142728",
+      "session_20260410T142734"
+    ]
+  },
+  "stop_condition": "max_sessions_reached",
+  "stop_reason": "Completed 3/3 planned sessions.",
+  "dominant_findings": [
+    "13/27 experiments accepted (48%) across 3 session(s).",
+    "Most frequent failure mode: median PnL regression (appeared in 3/3 session(s)).",
+    "Campaign best: batch_20260410T142724_001 \u2014 score=52.0, tier=noisy, class=profit_taking."
+  ],
+  "what_improved": [
+    "Most productive experiment class: profit_taking."
+  ],
+  "what_repeatedly_failed": [
+    "Median PnL regression dominated 3/3 session(s) \u2014 central performance is consistently degraded."
+  ],
+  "best_candidate": {
+    "experiment_id": "batch_20260410T142724_001",
+    "experiment_class": "profit_taking",
+    "score": 52.0,
+    "tier": "noisy",
+    "decision": "ACCEPTED",
+    "pnl_delta": 0.0,
+    "worst_pnl_delta": 0.0,
+    "candidate_config": {
+      "TAKE_PROFIT_PCT": 0.03
+    },
+    "quality_labels": [
+      "wins too small for risk"
+    ],
+    "hypothesis": "Tighten take-profit from 4% to 3% to capture mean-reversion completions before price drifts back \u2014 tests whether faster exits improve win rate.",
+    "batch_id": "batch_20260410T142724",
+    "session_id": "session_20260410T142722"
+  },
+  "artifacts": {
+    "best_validation_record": "/home/zen_camacho98/openclaw-core/data/validation_runs/20260410T142725_batch_20260410T142724_001.json",
+    "best_experiment_id": "batch_20260410T142724_001",
+    "best_session_id": "session_20260410T142722",
+    "best_promotion_command": "python scripts/promote_candidate.py --record /home/zen_camacho98/openclaw-core/data/validation_runs/20260410T142725_batch_20260410T142724_001.json",
+    "session_reports": [
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T142722_session.json",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T142728_session.json",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T142734_session.json"
+    ],
+    "session_md_reports": [
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T142722_session_report.md",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T142728_session_report.md",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T142734_session_report.md"
+    ]
+  },
+  "human_review_recommended": true,
+  "human_review_reason": "Best candidate: batch_20260410T142724_001 (score=52.0, tier=noisy, class=profit_taking). Promote with: python scripts/promote_candidate.py --record /home/zen_camacho98/openclaw-core/data/validation_runs/20260410T142725_batch_20260410T142724_001.json",
+  "next_campaign_focus": "Re-test the best candidate (batch_20260410T142724_001) with extended seeds via scripts/validate_strategy.py before promoting. Then run another campaign targeting the same class.",
+  "session_summaries": [
+    {
+      "session_id": "session_20260410T142722",
+      "batches_completed": 3,
+      "total_experiments": 9,
+      "total_accepted": 1,
+      "classes_tested": [
+        "entry_quality",
+        "loss_structure",
+        "profit_taking"
+      ],
+      "stop_condition": "max_batches_reached",
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    },
+    {
+      "session_id": "session_20260410T142728",
+      "batches_completed": 3,
+      "total_experiments": 9,
+      "total_accepted": 6,
+      "classes_tested": [
+        "profit_taking"
+      ],
+      "stop_condition": "max_batches_reached",
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    },
+    {
+      "session_id": "session_20260410T142734",
+      "batches_completed": 3,
+      "total_experiments": 9,
+      "total_accepted": 6,
+      "classes_tested": [
+        "entry_quality",
+        "profit_taking"
+      ],
+      "stop_condition": "max_batches_reached",
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    }
+  ]
+}

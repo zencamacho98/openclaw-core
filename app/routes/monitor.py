@@ -115,8 +115,40 @@ def trading_stop():
 @router.post("/trading/reset")
 def trading_reset(body: dict = Body(default={})):
     from app.portfolio import reset_portfolio
-    reason = (body or {}).get("reason", "Operator reset from neighborhood")
-    return reset_portfolio(reason)
+    body   = body or {}
+    reason = body.get("reason", "Operator reset from neighborhood")
+
+    # Capture pre-reset stats BEFORE wiping — used for baseline comparison display.
+    prev_portfolio = None
+    try:
+        from app.routes.belfort_readiness import _compute_win_rate
+        prev_snap = get_snapshot()
+        prev_wr   = _compute_win_rate()
+        prev_portfolio = {
+            "trade_count":   prev_snap.get("trade_count", 0),
+            "realized_pnl":  prev_snap.get("realized_pnl", 0.0),
+            "cash":          prev_snap.get("cash", 100_000.0),
+            "win_rate":      prev_wr.get("win_rate"),
+            "wins":          prev_wr.get("wins", 0),
+            "losses":        prev_wr.get("losses", 0),
+            "total_closed":  prev_wr.get("total_closed", 0),
+        }
+    except Exception:
+        pass
+
+    result = reset_portfolio(reason)
+
+    # Record adoption context so the readiness scorecard can track clean eval windows.
+    try:
+        from app.routes.belfort_readiness import write_baseline_record
+        write_baseline_record(
+            reason=reason,
+            strategy_label=body.get("strategy_label", ""),
+            prev_portfolio=prev_portfolio,
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.get("/loop")

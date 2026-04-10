@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0",
+  "campaign_id": "campaign_20260410T135011",
+  "created_at": "2026-04-10T13:50:11.719267+00:00",
+  "goal": "A valid research goal here",
+  "notes": "",
+  "status": "completed",
+  "config": {
+    "max_sessions": 3,
+    "max_batches_per_session": 3,
+    "experiments_per_batch": 3,
+    "max_total_experiments": 60
+  },
+  "progress": {
+    "sessions_completed": 3,
+    "total_batches": 9,
+    "total_experiments": 27,
+    "total_accepted": 11,
+    "consecutive_no_progress_sessions": 0,
+    "session_dominant_failures": [
+      "median_pnl",
+      "median_pnl",
+      "median_pnl"
+    ]
+  },
+  "session_ids": [
+    "session_20260410T135011",
+    "session_20260410T135017",
+    "session_20260410T135022"
+  ],
+  "session_summaries": [
+    {
+      "session_id": "session_20260410T135011",
+      "batches_completed": 3,
+      "total_experiments": 9,
+      "total_accepted": 1,
+      "classes_tested": [
+        "entry_quality",
+        "loss_structure",
+        "profit_taking"
+      ],
+      "stop_condition": "max_batches_reached",
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    },
+    {
+      "session_id": "session_20260410T135017",
+      "batches_completed": 3,
+      "total_experiments": 9,
+      "total_accepted": 4,
+      "classes_tested": [
+        "entry_quality",
+        "profit_taking"
+      ],
+      "stop_condition": "max_batches_reached",
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    },
+    {
+      "session_id": "session_20260410T135022",
+      "batches_completed": 3,
+      "total_experiments": 9,
+      "total_accepted": 6,
+      "classes_tested": [
+        "profit_taking"
+      ],
+      "stop_condition": "max_batches_reached",
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    }
+  ],
+  "best_candidate": {
+    "experiment_id": "batch_20260410T135015_001",
+    "experiment_class": "profit_taking",
+    "score": 52.0,
+    "tier": "noisy",
+    "decision": "ACCEPTED",
+    "pnl_delta": 0.0,
+    "worst_pnl_delta": 0.0,
+    "candidate_config": {
+      "TAKE_PROFIT_PCT": 0.03
+    },
+    "quality_labels": [
+      "wins too small for risk"
+    ],
+    "hypothesis": "Tighten take-profit from 4% to 3% to capture mean-reversion completions before price drifts back \u2014 tests whether faster exits improve win rate.",
+    "batch_id": "batch_20260410T135015",
+    "session_id": "session_20260410T135011"
+  },
+  "stop_condition": "max_sessions_reached",
+  "stop_reason": "Completed 3/3 planned sessions.",
+  "artifacts": {
+    "best_validation_record": "/home/zen_camacho98/openclaw-core/data/validation_runs/20260410T135015_batch_20260410T135015_001.json",
+    "best_experiment_id": "batch_20260410T135015_001",
+    "best_session_id": "session_20260410T135011",
+    "session_reports": [
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T135011_session.json",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T135017_session.json",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T135022_session.json"
+    ],
+    "session_md_reports": [
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T135011_session_report.md",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T135017_session_report.md",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T135022_session_report.md"
+    ],
+    "campaign_brief_json": "/home/zen_camacho98/openclaw-core/data/campaigns/campaign_20260410T135011/brief.json",
+    "campaign_brief_md": "/home/zen_camacho98/openclaw-core/data/campaigns/campaign_20260410T135011/brief.md"
+  }
+}

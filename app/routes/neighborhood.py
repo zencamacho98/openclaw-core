@@ -163,6 +163,29 @@ def _lm_available() -> bool:
     return False
 
 
+def _readiness_state() -> dict:
+    """Brief readiness summary for Peter's LM context."""
+    try:
+        from app.routes.belfort_readiness import _gather_readiness
+        d = _gather_readiness()
+        return {
+            "level":          d["level"],
+            "level_label":    d["level_label"],
+            "gates_passed":   d["gates_passed"],
+            "gates_total":    d["gates_total"],
+            "strategy":       d["strategy_description"],
+            "last_adoption":  d["last_adoption_at"],
+            "last_reset":     d["last_baseline_reset_at"],
+            "trade_count":    d["trade_count"],
+            "realized_pnl":   d["realized_pnl"],
+            "win_rate":       d["win_rate"],
+            "mentor_summary": d["mentor_summary"],
+            "hours_running":  d["hours_since_reset"],
+        }
+    except Exception:
+        return {"level": "unknown", "level_label": "UNKNOWN"}
+
+
 def _warden_state() -> dict:
     log = _ROOT / "data" / "warden_usage.jsonl"
     if not log.exists():
@@ -204,13 +227,16 @@ async def peter_chat(body: dict = Body(default={})) -> dict:
         "custodian":  _custodian_state(),
         "sentinel":   _sentinel_state(),
         "warden":     _warden_state(),
+        "readiness":  _readiness_state(),
     }
     ctx_str = json.dumps(state, separators=(",", ":"))
 
     system = (
-        "You are Peter, coordinator agent for an automated AI trading research system. "
+        "You are Peter, coordinator agent for an automated AI trading research system called The Abode. "
+        "Mr Belfort is the mock-trading and research agent you monitor. "
         "Answer the operator's question in plain English — 1 to 3 concise sentences. "
         "Be direct and specific. Use the system state context provided. "
+        "When asked about Belfort's readiness or progress, use the 'readiness' field in the context. "
         "You are read-only guidance: do not claim to execute actions. "
         "Do not mention you are an AI or reference the JSON context."
     )
@@ -827,7 +853,7 @@ body {
 
 /* ── Belfort controls ───────────────────────────────────────────────────── */
 .belfort-stats {
-  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 5px;
 }
 .bstat {
   background: #040d1a; border: 1px solid #1e2d45; border-radius: 2px;
@@ -905,6 +931,40 @@ body {
 .review-approve:hover:not(:disabled) { background:#002a14; }
 .review-reject  { background:#1a0000; border-color:#ef5350; color:#ef5350; }
 .review-reject:hover:not(:disabled)  { background:#2a0000; }
+
+/* ── Readiness scorecard ─────────────────────────────────────────────────── */
+.readiness-strategy {
+  font-size:9px; color:#546e7a; letter-spacing:0.5px; line-height:1.5;
+  margin-bottom:5px; font-style:italic;
+}
+.readiness-gates { display:flex; flex-direction:column; gap:2px; margin-bottom:6px; }
+.rgate {
+  font-size:9px; letter-spacing:0.5px; padding:1px 0 1px 16px; position:relative;
+  line-height:1.4; color:#b0bec5;
+}
+.rgate::before { content:'\2713'; position:absolute; left:0; color:#00e676; font-size:9px; }
+.rgate.fail { color:#546e7a; }
+.rgate.fail::before { content:'\2717'; color:#ef5350; }
+.readiness-blockers {
+  font-size:9px; color:#ef9a9a; letter-spacing:0.3px; line-height:1.6;
+  padding:4px 8px; background:#1a0808; border:1px solid #3b1010; border-radius:2px;
+  margin-top:4px; display:none;
+}
+.readiness-blockers b { color:#ef5350; font-weight:600; }
+.readiness-comparison {
+  font-size:8px; color:#455a64; letter-spacing:0.3px; line-height:1.6;
+  padding:4px 8px; background:#040d1a; border:1px solid #1a2535; border-radius:2px;
+  margin-top:4px; display:none;
+}
+.readiness-comparison b { color:#607d8b; font-weight:600; }
+.readiness-summary {
+  font-size:9px; color:#546e7a; letter-spacing:0.3px; line-height:1.6;
+  padding:6px 8px; background:#040d1a; border:1px solid #1e2d45; border-radius:2px;
+  margin-top:2px;
+}
+.readiness-badge-prelive { background:#003322; color:#00e676; }
+.readiness-badge-monitoring { background:#332800; color:#ffd600; }
+.readiness-badge-evaluation { background:#00204a; color:#4fc3f7; }
 </style>
 </head>
 <body>
@@ -1083,6 +1143,8 @@ body {
           <span class="chat-chip" onclick="peterChatAsk('What is happening right now?')">What is happening?</span>
           <span class="chat-chip" onclick="peterChatAsk('What needs my attention?')">Needs attention?</span>
           <span class="chat-chip" onclick="peterChatAsk('What should I do next?')">What next?</span>
+          <span class="chat-chip" onclick="peterChatAsk('Explain Belfort progress for my mentor')">Belfort progress</span>
+          <span class="chat-chip" onclick="peterChatAsk('Is Belfort ready for live trading consideration?')">Ready?</span>
         </div>
         <div id="peter-chat-notice" class="peter-chat-notice">
           &#9888; AI chat offline &mdash; OpenRouter API key not configured.<br>
@@ -1100,7 +1162,7 @@ body {
         <div class="dp-section-label">CONTROLS</div>
         <div class="belfort-controls-grid">
           <button class="bctrl-btn bctrl-start" id="btn-trading-toggle" onclick="belfortToggle('trading')">&#9654; Start Trading</button>
-          <button class="bctrl-btn bctrl-start" id="btn-loop-toggle"    onclick="belfortToggle('loop')">&#9654; Enable Loop</button>
+          <button class="bctrl-btn bctrl-start" id="btn-loop-toggle"    onclick="belfortToggle('loop')">&#9654; Begin Research</button>
         </div>
         <div class="belfort-reset-section">
           <button class="dp-action-btn" id="btn-reset-init"
@@ -1131,6 +1193,20 @@ body {
             </div>
           </div>
         </div>
+        <!-- Readiness scorecard (always shown in Belfort panel) -->
+        <div id="belfort-readiness-section" style="display:none">
+          <div class="dp-divider" style="margin-top:8px"></div>
+          <div class="dp-section-label" style="margin-top:8px">READINESS SCORECARD</div>
+          <div class="dp-status-row" style="margin-bottom:5px;gap:8px">
+            <span id="readiness-badge" class="dp-badge idle">—</span>
+            <span id="readiness-gates-count" class="dp-detail-text"></span>
+          </div>
+          <div id="readiness-strategy" class="readiness-strategy"></div>
+          <div id="readiness-gates" class="readiness-gates"></div>
+          <div id="readiness-blockers" class="readiness-blockers"></div>
+          <div id="readiness-comparison" class="readiness-comparison"></div>
+          <div id="readiness-summary" class="readiness-summary"></div>
+        </div>
       </div>
     </div>
     <div id="dp-actions"></div>
@@ -1148,6 +1224,7 @@ const POLL_MS   = 5000;
 let _lastState            = null;
 let _currentSelection     = null;
 let _sentinelPanelAutoRan = false;
+let _lastReadiness        = null;
 
 // Open dashboard tab with a unique timestamp so sessionStorage dedup allows re-fire
 function openDashTab(view) {
@@ -1331,7 +1408,7 @@ function populatePanel(id, state) {
     const sentBad      = ['review','not_ready'].includes(sentinel.verdict || '');
     const loopOn       = supervisor.enabled;
     const cls   = reviewNeeded ? 'review' : (warns || custBad || sentBad) ? 'warning' : loopOn ? 'active' : 'idle';
-    const label = reviewNeeded ? 'REVIEW NEEDED' : loopOn ? 'LOOP RUNNING' : 'IDLE';
+    const label = reviewNeeded ? 'REVIEW NEEDED' : loopOn ? 'RESEARCH ON' : 'IDLE';
     setBadge(cls, label);
     document.getElementById('dp-status-detail').textContent =
       loopOn ? `Cycle ${supervisor.cycle_count || 0}` : '';
@@ -1341,7 +1418,7 @@ function populatePanel(id, state) {
     if (warns > 0)                 sit.push({text: `${warns} issue${warns > 1 ? 's' : ''} flagged by the audit system`, cls: 'warn'});
     if (custBad)                   sit.push({text: 'System health needs attention', cls: 'warn'});
     if (sentBad)                   sit.push({text: `Patch safety check: ${(sentinel.verdict || '').replace('_',' ')}`, cls: 'warn'});
-    if (supervisor.stop_requested) sit.push({text: 'Research loop is stopping', cls: 'warn'});
+    if (supervisor.stop_requested) sit.push({text: 'Research is stopping', cls: 'warn'});
     if (!sit.length)               sit.push({text: loopOn ? 'Research is running \u2014 monitoring progress' : 'Everything is quiet', cls: 'ok'});
     setItems('dp-situation', sit);
 
@@ -1389,22 +1466,23 @@ function populatePanel(id, state) {
     const pnlAbs  = Math.abs(pnl);
     const pnlStr  = (pnl >= 0 ? '+$' : '-$') + (pnlAbs >= 1000 ? (pnlAbs/1000).toFixed(2)+'k' : pnlAbs.toFixed(2));
     const sit = [];
-    if (openPos.length > 0) {
-      sit.push({text: 'Open position: ' + openPos.join(', '), cls: 'ok'});
-    } else {
-      const lt = belfort.last_trade;
-      if (lt) {
-        const ltP = lt.pnl != null ? (' (' + (lt.pnl >= 0 ? '+$' : '-$') + Math.abs(lt.pnl).toFixed(2) + ')') : '';
-        const ltCls = lt.pnl != null && lt.pnl < 0 ? 'warn' : lt.pnl != null && lt.pnl > 0 ? 'ok' : '';
-        sit.push({text: 'Last trade: ' + lt.side + '\u00a0' + lt.symbol + ' @ $' + (lt.price != null ? lt.price.toFixed(2) : '?') + ltP, cls: ltCls});
-        sit.push({text: trades + ' total trade' + (trades > 1 ? 's' : '') + ' \u00b7 P\u0026L ' + pnlStr,
-                  cls: pnl > 0.005 ? 'ok' : pnl < -0.005 ? 'warn' : ''});
-      } else {
-        sit.push({text: 'No trades yet \u2014 baseline at $100k'});
-      }
-    }
     if (['waiting_for_review','review_held'].includes(bStatus))
-      sit.push({text: 'Research result ready for review', cls: 'warn'});
+      sit.push({text: '\u26a1 Research result ready \u2014 approve or reject below', cls: 'warn'});
+    if (openPos.length > 0) {
+      sit.push({text: 'Position: ' + openPos.join(', ') + ' (open)', cls: 'ok'});
+    } else {
+      sit.push({text: 'Position: FLAT'});
+    }
+    const lt = belfort.last_trade;
+    if (lt) {
+      const ltP = lt.pnl != null ? (' (' + (lt.pnl >= 0 ? '+$' : '-$') + Math.abs(lt.pnl).toFixed(2) + ')') : '';
+      const ltCls = lt.pnl != null && lt.pnl < 0 ? 'warn' : lt.pnl != null && lt.pnl > 0 ? 'ok' : '';
+      sit.push({text: 'Last trade: ' + lt.side + '\u00a0' + (lt.symbol || '?') + ' @ $' + (lt.price != null ? lt.price.toFixed(2) : '?') + ltP, cls: ltCls});
+    }
+    sit.push({text: trades + ' trade' + (trades !== 1 ? 's' : '') + ' \u00b7 P\u0026L ' + pnlStr + ' \u00b7 Cash $' + ((belfort.cash || 100000)/1000).toFixed(1) + 'k',
+              cls: pnl > 0.005 ? 'ok' : pnl < -0.005 ? 'warn' : ''});
+    if (!tradingOn && !loopOn && !['waiting_for_review','review_held'].includes(bStatus))
+      sit.push({text: 'Both trading and research are off \u2014 use controls below to start'});
     setItems('dp-situation', sit);
 
     // Show controls section instead of NEXT
@@ -1420,6 +1498,8 @@ function populatePanel(id, state) {
       const rc = document.getElementById('belfort-review-card');
       if (rc) rc.style.display = 'none';
     }
+    // Load readiness scorecard
+    loadBelfortReadiness();
     setActions([{text: '\ud83d\udcca Open Belfort workspace \u2192', onclick: "openDashTab('belfort')", primary: true}]);
   }
 
@@ -1491,9 +1571,9 @@ function populatePanel(id, state) {
     if (on)                        sit.push({text: `Running \u2014 cycle ${supervisor.cycle_count || 0}`, cls: 'ok'});
     if (supervisor.stop_requested) sit.push({text: 'Stop requested', cls: 'warn'});
     if (supervisor.errors > 0)     sit.push({text: `${supervisor.errors} consecutive errors`, cls: 'warn'});
-    if (!on && !supervisor.errors) sit.push({text: 'Loop is off \u2014 enable via Belfort controls'});
+    if (!on && !supervisor.errors) sit.push({text: 'Research is off \u2014 enable via Belfort controls'});
     setItems('dp-situation', sit);
-    setItems('dp-next', [{text: on ? 'View loop detail in Controls' : 'Enable via Belfort \u2192 Enable Loop'}]);
+    setItems('dp-next', [{text: on ? 'View research detail in Controls' : 'Enable via Belfort \u2192 Begin Research'}]);
     document.getElementById('dp-actions').innerHTML =
       `<button class="dp-action-btn" id="refresh-btn-supervisor" onclick="refreshOpsPanel('supervisor')">\ud83d\udd04 Refresh status</button>` +
       `<a class="dp-action-btn primary" href="${DASH_URL}?view=controls" target="_blank">Open Controls \u2192</a>`;
@@ -1607,7 +1687,7 @@ function _peterDeterministicAnswer(msg) {
     if (warns > 0)    items.push(warns + ' audit warning' + (warns > 1 ? 's' : '') + ' flagged by the Loop Checker.');
     if (custBad)      items.push('System health is degraded \u2014 click Custodian and run a health check.');
     if (sentBad)      items.push('Test Sentinel shows ' + (sentinel.verdict || '').replace('_', ' ') + ' \u2014 click Sentinel and run a smoke check.');
-    if (supervisor.stop_requested) items.push('Research loop stop was requested.');
+    if (supervisor.stop_requested) items.push('Research stop was requested.');
     if (!items.length) return 'Nothing needs attention right now. Trading: ' + (tradingOn ? 'ON' : 'OFF') + ', Research: ' + (loopOn ? 'ON' : 'OFF') + '.';
     return items.join(' ');
   }
@@ -1617,9 +1697,27 @@ function _peterDeterministicAnswer(msg) {
     if (warns > 0)    return 'Check the Loop Checker panel: ' + warns + ' warning' + (warns > 1 ? 's need' : ' needs') + ' review in Controls.';
     if (custBad)      return 'Click Custodian and run a health check to diagnose the system issue.';
     if (sentBad)      return 'Click Sentinel and run a smoke check to clear the safety flag.';
-    if (!tradingOn && !loopOn) return 'Click the Belfort house and use the controls to start mock trading or enable the research loop.';
+    if (!tradingOn && !loopOn) return 'Click the Belfort house and use the controls to start mock trading or begin research.';
     if (loopOn)       return 'Research is running on cycle ' + (supervisor.cycle_count || 0) + '. Watch for review-needed status on the Belfort house.';
     return 'Mock trading is active. Watch the Belfort house for position updates.';
+  }
+
+  if (lower.includes('ready') || lower.includes('live') || lower.includes('readiness') || lower.includes('mentor') || lower.includes('progress') || lower.includes('explain belfort')) {
+    const r = _lastReadiness;
+    if (!r) return 'Readiness data not loaded yet \u2014 open the Belfort panel first.';
+    // Use mentor_summary if available (structured verbal update)
+    if (r.mentor_summary) return r.mentor_summary;
+    // Fallback to structured inline answer
+    const level = (r.level_label || r.level || 'unknown').toUpperCase().replace(/_/g, ' ');
+    const wr    = r.win_rate != null ? (Math.round(r.win_rate * 100) + '% win rate') : null;
+    const pnl   = (belfort.realized_pnl || 0);
+    const pnlS  = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+    return (
+      'Belfort readiness: ' + level + '. '
+      + r.gates_passed + '/' + r.gates_total + ' gates. '
+      + (r.last_adoption ? 'Adopted ' + r.last_adoption + '. ' : '')
+      + (trades > 0 ? trades + ' trades, P\u0026L ' + pnlS + (wr ? ', ' + wr : '') + '.' : 'No trades yet.')
+    );
   }
 
   // Generic fallback for free-form queries
@@ -1772,6 +1870,78 @@ async function belfortReviewAction(action) {
   }
 }
 
+// ── Belfort readiness scorecard ──────────────────────────────────────────
+async function loadBelfortReadiness() {
+  const section = document.getElementById('belfort-readiness-section');
+  if (!section) return;
+  section.style.display = '';
+
+  const badgeEl      = document.getElementById('readiness-badge');
+  const countEl      = document.getElementById('readiness-gates-count');
+  const stratEl      = document.getElementById('readiness-strategy');
+  const gatesEl      = document.getElementById('readiness-gates');
+  const blockersEl   = document.getElementById('readiness-blockers');
+  const comparisonEl = document.getElementById('readiness-comparison');
+  const summaryEl    = document.getElementById('readiness-summary');
+
+  if (badgeEl)      { badgeEl.className = 'dp-badge idle'; badgeEl.textContent = 'Loading\u2026'; }
+  if (gatesEl)      gatesEl.innerHTML    = '';
+  if (blockersEl)   { blockersEl.innerHTML = ''; blockersEl.style.display = 'none'; }
+  if (comparisonEl) { comparisonEl.innerHTML = ''; comparisonEl.style.display = 'none'; }
+  if (summaryEl)    summaryEl.textContent = '';
+
+  try {
+    const r = await fetch('/belfort/readiness', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    _lastReadiness = d;
+
+    const clsMap = {
+      not_started:        'idle',
+      awaiting_reset:     'warning',
+      evaluation:         'active',
+      monitoring:         'review',
+      pre_live_candidate: 'ok',
+    };
+    const badgeCls = clsMap[d.level] || 'idle';
+    if (badgeEl) {
+      badgeEl.className  = 'dp-badge ' + badgeCls;
+      badgeEl.textContent = d.level_label || (d.level || '?').toUpperCase().replace(/_/g, ' ');
+    }
+    if (countEl) countEl.textContent = (d.gates_passed || 0) + '/' + (d.gates_total || 0) + ' gates passed';
+    if (stratEl) stratEl.textContent = d.strategy_description || '';
+    if (gatesEl && Array.isArray(d.gates)) {
+      gatesEl.innerHTML = d.gates.map(g =>
+        `<div class="rgate${g.pass ? '' : ' fail'}" title="${_escHtml(g.note || '')}">${_escHtml(g.label)}</div>`
+      ).join('');
+    }
+
+    // Blockers — top failing gates in plain English
+    if (blockersEl && Array.isArray(d.blockers) && d.blockers.length > 0) {
+      blockersEl.innerHTML = '<b>To advance:</b> ' + d.blockers.map(b => _escHtml(b)).join(' &bull; ');
+      blockersEl.style.display = '';
+    }
+
+    // Baseline comparison — prev session vs current
+    if (comparisonEl && d.baseline_comparison && d.baseline_comparison.available) {
+      comparisonEl.innerHTML = '<b>vs prev session:</b> ' + _escHtml(d.baseline_comparison.summary);
+      comparisonEl.style.display = '';
+    }
+
+    // Prefer mentor_summary (more structured) for the summary display
+    if (summaryEl) summaryEl.textContent = d.mentor_summary || d.summary || '';
+
+    // Re-render stats grid now that win_rate is available
+    if (_lastState && _lastState.belfort) {
+      updateBelfortStats(_lastState.belfort, _lastState.supervisor || {});
+    }
+
+  } catch(e) {
+    if (badgeEl)   { badgeEl.className = 'dp-badge idle'; badgeEl.textContent = '?'; }
+    if (summaryEl) summaryEl.textContent = 'Could not load readiness data.';
+  }
+}
+
 // ── Belfort stats + controls ──────────────────────────────────────────────
 function updateBelfortStats(belfort, supervisor) {
   const cash      = belfort.cash          != null ? belfort.cash          : 100000;
@@ -1788,10 +1958,15 @@ function updateBelfortStats(belfort, supervisor) {
     const pnlAbs  = Math.abs(pnl);
     const pnlFmt  = (pnl >= 0 ? '+$' : '-$') + (pnlAbs >= 1000 ? (pnlAbs/1000).toFixed(2) + 'k' : pnlAbs.toFixed(2));
     const pnlCls  = pnl > 0.005 ? 'pos' : pnl < -0.005 ? 'neg' : '';
+    // Win rate from last loaded readiness data (null until readiness loads)
+    const wr      = _lastReadiness && _lastReadiness.win_rate != null ? _lastReadiness.win_rate : null;
+    const wrFmt   = wr != null ? Math.round(wr * 100) + '%' : '\u2014';
+    const wrCls   = wr != null && wr >= 0.5 ? 'pos' : wr != null && wr < 0.4 ? 'neg' : '';
     statsEl.innerHTML =
       '<div class="bstat"><div class="bstat-label">CASH</div><div class="bstat-value">' + cashFmt + '</div></div>' +
       '<div class="bstat"><div class="bstat-label">P&amp;L</div><div class="bstat-value ' + pnlCls + '">' + pnlFmt + '</div></div>' +
-      '<div class="bstat"><div class="bstat-label">TRADES</div><div class="bstat-value">' + trades + '</div></div>';
+      '<div class="bstat"><div class="bstat-label">TRADES</div><div class="bstat-value">' + trades + '</div></div>' +
+      '<div class="bstat"><div class="bstat-label">WIN\u00a0%</div><div class="bstat-value ' + wrCls + '">' + wrFmt + '</div></div>';
   }
   const pillsEl = document.getElementById('belfort-pills');
   if (pillsEl) {
@@ -1808,7 +1983,7 @@ function updateBelfortStats(belfort, supervisor) {
   }
   const loopBtn = document.getElementById('btn-loop-toggle');
   if (loopBtn && !loopBtn.disabled) {
-    loopBtn.textContent = loopOn ? '\u25a0 Disable Loop' : '\u25b6 Enable Loop';
+    loopBtn.textContent = loopOn ? '\u25a0 Stop Research' : '\u25b6 Begin Research';
     loopBtn.className   = 'bctrl-btn ' + (loopOn ? 'bctrl-on bctrl-stop' : 'bctrl-start');
   }
 }
@@ -1860,7 +2035,7 @@ async function belfortToggle(what) {
     }, 600);
   } catch(e) {
     console.error('belfortToggle error:', what, e.message);
-    if (btn) { btn.disabled = false; btn.textContent = what === 'trading' ? '\u25b6 Start Trading' : '\u25b6 Enable Loop'; }
+    if (btn) { btn.disabled = false; btn.textContent = what === 'trading' ? '\u25b6 Start Trading' : '\u25b6 Begin Research'; }
   }
 }
 
@@ -2024,7 +2199,7 @@ function applyState(state) {
     reviewNeeded ? 'st-review' : (warnings || custDegraded || sentBad) ? 'st-warning' :
     loopEnabled  ? 'st-active' : 'st-idle');
   const pb = document.getElementById('pb-peter');
-  if (pb) pb.textContent = reviewNeeded ? 'REVIEW' : loopEnabled ? 'LOOP ON' : 'IDLE';
+  if (pb) pb.textContent = reviewNeeded ? 'REVIEW' : loopEnabled ? 'RESEARCH ON' : 'IDLE';
   setSpeech('sp-peter',
     reviewNeeded            ? 'Candidate ready for your review' :
     supervisor.stop_requested ? 'Stop requested' :
