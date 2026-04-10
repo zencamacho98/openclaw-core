@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "_doc": "Approved operator identities for Peter. Edit this file to add new transports or operators.",
+  "operators": [
+    {
+      "name": "operator",
+      "transport": "cli",
+      "transport_id": "*",
+      "allowed_commands": ["all"],
+      "notes": "Default CLI operator — full access from any terminal session. transport_id '*' matches any CLI user."
+    }
+  ],
+  "_adding_discord": [
+    "When ready, add an entry like this:",
+    "{",
+    "  'name': 'zen',",
+    "  'transport': 'discord',",
+    "  'transport_id': 'YOUR_DISCORD_USER_ID_HERE',",
+    "  'allowed_commands': ['all']",
+    "}"
+  ]
+}

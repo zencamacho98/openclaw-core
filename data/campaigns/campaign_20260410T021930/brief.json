@@ -1,0 +1,102 @@
+{
+  "schema_version": "1.0",
+  "campaign_id": "campaign_20260410T021930",
+  "generated_at": "2026-04-10T02:19:34.100412+00:00",
+  "goal": "improve entry quality filters",
+  "notes": "",
+  "status": "completed",
+  "what_ran": {
+    "sessions_ran": 2,
+    "total_batches": 2,
+    "total_experiments": 10,
+    "total_accepted": 6,
+    "classes_emphasized": [
+      "profit_taking"
+    ],
+    "session_ids": [
+      "session_20260410T021930",
+      "session_20260410T021932"
+    ]
+  },
+  "stop_condition": "strong_candidate_confirmed",
+  "stop_reason": "2 sessions produced strong or review_worthy candidates \u2014 sufficient signal for human review.",
+  "dominant_findings": [
+    "6/10 experiments accepted (60%) across 2 session(s).",
+    "2/2 session(s) produced strong or review_worthy candidates.",
+    "Most frequent failure mode: median PnL regression (appeared in 2/2 session(s)).",
+    "Campaign best: batch_20260410T021930_004 \u2014 score=87.0, tier=strong, class=profit_taking."
+  ],
+  "what_improved": [
+    "Median PnL: +221.82 (best candidate).",
+    "Worst-case PnL: +187.12 (best candidate).",
+    "Most productive experiment class: profit_taking."
+  ],
+  "what_repeatedly_failed": [
+    "Median PnL regression dominated 2/2 session(s) \u2014 central performance is consistently degraded."
+  ],
+  "best_candidate": {
+    "experiment_id": "batch_20260410T021930_004",
+    "experiment_class": "profit_taking",
+    "score": 87.0,
+    "tier": "strong",
+    "decision": "ACCEPTED",
+    "pnl_delta": 221.82,
+    "worst_pnl_delta": 187.12,
+    "candidate_config": {
+      "MEAN_REV_EXIT_FRACTION": 1.3
+    },
+    "quality_labels": [
+      "wins too small for risk"
+    ],
+    "hypothesis": "Exit slightly past the mean (130%) to capture overshoot on strong reversions \u2014 tests whether overextension adds value or increases risk.",
+    "batch_id": "batch_20260410T021930",
+    "session_id": "session_20260410T021930"
+  },
+  "artifacts": {
+    "best_validation_record": "/home/zen_camacho98/openclaw-core/data/validation_runs/20260410T021932_batch_20260410T021930_004.json",
+    "best_experiment_id": "batch_20260410T021930_004",
+    "best_session_id": "session_20260410T021930",
+    "best_promotion_command": "python scripts/promote_candidate.py --record /home/zen_camacho98/openclaw-core/data/validation_runs/20260410T021932_batch_20260410T021930_004.json",
+    "session_reports": [
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T021930_session.json",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T021932_session.json"
+    ],
+    "session_md_reports": [
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T021930_session_report.md",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T021932_session_report.md"
+    ]
+  },
+  "human_review_recommended": true,
+  "human_review_reason": "Best candidate: batch_20260410T021930_004 (score=87.0, tier=strong, class=profit_taking). Promote with: python scripts/promote_candidate.py --record /home/zen_camacho98/openclaw-core/data/validation_runs/20260410T021932_batch_20260410T021930_004.json",
+  "next_campaign_focus": "Promote the best candidate (batch_20260410T021930_004) and run a validation session to confirm robustness before starting a new campaign.",
+  "session_summaries": [
+    {
+      "session_id": "session_20260410T021930",
+      "batches_completed": 1,
+      "total_experiments": 5,
+      "total_accepted": 3,
+      "classes_tested": [
+        "profit_taking"
+      ],
+      "stop_condition": "strong_candidate_found",
+      "best_score": 87.0,
+      "best_tier": "strong",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    },
+    {
+      "session_id": "session_20260410T021932",
+      "batches_completed": 1,
+      "total_experiments": 5,
+      "total_accepted": 3,
+      "classes_tested": [
+        "profit_taking"
+      ],
+      "stop_condition": "strong_candidate_found",
+      "best_score": 87.0,
+      "best_tier": "strong",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    }
+  ]
+}

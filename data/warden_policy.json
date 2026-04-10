@@ -1,0 +1,46 @@
+{
+  "cheap_model": "openai/gpt-4o-mini",
+  "strong_model": "anthropic/claude-sonnet-4-6",
+  "cheap_description": "Routine summaries, intent parsing, bounded analysis",
+  "strong_description": "Architecture, safety review, complex reasoning",
+  "cheap_cost_per_1m": "$0.15/$0.60 (in/out)",
+  "strong_cost_per_1m": "$3.00/$15.00 (in/out)",
+  "task_counts": {
+    "deterministic": 5,
+    "cheap": 7,
+    "strong": 5
+  },
+  "cheap_tasks": [
+    "briefing",
+    "candidate_summary",
+    "event_summary",
+    "health_explain",
+    "intent_parsing",
+    "test_explain",
+    "trade_analysis"
+  ],
+  "strong_tasks": [
+    "architecture",
+    "code_review",
+    "escalated_build",
+    "routing_change",
+    "safety_review"
+  ],
+  "deterministic_tasks": [
+    "cost_report",
+    "health_check",
+    "queue_check",
+    "status_lookup",
+    "test_run"
+  ],
+  "escalation_reasons": {
+    "protected_file": "Task touches a protected routing/safety/policy file",
+    "low_confidence": "Builder confidence below auto-escalation threshold (0.65)",
+    "explicit_review": "Operator explicitly requested stronger review",
+    "ambiguous_tradeoff": "Task involves ambiguous architectural tradeoff"
+  },
+  "env_overrides": {
+    "CHEAP_MODEL": "(default)",
+    "STRONG_MODEL": "(default)"
+  }
+}

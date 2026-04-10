@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-04-10T08:34:08.684932+00:00",
+  "overall": "healthy",
+  "summary": "Backend is healthy on 8001. UI is healthy on 8502. stale instance may exist on 8501.",
+  "items": [
+    {
+      "service": "backend",
+      "status": "ok",
+      "severity": "ok",
+      "detail": "Backend is reachable on 8001."
+    },
+    {
+      "service": "ui",
+      "status": "ok",
+      "severity": "ok",
+      "detail": "UI is reachable on 8502."
+    },
+    {
+      "service": "stale_ui",
+      "status": "notice",
+      "severity": "notice",
+      "detail": "A process is listening on port 8501. This may be a stale system-managed UI. Use port 8502 \u2014 not 8501."
+    },
+    {
+      "service": "pid_backend",
+      "status": "ok",
+      "severity": "ok",
+      "detail": "Backend PID 439025 is alive (started via ctl.sh)."
+    },
+    {
+      "service": "pid_ui",
+      "status": "ok",
+      "severity": "ok",
+      "detail": "Ui PID 439029 is alive (started via ctl.sh)."
+    }
+  ],
+  "recommendations": []
+}

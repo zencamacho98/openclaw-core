@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "session_id": "session_20260409T234627",
+  "generated_at": "2026-04-09T23:46:27.975898+00:00",
+  "notes": "",
+  "what_ran": {
+    "session_id": "session_20260409T234627",
+    "batches_completed": 0,
+    "total_experiments": 0,
+    "total_accepted": 0,
+    "total_rejected": 0,
+    "classes_tested": []
+  },
+  "best_candidate": null,
+  "dominant_findings": [
+    "No batches completed in this session."
+  ],
+  "repeated_failures": [
+    "entry_quality",
+    "loss_structure"
+  ],
+  "next_direction": {
+    "recommendation": "shift_focus",
+    "rationale": "Classes ['entry_quality', 'loss_structure'] are deprioritized. Focus next session on: ['profit_taking'].",
+    "focus_classes": [
+      "profit_taking"
+    ]
+  },
+  "human_review_recommended": false,
+  "human_review_reason": "No accepted candidates across the session \u2014 no action needed.",
+  "stop_condition": "max_batches_reached",
+  "stop_reason": "Completed 2/2 planned batches.",
+  "batch_summaries": [],
+  "diagnosis_snapshot": {
+    "focus_classes": [
+      "profit_taking"
+    ],
+    "deprioritized": [
+      "entry_quality",
+      "loss_structure"
+    ],
+    "dominant_failure": "median_pnl",
+    "session_best_score": 52.0,
+    "session_best_class": "profit_taking",
+    "n_consecutive_no_progress": 0,
+    "diagnosis_reason": "Deprioritizing ['entry_quality', 'loss_structure'] \u2014 consecutive worst-case failures; Dominant failure mode: median_pnl"
+  }
+}

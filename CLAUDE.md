@@ -4,20 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Running the Project
 
-Activate the virtual environment first (Python 3.12.3, located at `.venv/`):
+Use the control script — it is the single source of truth for starting, stopping, and inspecting the services:
+
 ```bash
-source .venv/bin/activate
+./scripts/ctl.sh start      # start backend + UI, wait for readiness, print URL
+./scripts/ctl.sh stop       # stop repo-owned processes (safe, by PID)
+./scripts/ctl.sh restart    # stop then start
+./scripts/ctl.sh status     # show PIDs, health, ports, canonical URL
+./scripts/ctl.sh logs       # follow both logs (Ctrl-C to stop)
 ```
 
-**FastAPI backend** (port 8000):
-```bash
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
+**Canonical ports (hardwired in the script):**
+- Backend : `127.0.0.1:8001` — matches `API_BASE` in `ui/dashboard.py`
+- UI      : `http://localhost:8502`
 
-**Streamlit dashboard** (separate terminal):
-```bash
-streamlit run ui/dashboard.py
-```
+**Log files** (created on first start):
+- Backend : `logs/backend.log`
+- UI      : `logs/ui.log`
+
+**PID files** (created on start, deleted on stop):
+- `run/backend.pid`
+- `run/ui.pid`
+
+**Note on port 8501:** A system-managed (zenca/systemd) Streamlit instance may be running on port 8501 serving older code. Do not use `http://localhost:8501`. The canonical dev UI is always `http://localhost:8502`.
 
 No test framework or linter is configured. No `requirements.txt` exists — dependencies live only in `.venv/`.
 
@@ -47,8 +56,38 @@ This is a multi-agent task execution system with a FastAPI control plane and a S
 
 All state (agent queues, logs) is in-memory and resets on restart.
 
+## Agent LM Architecture Rule
+
+All major agents in The Abode may eventually have OpenRouter-backed LM support so they can be more adaptable and learn over time. The design rule is:
+
+- **Bones** = deterministic checks / rules / data access / safe actions (always required)
+- **Brain** = LM-backed summarization / interpretation / recommendation / classification (optional layer)
+- **Guardrails** = bounded context, allowlists, confirmation for risky actions, cost-aware routing (always required when LM is used)
+
+**Do NOT replace deterministic cores with vague LM behaviour.**
+**Do NOT make expensive models the default path.**
+
+**Routing tiers** (defined in `app/cost_warden.py`):
+- `deterministic` — rule-based; no LM needed (health checks, test runs, data lookups)
+- `cheap` — routine summarization, intent parsing, bounded analysis → `CHEAP_MODEL` (default: `openai/gpt-4o-mini`)
+- `strong` — architecture review, safety boundaries, complex tradeoffs → `STRONG_MODEL` (default: `anthropic/claude-sonnet-4-6`)
+
+**Pattern for adding LM support to an agent** (`app/cost_warden.LMHelper`):
+```python
+from app.cost_warden import LMHelper
+
+helper = LMHelper("my_agent", "health_explain", max_tokens=200)
+result = helper.call(system="Explain findings in plain English.", user=data_str)
+if result.ok:
+    explanation = result.content
+else:
+    explanation = f"[LM unavailable: {result.error}]"  # graceful fallback
+```
+
 ## Configuration
 
 Runtime config is in `.env` at the project root:
 - `OPENROUTER_API_KEY` — used by tasks that call language models via OpenRouter
 - `APP_ENV` — e.g. `dev`
+- `CHEAP_MODEL` — override default cheap-tier model (default: `openai/gpt-4o-mini`)
+- `STRONG_MODEL` — override default strong-tier model (default: `anthropic/claude-sonnet-4-6`)

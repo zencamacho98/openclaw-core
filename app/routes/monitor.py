@@ -112,6 +112,13 @@ def trading_stop():
     return stop_trading()
 
 
+@router.post("/trading/reset")
+def trading_reset(body: dict = Body(default={})):
+    from app.portfolio import reset_portfolio
+    reason = (body or {}).get("reason", "Operator reset from neighborhood")
+    return reset_portfolio(reason)
+
+
 @router.get("/loop")
 def loop_status():
     import app.loop as _loop
@@ -145,6 +152,31 @@ def tuning_apply(proposal: dict):
     except ValueError as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/candidate/apply")
+def candidate_apply(body: dict = Body(default={})):
+    from app.strategy.applier import promote_from_record
+    from observability.agent_state import transition, MR_BELFORT, STATUS_IDLE
+    from fastapi import HTTPException
+    record_path = (body or {}).get("record_path", "")
+    reason = (body or {}).get("reason", "Operator applied from UI")
+    if not record_path:
+        raise HTTPException(status_code=400, detail="record_path is required.")
+    try:
+        result = promote_from_record(record_path, reason)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        transition(
+            MR_BELFORT,
+            agent_role="trading_agent",
+            status=STATUS_IDLE,
+            last_completed_action=f"Candidate promoted: {result['experiment_name']}",
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.get("/tuning/changelog")

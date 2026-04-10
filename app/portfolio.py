@@ -119,5 +119,24 @@ def load_state() -> None:
     market_prices = state.get("market_prices", market_prices)
 
 
+def reset_portfolio(reason: str = "") -> dict:
+    """Reset portfolio to baseline: $100k cash, no positions, no trade history."""
+    global cash, positions, realized_pnl, trade_history
+    cash = 100_000.0
+    positions = {}
+    realized_pnl = 0.0
+    trade_history = []
+    # market_prices preserved — external reference data, not part of the reset
+    save_state()
+    return {
+        "reset": True,
+        "cash": cash,
+        "realized_pnl": 0.0,
+        "trade_count": 0,
+        "reason": reason,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
 # Restore state on import
 load_state()

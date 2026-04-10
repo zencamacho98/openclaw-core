@@ -5,7 +5,8 @@ scripts/promote_candidate.py
 Promotes a validated candidate configuration to the live baseline.
 
 Flow:
-  1. Load the most recent record from data/validation_runs/.
+  1. Load the validation record (most recent by default; use --record for a
+     specific file — recommended when the best experiment is not the newest).
   2. Confirm decision == ACCEPTED.
   3. Show a summary and prompt for explicit confirmation.
   4. On "yes": merge the candidate params (from the validation snapshot)
@@ -14,8 +15,13 @@ Flow:
 The candidate params are taken from the validation record snapshot —
 not from the live candidate_config.json — so the promotion reflects
 exactly what was tested, even if the file has since been edited.
+
+Usage:
+    python scripts/promote_candidate.py
+    python scripts/promote_candidate.py --record data/validation_runs/2026_batch_001.json
 """
 
+import argparse
 import json
 import pathlib
 import sys
@@ -33,6 +39,19 @@ def _latest_record() -> tuple[dict, pathlib.Path]:
     files = sorted(VALIDATION_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     path  = files[0]
     return json.loads(path.read_text()), path
+
+
+def _load_record_by_path(path_str: str) -> tuple[dict, pathlib.Path]:
+    """Load a validation record from an explicit file path."""
+    path = pathlib.Path(path_str)
+    if not path.exists():
+        print(f"Record not found: {path}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        return json.loads(path.read_text()), path
+    except Exception as exc:
+        print(f"Failed to read record {path}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 def _print_summary(record: dict) -> None:
@@ -84,9 +103,27 @@ def _promote(candidate_cfg: dict) -> dict:
 # ── Main ─────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    record, record_path = _latest_record()
+    parser = argparse.ArgumentParser(
+        description="Promote a validated candidate to the live baseline.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--record", type=str, default=None,
+        metavar="PATH",
+        help=(
+            "Path to a specific validation record JSON file. "
+            "If omitted, uses the most recent file in data/validation_runs/ "
+            "(which may not be the best experiment in a multi-experiment batch)."
+        ),
+    )
+    args = parser.parse_args()
 
-    print(f"Latest validation record: {record_path.name}")
+    if args.record:
+        record, record_path = _load_record_by_path(args.record)
+    else:
+        record, record_path = _latest_record()
+
+    print(f"Validation record: {record_path.name}")
     print()
 
     if record["decision"] != "ACCEPTED":

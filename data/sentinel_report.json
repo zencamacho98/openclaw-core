@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-04-10T08:48:27.917878+00:00",
+  "scope": "targeted",
+  "touched_files": [
+    "gitignore",
+    "CLAUDE.md",
+    "app/main.py",
+    "app/routes/monitor.py",
+    "app/strategy/applier.py",
+    "data/param_changelog.jsonl",
+    "data/strategy_config.json",
+    "scripts/ctl.sh",
+    "scripts/promote_candidate.py",
+    "ui/dashboard.py"
+  ],
+  "tests_run": [
+    "test_candidate_apply_route.py",
+    "test_review_actions.py"
+  ],
+  "passed": 30,
+  "failed": 0,
+  "errors": 0,
+  "failures": [],
+  "verdict": "safe",
+  "summary": "Targeted validation passed for targeted (2 file(s)). 30 test(s) passed. Looks safe enough for review.",
+  "elapsed_secs": 1.58
+}

@@ -7,6 +7,9 @@
 # Validates the proposal against type + bounds, captures a performance snapshot,
 # applies via config.update(), and records the change in the changelog.
 
+import json
+import pathlib
+
 from app.strategy import config
 from app.strategy import changelog
 from app.report import compute_report
@@ -118,4 +121,78 @@ def apply(proposal: dict) -> dict:
         "new_value":       new_value,
         "new_config":      new_cfg,
         "changelog_entry": entry,
+    }
+
+
+def promote_from_record(
+    record_path: str,
+    reason: str = "Operator applied from UI",
+) -> dict:
+    """
+    Promote all candidate_config params from a validation record to the live baseline.
+
+    Guards (raise ValueError):
+      - record file must exist
+      - record.decision must be "ACCEPTED"
+      - candidate_config must be present and non-empty
+      - at least one parameter value must actually differ from baseline
+        (duplicate-apply protection: a second click returns 400 via this guard)
+
+    Writes all params in one config.update() call and appends a single
+    "candidate_promotion" changelog entry.
+
+    Returns {applied, changed, experiment_name, record_path, new_config, changelog_entry}.
+    """
+    path = pathlib.Path(record_path)
+    if not path.exists():
+        raise ValueError(f"Validation record not found: {record_path}")
+
+    try:
+        record = json.loads(path.read_text())
+    except Exception as exc:
+        raise ValueError(f"Cannot read validation record: {exc}")
+
+    decision = record.get("decision")
+    if decision != "ACCEPTED":
+        raise ValueError(
+            f"Promotion blocked: decision is {decision!r}, expected ACCEPTED."
+        )
+
+    candidate_cfg = record.get("candidate_config")
+    if not candidate_cfg:
+        raise ValueError("Validation record has no candidate_config — nothing to promote.")
+
+    current = config.get_config()
+    changed = {
+        k: {"old": current.get(k), "new": v}
+        for k, v in candidate_cfg.items()
+        if current.get(k) != v
+    }
+    if not changed:
+        raise ValueError(
+            "Duplicate apply: all candidate_config values already match the current baseline."
+        )
+
+    try:
+        perf = compute_report()
+    except Exception:
+        perf = {}
+
+    new_cfg = config.update(candidate_cfg)
+
+    entry = changelog.record(
+        parameter=f"promotion:{record.get('experiment_name', 'unknown')}",
+        old_value=str({k: v["old"] for k, v in changed.items()}),
+        new_value=str({k: v["new"] for k, v in changed.items()}),
+        reason=reason,
+        performance_snapshot=perf,
+    )
+
+    return {
+        "applied":          True,
+        "changed":          changed,
+        "experiment_name":  record.get("experiment_name", "?"),
+        "record_path":      str(record_path),
+        "new_config":       new_cfg,
+        "changelog_entry":  entry,
     }
