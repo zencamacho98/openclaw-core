@@ -1,2090 +1,1111 @@
 {
-  "cash": 99734.95960399997,
-  "positions": {},
-  "realized_pnl": -265.04039600000243,
+  "cash": 90175.984542,
+  "positions": {
+    "SPY": {
+      "qty": 20.1824,
+      "avg_cost": 496.45
+    }
+  },
+  "realized_pnl": 195.53702200000288,
   "trade_history": [
     {
-      "timestamp": "2026-04-10T19:34:59.973850",
+      "timestamp": "2026-04-10T21:44:49.057863",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 19.4666,
-      "price": 513.7,
+      "qty": 19.0858,
+      "price": 523.95,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T19:35:23.977351",
+      "timestamp": "2026-04-10T21:45:13.061797",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 19.4666,
-      "price": 513.87,
-      "pnl": 3.31
+      "qty": 19.0858,
+      "price": 521.41,
+      "pnl": -48.48
     },
     {
-      "timestamp": "2026-04-10T19:35:41.979959",
+      "timestamp": "2026-04-10T21:45:31.065434",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 19.3827,
-      "price": 515.94,
+      "qty": 19.0922,
+      "price": 523.52,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T19:35:59.982793",
+      "timestamp": "2026-04-10T21:45:49.068236",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 19.3827,
-      "price": 516.76,
-      "pnl": 15.89
+      "qty": 19.0922,
+      "price": 520.92,
+      "pnl": -49.64
     },
     {
-      "timestamp": "2026-04-10T19:36:23.986451",
+      "timestamp": "2026-04-10T21:46:07.070846",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 19.2489,
-      "price": 519.61,
+      "qty": 19.026,
+      "price": 525.08,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T19:36:44.989333",
+      "timestamp": "2026-04-10T21:46:25.073252",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 19.2489,
-      "price": 521.32,
-      "pnl": 32.92
+      "qty": 19.026,
+      "price": 523.86,
+      "pnl": -23.21
     },
     {
-      "timestamp": "2026-04-10T19:37:05.992547",
+      "timestamp": "2026-04-10T21:46:46.076193",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 19.2286,
-      "price": 520.33,
+      "qty": 18.9315,
+      "price": 527.58,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T19:37:38.997905",
+      "timestamp": "2026-04-10T21:47:07.079267",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 19.2286,
-      "price": 526.23,
-      "pnl": 113.45
+      "qty": 18.9315,
+      "price": 528.9,
+      "pnl": 24.99
     },
     {
-      "timestamp": "2026-04-10T19:37:57.000803",
+      "timestamp": "2026-04-10T21:47:31.082815",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 18.97,
-      "price": 528.02,
+      "qty": 18.9445,
+      "price": 527.35,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T19:38:15.004279",
+      "timestamp": "2026-04-10T21:47:49.085485",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 18.97,
-      "price": 521.63,
-      "pnl": -121.22
+      "qty": 18.9445,
+      "price": 526.7,
+      "pnl": -12.31
     },
     {
-      "timestamp": "2026-04-10T19:38:33.010151",
+      "timestamp": "2026-04-10T21:48:07.088305",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 19.1832,
+      "qty": 18.7396,
+      "price": 533.05,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:48:25.091145",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.7396,
+      "price": 526.67,
+      "pnl": -119.56
+    },
+    {
+      "timestamp": "2026-04-10T21:48:43.094101",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.0437,
+      "price": 523.91,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:49:10.097953",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.0437,
+      "price": 526.73,
+      "pnl": 53.7
+    },
+    {
+      "timestamp": "2026-04-10T21:49:28.100595",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.9146,
+      "price": 527.77,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:49:46.103309",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.9146,
+      "price": 525.41,
+      "pnl": -44.64
+    },
+    {
+      "timestamp": "2026-04-10T21:50:04.106186",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.8814,
+      "price": 528.46,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:50:22.108804",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.8814,
+      "price": 528.49,
+      "pnl": 0.57
+    },
+    {
+      "timestamp": "2026-04-10T21:50:40.111512",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.7284,
+      "price": 532.78,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:51:04.115083",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.7284,
+      "price": 535.03,
+      "pnl": 42.14
+    },
+    {
+      "timestamp": "2026-04-10T21:51:22.117763",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.4882,
+      "price": 539.93,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:51:43.120906",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.4882,
+      "price": 539.31,
+      "pnl": -11.46
+    },
+    {
+      "timestamp": "2026-04-10T21:52:13.125178",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.7044,
+      "price": 533.63,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:52:43.129230",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.7044,
+      "price": 538.83,
+      "pnl": 97.26
+    },
+    {
+      "timestamp": "2026-04-10T21:53:10.133075",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.585,
+      "price": 537.58,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:54:04.143542",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.585,
+      "price": 540.08,
+      "pnl": 46.46
+    },
+    {
+      "timestamp": "2026-04-10T21:54:28.147377",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.4857,
+      "price": 540.72,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:54:52.151088",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.4857,
+      "price": 539.79,
+      "pnl": -17.19
+    },
+    {
+      "timestamp": "2026-04-10T21:55:40.157345",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.6414,
+      "price": 536.11,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:55:58.160285",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.6414,
+      "price": 538.86,
+      "pnl": 51.26
+    },
+    {
+      "timestamp": "2026-04-10T21:56:19.163826",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.5952,
+      "price": 537.72,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:56:37.166943",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.5952,
+      "price": 538.01,
+      "pnl": 5.39
+    },
+    {
+      "timestamp": "2026-04-10T21:56:55.169608",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.4354,
+      "price": 542.41,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:57:13.172470",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.4354,
+      "price": 538.13,
+      "pnl": -78.9
+    },
+    {
+      "timestamp": "2026-04-10T21:57:31.175470",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.5791,
+      "price": 537.79,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:58:01.179931",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.5791,
+      "price": 542.32,
+      "pnl": 84.16
+    },
+    {
+      "timestamp": "2026-04-10T21:58:46.186106",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.7471,
+      "price": 533.42,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:59:04.188987",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.7471,
+      "price": 532.13,
+      "pnl": -24.18
+    },
+    {
+      "timestamp": "2026-04-10T21:59:28.192599",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.7362,
+      "price": 533.6,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T21:59:49.196462",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.7362,
+      "price": 534.85,
+      "pnl": 23.42
+    },
+    {
+      "timestamp": "2026-04-10T22:00:10.200068",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.6804,
+      "price": 535.32,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:00:28.203528",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.6804,
+      "price": 529.74,
+      "pnl": -104.24
+    },
+    {
+      "timestamp": "2026-04-10T22:00:52.207314",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.6804,
+      "price": 534.76,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:01:10.210489",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.6804,
+      "price": 529.89,
+      "pnl": -90.97
+    },
+    {
+      "timestamp": "2026-04-10T22:01:28.213474",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.7065,
+      "price": 533.53,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:02:16.220266",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.7065,
+      "price": 537.15,
+      "pnl": 67.72
+    },
+    {
+      "timestamp": "2026-04-10T22:02:43.225192",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.7142,
+      "price": 533.67,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:03:16.230110",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.7142,
+      "price": 534.13,
+      "pnl": 8.61
+    },
+    {
+      "timestamp": "2026-04-10T22:03:34.233141",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.5483,
+      "price": 538.49,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:03:52.242389",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.5483,
+      "price": 539.96,
+      "pnl": 27.27
+    },
+    {
+      "timestamp": "2026-04-10T22:04:22.247042",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.5724,
+      "price": 537.94,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:04:40.250716",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.5724,
+      "price": 532.59,
+      "pnl": -99.36
+    },
+    {
+      "timestamp": "2026-04-10T22:05:16.255975",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.0337,
+      "price": 524.38,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:05:34.259506",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.0337,
+      "price": 521.46,
+      "pnl": -55.58
+    },
+    {
+      "timestamp": "2026-04-10T22:05:52.264792",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.988,
+      "price": 525.35,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:06:10.268009",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.988,
+      "price": 521.4,
+      "pnl": -75.0
+    },
+    {
+      "timestamp": "2026-04-10T22:07:04.275445",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.7028,
+      "price": 505.91,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:07:22.278794",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.7028,
+      "price": 502.26,
+      "pnl": -71.92
+    },
+    {
+      "timestamp": "2026-04-10T22:07:40.282116",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.7444,
+      "price": 504.48,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:08:13.288239",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.7444,
+      "price": 513.25,
+      "pnl": 173.16
+    },
+    {
+      "timestamp": "2026-04-10T22:08:46.298361",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.3924,
+      "price": 514.53,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:09:19.310388",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.3924,
+      "price": 518.33,
+      "pnl": 73.69
+    },
+    {
+      "timestamp": "2026-04-10T22:09:55.321494",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.5706,
+      "price": 510.22,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:10:13.324718",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.5706,
+      "price": 507.47,
+      "pnl": -53.82
+    },
+    {
+      "timestamp": "2026-04-10T22:10:34.334354",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.6711,
+      "price": 507.34,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:11:01.346874",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.6711,
+      "price": 514.14,
+      "pnl": 133.76
+    },
+    {
+      "timestamp": "2026-04-10T22:11:19.351298",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.4794,
+      "price": 513.02,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:12:04.357721",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.4794,
+      "price": 522.21,
+      "pnl": 179.02
+    },
+    {
+      "timestamp": "2026-04-10T22:12:22.366843",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.0872,
+      "price": 524.5,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:12:40.371659",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.0872,
+      "price": 521.12,
+      "pnl": -64.51
+    },
+    {
+      "timestamp": "2026-04-10T22:13:01.375635",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.1934,
+      "price": 521.26,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:13:22.379995",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.1934,
+      "price": 521.9,
+      "pnl": 12.28
+    },
+    {
+      "timestamp": "2026-04-10T22:13:58.384924",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.2523,
+      "price": 519.73,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:14:55.393492",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.2523,
+      "price": 527.17,
+      "pnl": 143.24
+    },
+    {
+      "timestamp": "2026-04-10T22:15:13.403160",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.8306,
+      "price": 532.13,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:15:31.412061",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.8306,
+      "price": 529.28,
+      "pnl": -53.67
+    },
+    {
+      "timestamp": "2026-04-10T22:15:49.415016",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.8577,
+      "price": 531.08,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:16:07.418847",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 18.8577,
+      "price": 526.4,
+      "pnl": -88.25
+    },
+    {
+      "timestamp": "2026-04-10T22:16:46.425792",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.0956,
+      "price": 524.0,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:17:07.429463",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.0956,
+      "price": 520.83,
+      "pnl": -60.53
+    },
+    {
+      "timestamp": "2026-04-10T22:17:25.433301",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.2316,
+      "price": 519.98,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:17:43.436876",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.2316,
+      "price": 521.96,
+      "pnl": 38.08
+    },
+    {
+      "timestamp": "2026-04-10T22:18:01.440726",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.2616,
+      "price": 519.37,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:18:19.444216",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.2616,
+      "price": 512.97,
+      "pnl": -123.27
+    },
+    {
+      "timestamp": "2026-04-10T22:18:37.448281",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.4615,
+      "price": 513.4,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:19:07.453553",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.4615,
+      "price": 516.39,
+      "pnl": 58.19
+    },
+    {
+      "timestamp": "2026-04-10T22:19:25.458886",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.3418,
+      "price": 516.88,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:19:43.462114",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.3418,
+      "price": 509.42,
+      "pnl": -144.29
+    },
+    {
+      "timestamp": "2026-04-10T22:20:01.466168",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.3971,
+      "price": 514.66,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:20:19.469526",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.3971,
+      "price": 510.43,
+      "pnl": -82.05
+    },
+    {
+      "timestamp": "2026-04-10T22:20:46.473834",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.5158,
+      "price": 511.11,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:21:16.479224",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.5158,
+      "price": 517.32,
+      "pnl": 121.19
+    },
+    {
+      "timestamp": "2026-04-10T22:21:34.483694",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.221,
+      "price": 519.58,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:21:58.488827",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.221,
+      "price": 523.17,
+      "pnl": 69.0
+    },
+    {
+      "timestamp": "2026-04-10T22:22:25.494473",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.1627,
       "price": 521.52,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T19:39:06.017691",
+      "timestamp": "2026-04-10T22:22:43.499065",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 19.1832,
-      "price": 526.93,
-      "pnl": 103.78
+      "qty": 19.1627,
+      "price": 520.33,
+      "pnl": -22.8
     },
     {
-      "timestamp": "2026-04-10T19:39:24.020473",
+      "timestamp": "2026-04-10T22:23:01.503428",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 18.8603,
-      "price": 531.0,
+      "qty": 19.261,
+      "price": 518.74,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T19:39:57.025514",
+      "timestamp": "2026-04-10T22:23:25.508525",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 18.8603,
+      "qty": 19.261,
+      "price": 520.96,
+      "pnl": 42.76
+    },
+    {
+      "timestamp": "2026-04-10T22:23:43.512083",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 19.1163,
+      "price": 522.89,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2026-04-10T22:24:25.519091",
+      "symbol": "SPY",
+      "side": "SELL",
+      "qty": 19.1163,
+      "price": 535.77,
+      "pnl": 246.22
+    },
+    {
+      "timestamp": "2026-04-10T22:24:43.522842",
+      "symbol": "SPY",
+      "side": "BUY",
+      "qty": 18.6297,
       "price": 537.87,
-      "pnl": 129.57
-    },
-    {
-      "timestamp": "2026-04-10T19:40:39.031404",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.0508,
-      "price": 526.37,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T19:41:09.035654",
+      "timestamp": "2026-04-10T22:25:19.528495",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 19.0508,
-      "price": 524.68,
-      "pnl": -32.2
-    },
-    {
-      "timestamp": "2026-04-10T19:41:27.038716",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.931,
-      "price": 529.53,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:41:45.041678",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.931,
-      "price": 525.23,
-      "pnl": -81.4
-    },
-    {
-      "timestamp": "2026-04-10T19:42:03.044925",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.0818,
-      "price": 524.92,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:42:24.048467",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.0818,
-      "price": 525.26,
-      "pnl": 6.49
-    },
-    {
-      "timestamp": "2026-04-10T19:42:42.051281",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.0939,
-      "price": 524.62,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:43:15.056286",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.0939,
-      "price": 524.53,
-      "pnl": -1.72
-    },
-    {
-      "timestamp": "2026-04-10T19:43:48.060925",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.0243,
-      "price": 526.53,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:44:06.064595",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.0243,
-      "price": 525.54,
-      "pnl": -18.83
-    },
-    {
-      "timestamp": "2026-04-10T19:44:48.071184",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.3001,
-      "price": 518.91,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:45:18.075687",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.3001,
-      "price": 519.7,
-      "pnl": 15.25
-    },
-    {
-      "timestamp": "2026-04-10T19:45:39.079101",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.2577,
-      "price": 520.13,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:46:27.086258",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.2577,
-      "price": 529.77,
-      "pnl": 185.64
-    },
-    {
-      "timestamp": "2026-04-10T19:47:00.091598",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.9456,
-      "price": 529.68,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:47:51.099984",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.9456,
-      "price": 536.63,
-      "pnl": 131.67
-    },
-    {
-      "timestamp": "2026-04-10T19:48:09.103037",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.5262,
-      "price": 542.38,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:48:27.106414",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.5262,
-      "price": 543.01,
-      "pnl": 11.67
-    },
-    {
-      "timestamp": "2026-04-10T19:48:57.111524",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.5832,
-      "price": 540.78,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:49:15.114901",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.5832,
-      "price": 540.29,
-      "pnl": -9.11
-    },
-    {
-      "timestamp": "2026-04-10T19:49:33.118021",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.4777,
-      "price": 543.82,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:50:03.122864",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.4777,
-      "price": 547.94,
-      "pnl": 76.13
-    },
-    {
-      "timestamp": "2026-04-10T19:50:24.127014",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.2932,
-      "price": 549.72,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:51:21.136042",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.2932,
-      "price": 556.64,
-      "pnl": 126.59
-    },
-    {
-      "timestamp": "2026-04-10T19:51:39.139263",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.9944,
-      "price": 559.55,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:51:57.142755",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.9944,
-      "price": 557.22,
-      "pnl": -41.93
-    },
-    {
-      "timestamp": "2026-04-10T19:52:30.148789",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.1041,
-      "price": 555.93,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:52:48.153258",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.1041,
-      "price": 554.16,
-      "pnl": -32.04
-    },
-    {
-      "timestamp": "2026-04-10T19:53:12.158033",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.2699,
-      "price": 550.71,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:53:30.162112",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.2699,
-      "price": 547.73,
-      "pnl": -54.44
-    },
-    {
-      "timestamp": "2026-04-10T19:54:15.172346",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.6775,
-      "price": 538.4,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:54:54.181677",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.6775,
-      "price": 540.71,
-      "pnl": 43.15
-    },
-    {
-      "timestamp": "2026-04-10T19:55:15.187826",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.5675,
-      "price": 541.82,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:55:36.191536",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.5675,
-      "price": 542.29,
-      "pnl": 8.73
-    },
-    {
-      "timestamp": "2026-04-10T19:56:27.200695",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.8492,
-      "price": 533.77,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:56:45.205015",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.8492,
-      "price": 533.52,
-      "pnl": -4.71
-    },
-    {
-      "timestamp": "2026-04-10T19:57:03.208780",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.8858,
-      "price": 532.71,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:57:21.212517",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.8858,
-      "price": 529.43,
-      "pnl": -61.95
-    },
-    {
-      "timestamp": "2026-04-10T19:57:39.223598",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.8092,
-      "price": 534.55,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:57:57.226916",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.8092,
-      "price": 531.69,
-      "pnl": -53.79
-    },
-    {
-      "timestamp": "2026-04-10T19:58:15.230499",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.9452,
-      "price": 530.43,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:58:45.237892",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.9452,
-      "price": 530.29,
-      "pnl": -2.65
-    },
-    {
-      "timestamp": "2026-04-10T19:59:03.241482",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.8615,
-      "price": 532.77,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T19:59:45.247928",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.8615,
-      "price": 555.99,
-      "pnl": 437.96
-    },
-    {
-      "timestamp": "2026-04-10T20:00:03.252044",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.1761,
-      "price": 555.27,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:00:21.255686",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.1761,
-      "price": 548.63,
-      "pnl": -120.69
-    },
-    {
-      "timestamp": "2026-04-10T20:00:45.259949",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.3323,
-      "price": 549.88,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:01:42.269984",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.3323,
-      "price": 554.18,
-      "pnl": 78.83
-    },
-    {
-      "timestamp": "2026-04-10T20:02:21.277441",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.317,
-      "price": 550.77,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:02:39.281850",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.317,
-      "price": 543.82,
-      "pnl": -127.3
-    },
-    {
-      "timestamp": "2026-04-10T20:03:00.285584",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.5871,
-      "price": 542.08,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:03:24.289392",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.5871,
+      "qty": 18.6297,
       "price": 541.71,
-      "pnl": -6.88
+      "pnl": 71.54
     },
     {
-      "timestamp": "2026-04-10T20:03:42.292651",
+      "timestamp": "2026-04-10T22:25:40.533175",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 18.5756,
-      "price": 542.38,
+      "qty": 18.3836,
+      "price": 545.46,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:04:00.295833",
+      "timestamp": "2026-04-10T22:25:58.537832",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 18.5756,
-      "price": 540.77,
-      "pnl": -29.91
+      "qty": 18.3836,
+      "price": 540.93,
+      "pnl": -83.28
     },
     {
-      "timestamp": "2026-04-10T20:04:24.299747",
+      "timestamp": "2026-04-10T22:26:16.541472",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 18.5137,
-      "price": 544.03,
+      "qty": 18.4761,
+      "price": 542.28,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:05:51.310858",
+      "timestamp": "2026-04-10T22:26:43.547764",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 18.5137,
-      "price": 560.08,
-      "pnl": 297.14
+      "qty": 18.4761,
+      "price": 544.01,
+      "pnl": 31.96
     },
     {
-      "timestamp": "2026-04-10T20:06:27.316378",
+      "timestamp": "2026-04-10T22:27:01.551199",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.9919,
-      "price": 561.46,
+      "qty": 18.5004,
+      "price": 541.74,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:06:48.320102",
+      "timestamp": "2026-04-10T22:27:19.556175",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.9919,
-      "price": 562.87,
-      "pnl": 25.37
+      "qty": 18.5004,
+      "price": 540.37,
+      "pnl": -25.35
     },
     {
-      "timestamp": "2026-04-10T20:07:15.324900",
+      "timestamp": "2026-04-10T22:28:28.565345",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.9498,
-      "price": 562.92,
+      "qty": 19.0087,
+      "price": 527.12,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:07:54.330835",
+      "timestamp": "2026-04-10T22:28:46.569257",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.9498,
-      "price": 569.53,
-      "pnl": 118.65
+      "qty": 19.0087,
+      "price": 526.86,
+      "pnl": -4.94
     },
     {
-      "timestamp": "2026-04-10T20:08:12.334184",
+      "timestamp": "2026-04-10T22:29:07.573439",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.7523,
-      "price": 569.85,
+      "qty": 19.0352,
+      "price": 526.36,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:08:51.339905",
+      "timestamp": "2026-04-10T22:29:25.578159",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.7523,
-      "price": 577.48,
-      "pnl": 135.45
+      "qty": 19.0352,
+      "price": 526.83,
+      "pnl": 8.95
     },
     {
-      "timestamp": "2026-04-10T20:09:15.344168",
+      "timestamp": "2026-04-10T22:29:49.582474",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.571,
-      "price": 576.5,
+      "qty": 19.0181,
+      "price": 526.88,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:09:33.347860",
+      "timestamp": "2026-04-10T22:30:07.586269",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.571,
-      "price": 576.06,
-      "pnl": -7.73
+      "qty": 19.0181,
+      "price": 528.63,
+      "pnl": 33.28
     },
     {
-      "timestamp": "2026-04-10T20:10:06.353245",
+      "timestamp": "2026-04-10T22:30:31.591032",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.8191,
-      "price": 568.43,
+      "qty": 19.0353,
+      "price": 526.58,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:10:24.356931",
+      "timestamp": "2026-04-10T22:31:07.598231",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.8191,
-      "price": 567.0,
-      "pnl": -25.48
+      "qty": 19.0353,
+      "price": 533.93,
+      "pnl": 139.91
     },
     {
-      "timestamp": "2026-04-10T20:10:42.361764",
+      "timestamp": "2026-04-10T22:31:25.603306",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.7087,
-      "price": 571.83,
+      "qty": 18.7076,
+      "price": 536.55,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:11:15.367546",
+      "timestamp": "2026-04-10T22:31:43.606956",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.7087,
-      "price": 575.45,
-      "pnl": 64.11
+      "qty": 18.7076,
+      "price": 529.91,
+      "pnl": -124.22
     },
     {
-      "timestamp": "2026-04-10T20:11:36.376070",
+      "timestamp": "2026-04-10T22:32:01.610963",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.5877,
-      "price": 576.13,
+      "qty": 18.7582,
+      "price": 534.44,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:12:12.386216",
+      "timestamp": "2026-04-10T22:32:19.614539",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.5877,
-      "price": 578.86,
-      "pnl": 48.01
+      "qty": 18.7582,
+      "price": 529.76,
+      "pnl": -87.79
     },
     {
-      "timestamp": "2026-04-10T20:12:42.390548",
+      "timestamp": "2026-04-10T22:32:37.618213",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.6641,
-      "price": 573.91,
+      "qty": 18.8016,
+      "price": 532.74,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:13:00.394182",
+      "timestamp": "2026-04-10T22:33:16.624454",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.6641,
-      "price": 568.13,
-      "pnl": -102.1
+      "qty": 18.8016,
+      "price": 541.1,
+      "pnl": 157.18
     },
     {
-      "timestamp": "2026-04-10T20:14:09.403368",
+      "timestamp": "2026-04-10T22:34:22.633960",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 18.1533,
-      "price": 557.88,
+      "qty": 18.8061,
+      "price": 533.45,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:14:27.406830",
+      "timestamp": "2026-04-10T22:40:21.905480",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 18.1533,
-      "price": 556.33,
-      "pnl": -28.14
+      "qty": 18.8061,
+      "price": 524.46,
+      "pnl": -169.07
     },
     {
-      "timestamp": "2026-04-10T20:15:03.412373",
+      "timestamp": "2026-04-10T22:40:39.910182",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 18.1939,
-      "price": 556.48,
+      "qty": 19.0849,
+      "price": 524.77,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:15:21.416206",
+      "timestamp": "2026-04-10T22:41:09.922805",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 18.1939,
-      "price": 553.43,
-      "pnl": -55.49
+      "qty": 19.0849,
+      "price": 525.62,
+      "pnl": 16.22
     },
     {
-      "timestamp": "2026-04-10T20:15:39.420118",
+      "timestamp": "2026-04-10T22:41:36.927445",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 18.0635,
-      "price": 560.19,
+      "qty": 19.0022,
+      "price": 527.14,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:15:57.424058",
+      "timestamp": "2026-04-10T22:42:09.932785",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 18.0635,
-      "price": 557.47,
-      "pnl": -49.13
+      "qty": 19.0022,
+      "price": 532.72,
+      "pnl": 106.03
     },
     {
-      "timestamp": "2026-04-10T20:16:15.427542",
+      "timestamp": "2026-04-10T22:42:45.938426",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.9182,
-      "price": 564.46,
+      "qty": 18.9777,
+      "price": 528.38,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:16:33.431219",
+      "timestamp": "2026-04-10T22:43:03.942513",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.9182,
-      "price": 562.45,
-      "pnl": -36.02
+      "qty": 18.9777,
+      "price": 527.37,
+      "pnl": -19.17
     },
     {
-      "timestamp": "2026-04-10T20:16:51.434662",
+      "timestamp": "2026-04-10T22:43:27.947154",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.7511,
-      "price": 569.57,
+      "qty": 19.16,
+      "price": 523.25,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:17:36.441052",
+      "timestamp": "2026-04-10T22:43:48.951369",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.7511,
-      "price": 576.46,
-      "pnl": 122.31
+      "qty": 19.16,
+      "price": 528.96,
+      "pnl": 109.4
     },
     {
-      "timestamp": "2026-04-10T20:18:12.446463",
+      "timestamp": "2026-04-10T22:44:12.955843",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.716,
-      "price": 571.39,
+      "qty": 19.1156,
+      "price": 525.04,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:18:30.450148",
+      "timestamp": "2026-04-10T22:44:30.960149",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.716,
-      "price": 568.85,
-      "pnl": -45.0
+      "qty": 19.1156,
+      "price": 516.24,
+      "pnl": -168.22
     },
     {
-      "timestamp": "2026-04-10T20:18:51.454275",
+      "timestamp": "2026-04-10T22:45:48.971298",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.6577,
-      "price": 573.02,
+      "qty": 20.2978,
+      "price": 493.63,
       "pnl": 0.0
     },
     {
-      "timestamp": "2026-04-10T20:19:09.457847",
+      "timestamp": "2026-04-10T22:46:06.975457",
       "symbol": "SPY",
       "side": "SELL",
-      "qty": 17.6577,
-      "price": 570.6,
-      "pnl": -42.73
+      "qty": 20.2978,
+      "price": 493.6,
+      "pnl": -0.61
     },
     {
-      "timestamp": "2026-04-10T20:19:27.461459",
+      "timestamp": "2026-04-10T22:46:24.979528",
       "symbol": "SPY",
       "side": "BUY",
-      "qty": 17.5977,
-      "price": 574.73,
+      "qty": 20.1824,
+      "price": 496.45,
       "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:19:45.464836",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.5977,
-      "price": 572.16,
-      "pnl": -45.23
-    },
-    {
-      "timestamp": "2026-04-10T20:20:03.468456",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.6325,
-      "price": 573.34,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:20:51.475635",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.6325,
-      "price": 578.59,
-      "pnl": 92.57
-    },
-    {
-      "timestamp": "2026-04-10T20:21:09.486798",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.446,
-      "price": 580.0,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:21:27.491415",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.446,
-      "price": 572.9,
-      "pnl": -123.87
-    },
-    {
-      "timestamp": "2026-04-10T20:21:45.527230",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.525,
-      "price": 576.68,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:22:09.532226",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.525,
-      "price": 579.05,
-      "pnl": 41.53
-    },
-    {
-      "timestamp": "2026-04-10T20:22:36.536867",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.4318,
-      "price": 580.0,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:22:54.540813",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.4318,
-      "price": 569.92,
-      "pnl": -175.71
-    },
-    {
-      "timestamp": "2026-04-10T20:23:12.544557",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.7476,
-      "price": 568.69,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:23:30.548460",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.7476,
-      "price": 567.99,
-      "pnl": -12.42
-    },
-    {
-      "timestamp": "2026-04-10T20:24:00.554375",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.6292,
-      "price": 572.44,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:24:24.559011",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.6292,
-      "price": 573.64,
-      "pnl": 21.16
-    },
-    {
-      "timestamp": "2026-04-10T20:24:48.565337",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.4605,
-      "price": 578.09,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:25:06.569157",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.4605,
-      "price": 572.84,
-      "pnl": -91.67
-    },
-    {
-      "timestamp": "2026-04-10T20:25:45.575175",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.5969,
-      "price": 573.09,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:26:12.579846",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.5969,
-      "price": 576.96,
-      "pnl": 68.1
-    },
-    {
-      "timestamp": "2026-04-10T20:26:42.584752",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.4353,
-      "price": 578.79,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:27:00.588430",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.4353,
-      "price": 577.34,
-      "pnl": -25.28
-    },
-    {
-      "timestamp": "2026-04-10T20:27:39.594715",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.6762,
-      "price": 570.76,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:28:00.598786",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.6762,
-      "price": 568.6,
-      "pnl": -38.18
-    },
-    {
-      "timestamp": "2026-04-10T20:28:18.602521",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.6204,
-      "price": 572.35,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:28:42.607267",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.6204,
-      "price": 568.62,
-      "pnl": -65.72
-    },
-    {
-      "timestamp": "2026-04-10T20:29:00.611134",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.6595,
-      "price": 570.71,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:29:18.615156",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.6595,
-      "price": 563.6,
-      "pnl": -125.56
-    },
-    {
-      "timestamp": "2026-04-10T20:29:36.619246",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.8401,
-      "price": 564.23,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:29:54.623203",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.8401,
-      "price": 563.34,
-      "pnl": -15.88
-    },
-    {
-      "timestamp": "2026-04-10T20:30:12.627042",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.7383,
-      "price": 567.38,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:30:36.632140",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.7383,
-      "price": 566.71,
-      "pnl": -11.88
-    },
-    {
-      "timestamp": "2026-04-10T20:31:18.639547",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.986,
-      "price": 559.5,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:31:36.643871",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.986,
-      "price": 554.69,
-      "pnl": -86.51
-    },
-    {
-      "timestamp": "2026-04-10T20:31:57.649054",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.0989,
-      "price": 555.53,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:32:18.653178",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.0989,
-      "price": 554.76,
-      "pnl": -13.94
-    },
-    {
-      "timestamp": "2026-04-10T20:32:36.657497",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.0587,
-      "price": 556.69,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:33:51.668519",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.0587,
-      "price": 567.26,
-      "pnl": 190.88
-    },
-    {
-      "timestamp": "2026-04-10T20:34:09.673397",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.7606,
-      "price": 567.11,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:34:27.677902",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.7606,
-      "price": 560.54,
-      "pnl": -116.69
-    },
-    {
-      "timestamp": "2026-04-10T20:34:45.682403",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.9851,
-      "price": 559.38,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:35:03.687265",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.9851,
-      "price": 553.65,
-      "pnl": -103.05
-    },
-    {
-      "timestamp": "2026-04-10T20:35:27.693120",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.0863,
-      "price": 555.68,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:35:45.697098",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.0863,
-      "price": 555.17,
-      "pnl": -9.22
-    },
-    {
-      "timestamp": "2026-04-10T20:36:03.701508",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.034,
-      "price": 557.24,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:36:21.705735",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.034,
-      "price": 555.92,
-      "pnl": -23.8
-    },
-    {
-      "timestamp": "2026-04-10T20:36:51.711490",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.1677,
-      "price": 553.01,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:37:24.717190",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.1677,
-      "price": 555.06,
-      "pnl": 37.24
-    },
-    {
-      "timestamp": "2026-04-10T20:37:54.723220",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.104,
-      "price": 555.16,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:38:12.728699",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.104,
-      "price": 554.53,
-      "pnl": -11.41
-    },
-    {
-      "timestamp": "2026-04-10T20:38:33.734811",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.0779,
-      "price": 555.9,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:38:54.742293",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.0779,
-      "price": 556.46,
-      "pnl": 10.12
-    },
-    {
-      "timestamp": "2026-04-10T20:39:12.747452",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.9464,
-      "price": 560.03,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:39:39.752489",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.9464,
-      "price": 560.95,
-      "pnl": 16.51
-    },
-    {
-      "timestamp": "2026-04-10T20:40:06.758925",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.8299,
-      "price": 563.78,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:40:39.766316",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.8299,
-      "price": 566.79,
-      "pnl": 53.67
-    },
-    {
-      "timestamp": "2026-04-10T20:41:06.772009",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.8113,
-      "price": 564.67,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:42:12.782015",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.8113,
-      "price": 575.0,
-      "pnl": 183.99
-    },
-    {
-      "timestamp": "2026-04-10T20:42:42.787816",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.7103,
-      "price": 568.93,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:43:06.792484",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.7103,
-      "price": 571.4,
-      "pnl": 43.74
-    },
-    {
-      "timestamp": "2026-04-10T20:43:39.798521",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.7018,
-      "price": 569.45,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:43:57.803057",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.7018,
-      "price": 569.47,
-      "pnl": 0.35
-    },
-    {
-      "timestamp": "2026-04-10T20:44:27.808791",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.0125,
-      "price": 559.63,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:44:45.813041",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.0125,
-      "price": 552.63,
-      "pnl": -126.09
-    },
-    {
-      "timestamp": "2026-04-10T20:45:03.817090",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.0801,
-      "price": 556.84,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:45:30.822882",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.0801,
-      "price": 554.27,
-      "pnl": -46.47
-    },
-    {
-      "timestamp": "2026-04-10T20:45:51.827593",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.133,
-      "price": 554.96,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:46:09.831946",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.133,
-      "price": 554.97,
-      "pnl": 0.18
-    },
-    {
-      "timestamp": "2026-04-10T20:46:27.836590",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.94,
-      "price": 560.93,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:46:45.841470",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.94,
-      "price": 558.72,
-      "pnl": -39.65
-    },
-    {
-      "timestamp": "2026-04-10T20:47:03.845827",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.7585,
-      "price": 566.44,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:47:21.850136",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.7585,
-      "price": 560.18,
-      "pnl": -111.17
-    },
-    {
-      "timestamp": "2026-04-10T20:47:39.854488",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 17.8956,
-      "price": 561.48,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:48:06.860084",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 17.8956,
-      "price": 562.26,
-      "pnl": 13.96
-    },
-    {
-      "timestamp": "2026-04-10T20:48:33.865879",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.0865,
-      "price": 555.63,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:48:57.871221",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.0865,
-      "price": 556.82,
-      "pnl": 21.52
-    },
-    {
-      "timestamp": "2026-04-10T20:49:30.877966",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.3557,
-      "price": 547.6,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:49:48.882307",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.3557,
-      "price": 548.61,
-      "pnl": 18.54
-    },
-    {
-      "timestamp": "2026-04-10T20:50:51.892437",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.6423,
-      "price": 539.28,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:51:21.900393",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.6423,
-      "price": 538.28,
-      "pnl": -18.64
-    },
-    {
-      "timestamp": "2026-04-10T20:51:39.904845",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.6061,
-      "price": 540.23,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:51:57.910682",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.6061,
-      "price": 540.6,
-      "pnl": 6.88
-    },
-    {
-      "timestamp": "2026-04-10T20:52:15.915267",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.5418,
-      "price": 542.14,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:52:33.921258",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.5418,
-      "price": 531.57,
-      "pnl": -195.99
-    },
-    {
-      "timestamp": "2026-04-10T20:52:51.925773",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.7194,
-      "price": 535.95,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:53:09.930852",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.7194,
-      "price": 532.06,
-      "pnl": -72.82
-    },
-    {
-      "timestamp": "2026-04-10T20:53:48.937865",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.8663,
-      "price": 531.39,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:54:18.945160",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.8663,
-      "price": 530.83,
-      "pnl": -10.57
-    },
-    {
-      "timestamp": "2026-04-10T20:54:42.950408",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 18.86,
-      "price": 531.51,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:55:00.954848",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 18.86,
-      "price": 525.5,
-      "pnl": -113.35
-    },
-    {
-      "timestamp": "2026-04-10T20:55:57.965867",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.4276,
-      "price": 515.4,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:56:18.970890",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.4276,
-      "price": 512.56,
-      "pnl": -55.17
-    },
-    {
-      "timestamp": "2026-04-10T20:57:00.982993",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.8494,
-      "price": 504.17,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:57:24.988260",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.8494,
-      "price": 504.16,
-      "pnl": -0.2
-    },
-    {
-      "timestamp": "2026-04-10T20:57:51.995162",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.8785,
-      "price": 503.43,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:58:10.000503",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.8785,
-      "price": 497.66,
-      "pnl": -114.7
-    },
-    {
-      "timestamp": "2026-04-10T20:58:43.009084",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.964,
-      "price": 500.7,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T20:59:01.016578",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.964,
-      "price": 494.35,
-      "pnl": -126.77
-    },
-    {
-      "timestamp": "2026-04-10T20:59:55.025182",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.5845,
-      "price": 484.99,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:00:13.029805",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.5845,
-      "price": 480.0,
-      "pnl": -102.72
-    },
-    {
-      "timestamp": "2026-04-10T21:00:31.034540",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.6412,
-      "price": 483.16,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:00:49.039086",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.6412,
-      "price": 481.36,
-      "pnl": -37.15
-    },
-    {
-      "timestamp": "2026-04-10T21:01:10.045338",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.6212,
-      "price": 483.45,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:01:28.049688",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.6212,
-      "price": 481.54,
-      "pnl": -39.39
-    },
-    {
-      "timestamp": "2026-04-10T21:01:58.055916",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.7612,
-      "price": 480.0,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:02:25.062151",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.7612,
-      "price": 484.86,
-      "pnl": 100.9
-    },
-    {
-      "timestamp": "2026-04-10T21:02:58.068504",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.7377,
-      "price": 481.03,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:03:37.075488",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.7377,
-      "price": 485.23,
-      "pnl": 87.1
-    },
-    {
-      "timestamp": "2026-04-10T21:04:22.083261",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.4774,
-      "price": 487.57,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:04:49.090598",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.4774,
-      "price": 491.87,
-      "pnl": 88.05
-    },
-    {
-      "timestamp": "2026-04-10T21:05:13.095861",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.3842,
-      "price": 490.23,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:06:04.104550",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.3842,
-      "price": 496.02,
-      "pnl": 118.02
-    },
-    {
-      "timestamp": "2026-04-10T21:06:22.111202",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.9867,
-      "price": 500.57,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:06:40.118024",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.9867,
-      "price": 492.32,
-      "pnl": -164.89
-    },
-    {
-      "timestamp": "2026-04-10T21:06:58.124216",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.1162,
-      "price": 496.53,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:07:16.131239",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.1162,
-      "price": 492.81,
-      "pnl": -74.83
-    },
-    {
-      "timestamp": "2026-04-10T21:07:49.137998",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.2077,
-      "price": 493.91,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:08:22.146673",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.2077,
-      "price": 494.91,
-      "pnl": 20.21
-    },
-    {
-      "timestamp": "2026-04-10T21:08:40.152562",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.9258,
-      "price": 501.0,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:08:58.157649",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.9258,
-      "price": 502.74,
-      "pnl": 34.67
-    },
-    {
-      "timestamp": "2026-04-10T21:09:40.167000",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.2262,
-      "price": 493.73,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:09:58.173245",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.2262,
-      "price": 494.25,
-      "pnl": 10.52
-    },
-    {
-      "timestamp": "2026-04-10T21:10:16.178198",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.1968,
-      "price": 494.5,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:10:34.182944",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.1968,
-      "price": 493.32,
-      "pnl": -23.83
-    },
-    {
-      "timestamp": "2026-04-10T21:11:04.189179",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.2682,
-      "price": 492.64,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:11:31.195229",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.2682,
-      "price": 496.61,
-      "pnl": 80.46
-    },
-    {
-      "timestamp": "2026-04-10T21:11:58.202109",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.2087,
-      "price": 494.49,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:12:16.207195",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.2087,
-      "price": 495.34,
-      "pnl": 17.18
-    },
-    {
-      "timestamp": "2026-04-10T21:12:34.212136",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.1295,
-      "price": 496.52,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:13:01.219953",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.1295,
-      "price": 496.95,
-      "pnl": 8.66
-    },
-    {
-      "timestamp": "2026-04-10T21:13:22.225138",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.0128,
-      "price": 499.46,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:13:40.230202",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.0128,
-      "price": 494.49,
-      "pnl": -99.46
-    },
-    {
-      "timestamp": "2026-04-10T21:13:58.235210",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.8747,
-      "price": 502.43,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:14:31.242337",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.8747,
-      "price": 500.49,
-      "pnl": -38.56
-    },
-    {
-      "timestamp": "2026-04-10T21:14:49.247965",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.8083,
-      "price": 503.92,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:15:07.252908",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.8083,
-      "price": 497.51,
-      "pnl": -126.97
-    },
-    {
-      "timestamp": "2026-04-10T21:15:31.258785",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.1873,
-      "price": 493.83,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:16:04.266301",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.1873,
-      "price": 492.4,
-      "pnl": -28.87
-    },
-    {
-      "timestamp": "2026-04-10T21:16:22.271377",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.9248,
-      "price": 500.19,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:16:40.276528",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.9248,
-      "price": 496.79,
-      "pnl": -67.74
-    },
-    {
-      "timestamp": "2026-04-10T21:16:58.286360",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.7486,
-      "price": 504.31,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:17:25.292755",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.7486,
-      "price": 506.2,
-      "pnl": 37.32
-    },
-    {
-      "timestamp": "2026-04-10T21:18:40.305872",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 20.1434,
-      "price": 494.61,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:19:31.315195",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 20.1434,
-      "price": 506.89,
-      "pnl": 247.36
-    },
-    {
-      "timestamp": "2026-04-10T21:19:49.320922",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.4783,
-      "price": 512.77,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:20:07.326099",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.4783,
-      "price": 508.96,
-      "pnl": -74.21
-    },
-    {
-      "timestamp": "2026-04-10T21:20:25.331514",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.5202,
-      "price": 511.29,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:21:01.340658",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.5202,
-      "price": 515.06,
-      "pnl": 73.59
-    },
-    {
-      "timestamp": "2026-04-10T21:21:22.347203",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.3136,
-      "price": 517.14,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:21:40.353934",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.3136,
-      "price": 513.72,
-      "pnl": -66.05
-    },
-    {
-      "timestamp": "2026-04-10T21:21:58.359472",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.3885,
-      "price": 514.8,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:22:16.364907",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.3885,
-      "price": 508.79,
-      "pnl": -116.52
-    },
-    {
-      "timestamp": "2026-04-10T21:22:43.371084",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.468,
-      "price": 512.1,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:23:01.376553",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.468,
-      "price": 508.34,
-      "pnl": -73.2
-    },
-    {
-      "timestamp": "2026-04-10T21:23:25.382333",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.6308,
-      "price": 507.48,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:23:43.387496",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.6308,
-      "price": 504.91,
-      "pnl": -50.45
-    },
-    {
-      "timestamp": "2026-04-10T21:24:01.394058",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.6853,
-      "price": 505.82,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:24:31.401478",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.6853,
-      "price": 504.9,
-      "pnl": -18.11
-    },
-    {
-      "timestamp": "2026-04-10T21:25:34.419651",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.9383,
-      "price": 499.31,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:26:25.430275",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.9383,
-      "price": 508.42,
-      "pnl": 181.64
-    },
-    {
-      "timestamp": "2026-04-10T21:26:43.435300",
-      "symbol": "SPY",
-      "side": "BUY",
-      "qty": 19.5571,
-      "price": 509.97,
-      "pnl": 0.0
-    },
-    {
-      "timestamp": "2026-04-10T21:27:16.444189",
-      "symbol": "SPY",
-      "side": "SELL",
-      "qty": 19.5571,
-      "price": 509.94,
-      "pnl": -0.59
     }
   ],
   "market_prices": {
-    "SPY": 509.94
+    "SPY": 496.45
   }
 }

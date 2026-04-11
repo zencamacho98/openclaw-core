@@ -4,7 +4,7 @@
   "created_at": "2026-04-10T21:30:11.563727+00:00",
   "goal": "A valid research goal here",
   "notes": "",
-  "status": "running",
+  "status": "completed",
   "config": {
     "max_sessions": 3,
     "max_batches_per_session": 3,
@@ -12,17 +12,21 @@
     "max_total_experiments": 60
   },
   "progress": {
-    "sessions_completed": 1,
-    "total_batches": 3,
-    "total_experiments": 9,
-    "total_accepted": 6,
+    "sessions_completed": 3,
+    "total_batches": 9,
+    "total_experiments": 27,
+    "total_accepted": 11,
     "consecutive_no_progress_sessions": 0,
     "session_dominant_failures": [
+      "median_pnl",
+      "median_pnl",
       "median_pnl"
     ]
   },
   "session_ids": [
-    "session_20260410T213011"
+    "session_20260410T213011",
+    "session_20260410T213023",
+    "session_20260410T213038"
   ],
   "session_summaries": [
     {
@@ -33,6 +37,37 @@
       "classes_tested": [
         "entry_quality",
         "loss_structure",
+        "profit_taking"
+      ],
+      "stop_condition": "max_batches_reached",
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    },
+    {
+      "session_id": "session_20260410T213023",
+      "batches_completed": 3,
+      "total_experiments": 9,
+      "total_accepted": 1,
+      "classes_tested": [
+        "entry_quality",
+        "loss_structure",
+        "profit_taking"
+      ],
+      "stop_condition": "max_batches_reached",
+      "best_score": 52.0,
+      "best_tier": "noisy",
+      "human_review": true,
+      "dominant_failure": "median_pnl"
+    },
+    {
+      "session_id": "session_20260410T213038",
+      "batches_completed": 3,
+      "total_experiments": 9,
+      "total_accepted": 4,
+      "classes_tested": [
+        "entry_quality",
         "profit_taking"
       ],
       "stop_condition": "max_batches_reached",
@@ -60,19 +95,23 @@
     "batch_id": "batch_20260410T213012",
     "session_id": "session_20260410T213011"
   },
-  "stop_condition": null,
-  "stop_reason": null,
+  "stop_condition": "max_sessions_reached",
+  "stop_reason": "Completed 3/3 planned sessions.",
   "artifacts": {
     "best_validation_record": "/home/zen_camacho98/openclaw-core/data/validation_runs/20260410T213013_batch_20260410T213012_001.json",
     "best_experiment_id": "batch_20260410T213012_001",
     "best_session_id": "session_20260410T213011",
     "session_reports": [
-      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T213011_session.json"
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T213011_session.json",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T213023_session.json",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T213038_session.json"
     ],
     "session_md_reports": [
-      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T213011_session_report.md"
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T213011_session_report.md",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T213023_session_report.md",
+      "/home/zen_camacho98/openclaw-core/data/research_ledger/reports/session_20260410T213038_session_report.md"
     ],
-    "campaign_brief_json": null,
-    "campaign_brief_md": null
+    "campaign_brief_json": "/home/zen_camacho98/openclaw-core/data/campaigns/campaign_20260410T213011/brief.json",
+    "campaign_brief_md": "/home/zen_camacho98/openclaw-core/data/campaigns/campaign_20260410T213011/brief.md"
   }
 }

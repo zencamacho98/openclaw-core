@@ -208,6 +208,28 @@ def _warden_state() -> dict:
         return {"total_calls": 0, "total_cost_usd": 0.0}
 
 
+@router.get("/neighborhood/docs")
+def neighborhood_docs(file: str = "BRD.md") -> dict:
+    """Read-only access to project docs. Allowlist: BRD.md, TRD.md, CAPABILITY_REGISTRY.md, CHANGE_JOURNAL.md."""
+    from fastapi import HTTPException
+    ALLOWED = {
+        "BRD.md":                  "Business Requirements",
+        "TRD.md":                  "Technical Design",
+        "CAPABILITY_REGISTRY.md":  "Capability Registry",
+        "CHANGE_JOURNAL.md":       "Change Journal",
+    }
+    if file not in ALLOWED:
+        raise HTTPException(status_code=400, detail=f"Unknown doc: {file}")
+    path = _ROOT / "docs" / file
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Doc not found: {file}")
+    try:
+        content = path.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"file": file, "label": ALLOWED[file], "content": content}
+
+
 @router.post("/peter/chat")
 async def peter_chat(body: dict = Body(default={})) -> dict:
     """
@@ -1016,12 +1038,36 @@ body {
 .diag-block { margin-bottom:5px; }
 .diag-row { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
 .diag-label { font-size:7px; letter-spacing:1.5px; color:#37474f; flex-shrink:0; }
-.diag-ok   { font-size:9px; color:#00e676; }
-.diag-warn { font-size:9px; color:#ef9a9a; }
+.diag-ok        { font-size:9px; color:#00e676; }
+.diag-warn      { font-size:9px; color:#ef9a9a; }
+.diag-soft      { font-size:9px; color:#ffd54f; }
 .diag-warn-text { font-size:9px; color:#ef9a9a; letter-spacing:0.3px; padding-left:4px; line-height:1.5; }
-.diag-muted { font-size:9px; color:#546e7a; letter-spacing:0.3px; line-height:1.5; }
+.diag-soft-text { font-size:9px; color:#ffd54f; letter-spacing:0.3px; padding-left:4px; line-height:1.5; }
+.diag-muted     { font-size:9px; color:#546e7a; letter-spacing:0.3px; line-height:1.5; }
+.diag-bridge    { font-size:9px; color:#4fc3f7; letter-spacing:0.3px; margin-top:4px; padding-top:4px; border-top:1px solid #1a2a35; }
 .diag-detail-toggle { list-style:none; font-size:9px; color:#455a64; cursor:pointer; margin-top:3px; }
 .diag-detail-toggle::-webkit-details-marker { display:none; }
+
+/* ── Docs viewer ─────────────────────────────────────────────────────────── */
+.docs-tabs { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:8px; }
+.docs-tab {
+  font-size:8px; letter-spacing:1px; padding:3px 8px; cursor:pointer;
+  border:1px solid #1e2d45; border-radius:2px; background:#040d1a; color:#546e7a;
+  font-family:'Courier New',Courier,monospace; transition:all 0.15s;
+}
+.docs-tab:hover  { border-color:#37474f; color:#90a4ae; }
+.docs-tab.active { border-color:#546e7a; color:#b0bec5; background:#0a1825; }
+.docs-content { font-size:9px; line-height:1.6; color:#90a4ae; letter-spacing:0.3px; }
+.docs-h1 { font-size:10px; font-weight:bold; color:#b0bec5; letter-spacing:1px; margin:10px 0 3px; }
+.docs-h2 { font-size:9px; font-weight:bold; color:#7ecbbd; letter-spacing:0.8px; margin:8px 0 2px; }
+.docs-h3 { font-size:9px; color:#78909c; letter-spacing:0.5px; margin:6px 0 2px; }
+.docs-hr { height:1px; background:#1e2d45; margin:7px 0; }
+.docs-bullet { padding-left:10px; position:relative; margin:1px 0; color:#90a4ae; }
+.docs-bullet::before { content:'›'; position:absolute; left:0; color:#455a64; }
+.docs-p { margin:1px 0; color:#78909c; }
+.docs-table-row { color:#546e7a; font-size:8px; letter-spacing:0.3px; margin:1px 0; border-left:2px solid #1e2d45; padding-left:6px; }
+.docs-code { color:#78909c; background:#0a1020; padding:0 3px; border-radius:1px; }
+.docs-loading { color:#37474f; font-style:italic; font-size:9px; }
 </style>
 </head>
 <body>
@@ -1123,6 +1169,13 @@ body {
         <div class="ops-name">WARDEN</div>
         <div class="ops-desc">cost control</div>
         <div class="ops-status" id="os-warden">?</div>
+      </div>
+
+      <div class="ops-unit st-idle" id="u-docs" onclick="selectItem('docs')" title="Docs — Project Reference">
+        <div class="ops-icon">📖</div>
+        <div class="ops-name">DOCS</div>
+        <div class="ops-desc">reference</div>
+        <div class="ops-status" id="os-docs">4 DOCS</div>
       </div>
 
     </div>
@@ -1290,6 +1343,18 @@ body {
           <div id="diag-triggers" class="diag-block"></div>
         </div>
       </div>
+
+      <!-- Docs viewer (shown only when Docs panel is open) -->
+      <div id="docs-section" style="display:none">
+        <div class="dp-divider"></div>
+        <div class="docs-tabs">
+          <button class="docs-tab active" onclick="loadDocsContent('BRD.md', this)">Business Requirements</button>
+          <button class="docs-tab" onclick="loadDocsContent('TRD.md', this)">Technical Design</button>
+          <button class="docs-tab" onclick="loadDocsContent('CAPABILITY_REGISTRY.md', this)">Capability Registry</button>
+          <button class="docs-tab" onclick="loadDocsContent('CHANGE_JOURNAL.md', this)">Change Journal</button>
+        </div>
+        <div id="docs-content" class="docs-content"><div class="docs-loading">Select a document above&hellip;</div></div>
+      </div>
     </div>
     <div id="dp-actions"></div>
   </div>
@@ -1423,6 +1488,8 @@ function closePanel() {
   _belfortReadinessLastLoad   = 0;
   _belfortLearningLastLoad    = 0;
   _belfortDiagnosticsLastLoad = 0;
+  const _de = document.getElementById('docs-content');
+  if (_de) _de._docsLoaded = false;
 }
 
 // ── Panel population ──────────────────────────────────────────────────────
@@ -1434,6 +1501,7 @@ const _META = {
   sentinel:   ['TEST SENTINEL',   'Checks that patches are safe before deploy'],
   supervisor: ['LOOP SUPERVISOR', 'Controls the automated research loop'],
   warden:     ['COST WARDEN',     'Manages AI model usage and routing cost'],
+  docs:       ['DOCS',            'Project reference — BRD · TRD · Registry · Journal'],
 };
 
 function setBasicPanel(id) {
@@ -1450,6 +1518,8 @@ function setBasicPanel(id) {
   if (pcs) pcs.style.display = 'none';
   const bcs = document.getElementById('belfort-controls-section');
   if (bcs) bcs.style.display = 'none';
+  const ds = document.getElementById('docs-section');
+  if (ds) ds.style.display = 'none';
 }
 
 function setBadge(cls, text) {
@@ -1495,19 +1565,18 @@ function populatePanel(id, state, _skipClear) {
     const warns        = checker.open_warnings || 0;
     const custBad      = custodian.overall === 'degraded';
     const sentBad      = ['review','not_ready'].includes(sentinel.verdict || '');
-    const loopOn       = supervisor.enabled;
-    const cls   = reviewNeeded ? 'review' : (warns || custBad || sentBad) ? 'warning' : loopOn ? 'active' : 'idle';
-    const label = reviewNeeded ? 'REVIEW NEEDED' : loopOn ? 'RESEARCH ON' : 'IDLE';
+    const needsAttn    = warns > 0 || custBad || sentBad;
+    const cls          = reviewNeeded ? 'review' : needsAttn ? 'warning' : 'idle';
+    const label        = reviewNeeded ? 'REVIEW NEEDED' : needsAttn ? 'ATTENTION NEEDED' : 'AVAILABLE';
     setBadge(cls, label);
     document.getElementById('dp-status-detail').textContent = '';
 
     const sit = [];
-    if (reviewNeeded)              sit.push({text: 'A research result is ready for your review', cls: 'warn'});
-    if (warns > 0)                 sit.push({text: `${warns} issue${warns > 1 ? 's' : ''} flagged by the audit system`, cls: 'warn'});
-    if (custBad)                   sit.push({text: 'System health needs attention', cls: 'warn'});
-    if (sentBad)                   sit.push({text: `Patch safety check: ${(sentinel.verdict || '').replace('_',' ')}`, cls: 'warn'});
-    if (supervisor.stop_requested) sit.push({text: 'Research is stopping', cls: 'warn'});
-    if (!sit.length)               sit.push({text: loopOn ? 'Research is running \u2014 monitoring progress' : 'Everything is quiet', cls: 'ok'});
+    if (reviewNeeded)  sit.push({text: 'A research result is ready for your review', cls: 'warn'});
+    if (warns > 0)     sit.push({text: `${warns} issue${warns > 1 ? 's' : ''} flagged by the audit system`, cls: 'warn'});
+    if (custBad)       sit.push({text: 'System health needs attention', cls: 'warn'});
+    if (sentBad)       sit.push({text: `Patch safety check: ${(sentinel.verdict || '').replace('_',' ')}`, cls: 'warn'});
+    if (!sit.length)   sit.push({text: 'No urgent items', cls: 'ok'});
     setItems('dp-situation', sit);
 
     // Show chat section instead of NEXT
@@ -1677,6 +1746,66 @@ function populatePanel(id, state, _skipClear) {
     document.getElementById('dp-actions').innerHTML =
       `<button class="dp-action-btn" id="refresh-btn-warden" onclick="refreshOpsPanel('warden')">\ud83d\udd04 Refresh summary</button>` +
       `<a class="dp-action-btn primary" href="${DASH_URL}?view=controls" target="_blank">Open Controls \u2192</a>`;
+  }
+
+  else if (id === 'docs') {
+    setBadge('idle', 'READ ONLY');
+    document.getElementById('dp-status-detail').textContent = '4 project documents';
+    setItems('dp-situation', [{text: 'Select a tab to read the document'}]);
+    const nxw = document.getElementById('dp-next-wrapper');
+    if (nxw) nxw.style.display = 'none';
+    const ds = document.getElementById('docs-section');
+    if (ds) ds.style.display = '';
+    setActions([]);
+    // Auto-load BRD on first open
+    const el = document.getElementById('docs-content');
+    if (el && !el._docsLoaded) {
+      el._docsLoaded = true;
+      const firstTab = document.querySelector('.docs-tab');
+      loadDocsContent('BRD.md', firstTab);
+    }
+  }
+}
+
+// ── Docs viewer ───────────────────────────────────────────────────────────
+function _inlineMd(s) {
+  return s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+           .replace(/`([^`]+)`/g, '<span class="docs-code">$1</span>');
+}
+
+function _renderMd(text) {
+  const out = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trimEnd();
+    if (line.startsWith('### '))       out.push(`<div class="docs-h3">${_inlineMd(_escHtml(line.slice(4)))}</div>`);
+    else if (line.startsWith('## '))   out.push(`<div class="docs-h2">${_inlineMd(_escHtml(line.slice(3)))}</div>`);
+    else if (line.startsWith('# '))    out.push(`<div class="docs-h1">${_inlineMd(_escHtml(line.slice(2)))}</div>`);
+    else if (/^---+$/.test(line))      out.push('<div class="docs-hr"></div>');
+    else if (line.startsWith('- ') || line.startsWith('* '))
+                                       out.push(`<div class="docs-bullet">${_inlineMd(_escHtml(line.slice(2)))}</div>`);
+    else if (line.startsWith('| ') || (line.startsWith('|') && line.includes('|', 1))) {
+      if (!/^[\|:\-\s]+$/.test(line)) out.push(`<div class="docs-table-row">${_inlineMd(_escHtml(line.replace(/\|/g, ' · ')))}</div>`);
+    }
+    else if (line === '')              out.push('<div style="height:4px"></div>');
+    else                               out.push(`<div class="docs-p">${_inlineMd(_escHtml(line))}</div>`);
+  }
+  return out.join('');
+}
+
+async function loadDocsContent(file, tabEl) {
+  document.querySelectorAll('.docs-tab').forEach(t => t.classList.remove('active'));
+  if (tabEl) tabEl.classList.add('active');
+  const el = document.getElementById('docs-content');
+  if (!el) return;
+  el.innerHTML = '<div class="docs-loading">Loading\u2026</div>';
+  try {
+    const r = await fetch('/neighborhood/docs?file=' + encodeURIComponent(file));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    el.innerHTML = _renderMd(d.content || '(empty)');
+    el.scrollTop = 0;
+  } catch(e) {
+    el.innerHTML = `<div class="docs-loading">Could not load ${_escHtml(file)} \u2014 ${_escHtml(e.message)}</div>`;
   }
 }
 
@@ -2271,24 +2400,39 @@ async function loadBelfortDiagnostics() {
     // ── Trigger detail ────────────────────────────────────────────────────
     const trigEl = document.getElementById('diag-triggers');
     if (trigEl) {
-      const t      = d.trigger_detail || {};
-      const active = t.active_triggers  || [];
-      const inactive = t.inactive_notes || [];
-      const qStatus  = t.queue_status   || 'unknown';
+      const t        = d.trigger_detail || {};
+      const hard     = t.active_triggers     || [];
+      const soft     = t.soft_reasons        || [];
+      const gaps     = t.hard_threshold_gaps || [];
+      const qStatus  = t.queue_status        || 'unknown';
+      const pressure = t.pressure            || 'none';
+      const bridge   = t.research_bridge;
       const qCls     = qStatus !== 'empty' && qStatus !== 'unavailable' ? 'diag-ok' : 'diag-muted';
 
-      let html = `<div class="diag-row"><span class="diag-label">TRIGGERS</span>`;
-      if (active.length > 0) {
-        html += `<span class="diag-warn">${active.length}\u00a0ACTIVE</span></div>`;
-        active.forEach(r => { html += `<div class="diag-warn-text">\u25b2\u00a0${_escHtml(r)}</div>`; });
-      } else {
-        html += `<span class="diag-ok">NONE</span></div>`;
-        if (t.recommendation) html += `<div class="diag-muted">${_escHtml(t.recommendation)}</div>`;
+      const pressureCls   = pressure === 'hard' ? 'diag-warn' : pressure === 'soft' ? 'diag-soft' : 'diag-ok';
+      const pressureLabel = pressure.toUpperCase();
+
+      let html = `<div class="diag-row"><span class="diag-label">PRESSURE</span><span class="${pressureCls}">${pressureLabel}</span></div>`;
+
+      if (hard.length > 0) {
+        html += `<div class="diag-warn-text" style="margin-bottom:1px">Hard signals:</div>`;
+        hard.forEach(r => { html += `<div class="diag-warn-text">\u25b2\u00a0${_escHtml(r)}</div>`; });
+      }
+      if (soft.length > 0) {
+        html += `<div class="diag-soft-text" style="margin-top:2px;margin-bottom:1px">Soft signals:</div>`;
+        soft.forEach(r => { html += `<div class="diag-soft-text">\u00b7\u00a0${_escHtml(r)}</div>`; });
+      }
+      if (hard.length === 0 && soft.length === 0) {
+        html += `<div class="diag-muted">${_escHtml(t.recommendation || 'No issues detected')}</div>`;
       }
 
-      if (inactive.length > 0) {
-        html += `<details><summary class="diag-detail-toggle">Why not active \u25b8</summary>` +
-          inactive.map(n => `<div class="diag-muted">\u00b7\u00a0${_escHtml(n)}</div>`).join('') +
+      if (bridge) {
+        html += `<div class="diag-bridge">\u25b6\u00a0${_escHtml(bridge)}</div>`;
+      }
+
+      if (gaps.length > 0) {
+        html += `<details><summary class="diag-detail-toggle">Hard threshold gaps \u25b8</summary>` +
+          gaps.map(n => `<div class="diag-muted">\u00b7\u00a0${_escHtml(n)}</div>`).join('') +
           `</details>`;
       }
 
@@ -2544,8 +2688,8 @@ function updateSummary(state) {
     attnEl.textContent = `⚠ Patch safety: ${(sentinel.verdict || '').replace('_', ' ')}`;
     attnEl.className = 'nb-item warn';
   } else {
-    attnEl.textContent = supervisor.enabled ? 'Research running' : 'All clear';
-    attnEl.className = 'nb-item' + (supervisor.enabled ? ' ok' : '');
+    attnEl.textContent = 'All clear';
+    attnEl.className = 'nb-item';
   }
 
   const belEl = document.getElementById('nb-belfort');
@@ -2580,15 +2724,15 @@ function applyState(state) {
   const sentBad      = ['review','not_ready'].includes(sentinel.verdict || '');
   const loopEnabled  = supervisor.enabled;
 
+  const peterNeedsAttn = warnings || custDegraded || sentBad;
   setClass(document.getElementById('h-peter'),
-    reviewNeeded ? 'st-review' : (warnings || custDegraded || sentBad) ? 'st-warning' :
-    loopEnabled  ? 'st-active' : 'st-idle');
+    reviewNeeded   ? 'st-review' :
+    peterNeedsAttn ? 'st-warning' : 'st-idle');
   const pb = document.getElementById('pb-peter');
-  if (pb) pb.textContent = reviewNeeded ? 'REVIEW' : loopEnabled ? 'RESEARCH ON' : 'IDLE';
+  if (pb) pb.textContent = reviewNeeded ? 'REVIEW' : peterNeedsAttn ? 'ATTENTION' : 'READY';
   setSpeech('sp-peter',
-    reviewNeeded            ? 'Candidate ready for your review' :
-    supervisor.stop_requested ? 'Stop requested' :
-    loopEnabled             ? 'Research running' : 'Ready for instructions',
+    reviewNeeded   ? 'Review needed' :
+    peterNeedsAttn ? 'Needs your attention' : 'No urgent items',
     true);
 
   // Belfort

@@ -27,6 +27,20 @@ See:
 - Do not replace deterministic cores with vague LM behavior.
 - Do not duplicate the dev/control UI inside the neighborhood unless it is part of the core user loop.
 
+## Documentation maintenance policy
+After each implementation block:
+- Append one entry to `docs/CHANGE_JOURNAL.md` (commit SHA, what changed, why, files, reuses, left out)
+- Update `docs/CAPABILITY_REGISTRY.md` if a capability was added, removed, renamed, or materially changed
+
+Only update when the scope actually changes:
+- `docs/BRD.md` — business/product goals, user-facing surfaces, or major workflows
+- `docs/TRD.md` — architecture, runtime, role boundaries, major routes/modules, LM policy, or technical constraints
+
+Rules:
+- Do not fully rewrite any doc unless explicitly asked
+- Prefer incremental edits — append to the journal, patch the registry entry
+- Keep doc updates grounded in actual implementation (no speculative additions)
+
 ## Delivery style
 After each implementation block, always report:
 1. what changed

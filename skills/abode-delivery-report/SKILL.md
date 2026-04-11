@@ -1,4 +1,4 @@
----
+
 name: abode-delivery-report
 description: Use this after any implementation block in THE ABODE to produce a consistent, decision-ready delivery report with scope control and next-step guidance.
 ---

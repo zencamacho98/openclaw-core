@@ -132,54 +132,46 @@ def _session_pnl() -> dict:
 
 # ── Trigger detail ─────────────────────────────────────────────────────────────
 
-def _inactive_notes(snap, win_rate_data, exp_data, regime_ctx, active_triggers):
-    """Notes for triggers that are not currently firing — explains the gap."""
+def _hard_threshold_gaps(snap, win_rate_data, exp_data, regime_ctx, hard_triggers):
+    """Explains why each hard research trigger is not yet firing."""
     notes  = []
     pnl    = snap.get("realized_pnl", 0.0)
     closed = win_rate_data.get("total_closed", 0)
     wr     = win_rate_data.get("win_rate")
     exp    = exp_data.get("expectancy")
 
-    # 1. Sustained loss
-    if not any("Sustained loss" in r for r in active_triggers):
-        thresh = _STARTING_CASH * 0.02  # $2,000
+    if not any("Sustained loss" in r for r in hard_triggers):
+        thresh = _STARTING_CASH * 0.02
         if closed < _RESEARCH_MIN_TRADES:
             notes.append(f"Sustained loss: {closed}/{_RESEARCH_MIN_TRADES} trades (need {_RESEARCH_MIN_TRADES})")
         else:
-            notes.append(f"Sustained loss: P&L {pnl:+.0f} (threshold −${thresh:.0f})")
+            notes.append(f"Sustained loss: P&L {pnl:+.0f} (hard threshold −${thresh:.0f})")
 
-    # 2. Drawdown warning
-    if not any("Drawdown" in r for r in active_triggers):
-        thresh = _STARTING_CASH * 0.03  # $3,000
-        notes.append(f"Drawdown: {pnl:+.0f} (threshold −${thresh:.0f})")
+    if not any("Drawdown warning" in r for r in hard_triggers):
+        thresh = _STARTING_CASH * 0.03
+        notes.append(f"Hard drawdown: {pnl:+.0f} (threshold −${thresh:.0f})")
 
-    # 3. Win rate
-    if not any("Critical win rate" in r for r in active_triggers):
+    if not any("Critical win rate" in r for r in hard_triggers):
         if wr is None:
-            notes.append(f"Win rate: no data (fires if <30% after {_RESEARCH_MIN_TRADES})")
+            notes.append(f"Win rate: no data (hard threshold <30% after {_RESEARCH_MIN_TRADES})")
         elif closed < _RESEARCH_MIN_TRADES:
-            notes.append(f"Win rate: {wr*100:.0f}% — need {_RESEARCH_MIN_TRADES} closed trades")
+            notes.append(f"Win rate: {wr*100:.0f}% — need {_RESEARCH_MIN_TRADES} trades for hard check")
         else:
-            notes.append(f"Win rate: {wr*100:.0f}% OK (threshold <30%)")
+            notes.append(f"Win rate: {wr*100:.0f}% (hard threshold <30%)")
 
-    # 4. Expectancy
-    if not any("Negative edge" in r for r in active_triggers):
+    if not any("Negative edge" in r for r in hard_triggers):
         if exp is None:
-            notes.append(f"Expectancy: no data (fires if <−$5/trade after {_RESEARCH_MIN_TRADES})")
+            notes.append(f"Expectancy: no data (hard threshold <−$5/trade after {_RESEARCH_MIN_TRADES})")
         elif closed < _RESEARCH_MIN_TRADES:
-            notes.append(f"Expectancy: {exp:+.2f}/trade — need {_RESEARCH_MIN_TRADES} closed trades")
+            notes.append(f"Expectancy: {exp:+.2f}/trade — need {_RESEARCH_MIN_TRADES} trades for hard check")
         else:
-            notes.append(f"Expectancy: {exp:+.2f}/trade OK (threshold <−$5)")
+            notes.append(f"Expectancy: {exp:+.2f}/trade (hard threshold <−$5)")
 
-    # 5. Regime
-    if not any("Regime mismatch" in r for r in active_triggers):
-        label = regime_ctx.get("label", "unknown")
-        fit   = regime_ctx.get("strategy_fit", "unknown")
+    if not any("Regime mismatch" in r for r in hard_triggers):
+        label  = regime_ctx.get("label", "unknown")
+        fit    = regime_ctx.get("strategy_fit", "unknown")
         warmed = regime_ctx.get("warmed_up", False)
-        if not warmed:
-            notes.append(f"Regime: warming up (no mismatch until warmed)")
-        else:
-            notes.append(f"Regime: {label} ({fit} fit — no mismatch)")
+        notes.append(f"Regime: {'warming up' if not warmed else label + ' (' + fit + ' fit)'} — no mismatch")
 
     return notes
 
@@ -206,36 +198,53 @@ def _trigger_detail() -> dict:
         triggers      = _research_triggers(snap, win_rate_data, exp_data, baseline_comp, regime_ctx)
     except Exception:
         return {
+            "pressure":           "none",
             "research_triggered": False,
             "active_triggers":    [],
-            "inactive_notes":     ["Could not load trigger data"],
+            "soft_triggered":     False,
+            "soft_reasons":       [],
+            "hard_threshold_gaps": ["Could not load trigger data"],
             "recommendation":     "",
             "queue_status":       "unavailable",
             "candidate_count":    0,
+            "research_bridge":    None,
         }
 
-    active = triggers.get("reasons", [])
-    inactive = _inactive_notes(snap, win_rate_data, exp_data, regime_ctx, active)
+    hard_triggers = triggers.get("reasons", [])
+    soft_reasons  = triggers.get("soft_reasons", [])
+    pressure      = triggers.get("pressure", "none")
+    gaps          = _hard_threshold_gaps(snap, win_rate_data, exp_data, regime_ctx, hard_triggers)
 
     # Candidate queue
     try:
         from research.candidate_queue import read_queue
-        all_items     = read_queue()
-        pending_held  = [i for i in all_items if i.get("status") in ("pending", "held")]
-        total         = len(pending_held)
-        queue_status  = f"{total} pending/held" if total > 0 else "empty"
+        all_items    = read_queue()
+        pending_held = [i for i in all_items if i.get("status") in ("pending", "held")]
+        total        = len(pending_held)
+        queue_status = f"{total} pending/held" if total > 0 else "empty"
         candidate_count = total
     except Exception:
         queue_status    = "unavailable"
         candidate_count = 0
 
+    # Research bridge: soft or hard pressure with an empty queue
+    research_bridge = None
+    if pressure == "hard" and candidate_count == 0:
+        research_bridge = "Hard failure signals active — begin research to find a better configuration"
+    elif pressure == "soft" and candidate_count == 0:
+        research_bridge = "Soft signals suggest room to improve — consider beginning a focused research session"
+
     return {
-        "research_triggered": triggers.get("triggered", False),
-        "active_triggers":    active,
-        "inactive_notes":     inactive,
-        "recommendation":     triggers.get("recommendation", ""),
-        "queue_status":       queue_status,
-        "candidate_count":    candidate_count,
+        "pressure":            pressure,
+        "research_triggered":  triggers.get("triggered", False),
+        "active_triggers":     hard_triggers,
+        "soft_triggered":      triggers.get("soft_triggered", False),
+        "soft_reasons":        soft_reasons,
+        "hard_threshold_gaps": gaps,
+        "recommendation":      triggers.get("recommendation", ""),
+        "queue_status":        queue_status,
+        "candidate_count":     candidate_count,
+        "research_bridge":     research_bridge,
     }
 
 

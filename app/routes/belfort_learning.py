@@ -106,16 +106,25 @@ def _build_learning_summary(
             helping = ["No clear edge signals yet \u2014 monitor as history grows"]
 
     # ── Verdict ───────────────────────────────────────────────────────────────
-    n_triggers = research_triggers.get("count", 0)
+    n_hard   = research_triggers.get("count", 0)
+    n_soft   = research_triggers.get("soft_count", 0)
+    pressure = research_triggers.get("pressure", "none")
+
     if total_closed < _MIN_EVAL_TRADES:
         verdict      = "continue"
         verdict_note = f"Too early \u2014 need {_MIN_EVAL_TRADES}+ closed trades to evaluate"
-    elif n_triggers >= 2 or (realized_pnl < _STARTING_CASH * -0.03 and total_closed >= 10):
+    elif n_hard >= 2 or (realized_pnl < _STARTING_CASH * -0.03 and total_closed >= 10):
         verdict      = "research"
         verdict_note = "Multiple performance issues \u2014 recommend new research campaign"
-    elif n_triggers == 1 or (win_rate is not None and 0.30 <= win_rate < 0.40 and total_closed >= 10):
+    elif n_hard == 1 or (win_rate is not None and 0.30 <= win_rate < 0.40 and total_closed >= 10):
         verdict      = "tune"
-        verdict_note = "Marginal performance \u2014 consider parameter adjustment or targeted research"
+        verdict_note = "Marginal performance \u2014 consider targeted parameter adjustment or research"
+    elif n_soft >= 2:
+        verdict      = "tune"
+        verdict_note = "Weak performance signals \u2014 consider parameter tuning or focused research"
+    elif n_soft == 1:
+        verdict      = "monitor"
+        verdict_note = "Soft performance signal \u2014 watch for sustained underperformance"
     elif realized_pnl >= 0 and (win_rate is None or win_rate >= 0.40):
         verdict      = "continue"
         verdict_note = "Performance acceptable \u2014 continue monitoring"

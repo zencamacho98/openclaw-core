@@ -37,6 +37,10 @@ _RESEARCH_WIN_RATE_MIN     = 0.30  # below 30% after enough data: critically low
 _RESEARCH_EXPECTANCY_MIN   = -5.0  # avg trade P&L below -$5: negative edge trigger
 _RESEARCH_WR_REGRESSION    = 0.15  # 15pp win-rate decline vs prior session: regression trigger
 
+# ── Soft trigger thresholds (earlier pressure — weak but not catastrophic) ────
+_SOFT_MIN_TRADES   = 5     # min closed trades before soft triggers activate
+_SOFT_DRAWDOWN_PCT = 0.01  # session drawdown from peak > 1% of starting cash ($1 000)
+
 
 # ── Baseline adoption record ──────────────────────────────────────────────────
 
@@ -231,7 +235,8 @@ def _expectancy_data() -> dict:
     if not closed:
         return {"total_closed": 0, "expectancy": None, "avg_win": None,
                 "avg_loss": None, "profit_factor": None,
-                "gross_profit": None, "gross_loss": None}
+                "gross_profit": None, "gross_loss": None,
+                "peak_pnl": 0.0, "drawdown_from_peak": 0.0}
 
     wins   = [t["pnl"] for t in closed if t["pnl"] > 0]
     losses = [t["pnl"] for t in closed if t["pnl"] <= 0]
@@ -245,14 +250,61 @@ def _expectancy_data() -> dict:
     g_loss   = abs(sum(losses))
     pf       = round(g_profit / g_loss, 3) if g_loss > 0 else None
 
+    # Session peak: running cumulative max realized P&L
+    peak_pnl, running = 0.0, 0.0
+    for t in closed:
+        running += t["pnl"]
+        if running > peak_pnl:
+            peak_pnl = running
+    drawdown_from_peak = round(total - peak_pnl, 2)
+
     return {
-        "total_closed":  len(closed),
-        "expectancy":    expect,
-        "avg_win":       avg_win,
-        "avg_loss":      avg_loss,
-        "profit_factor": pf,
-        "gross_profit":  round(g_profit, 2),
-        "gross_loss":    round(g_loss, 2),
+        "total_closed":      len(closed),
+        "expectancy":        expect,
+        "avg_win":           avg_win,
+        "avg_loss":          avg_loss,
+        "profit_factor":     pf,
+        "gross_profit":      round(g_profit, 2),
+        "gross_loss":        round(g_loss, 2),
+        "peak_pnl":          round(peak_pnl, 2),
+        "drawdown_from_peak": drawdown_from_peak,
+    }
+
+
+def _soft_triggers(win_rate_data: dict, exp_data: dict) -> dict:
+    """
+    Early-warning soft triggers: non-catastrophic but sustained weak signals.
+    Fire before the hard failure thresholds to give action pressure earlier.
+    Returns {soft_triggered, soft_count, soft_reasons}
+    """
+    soft_reasons = []
+    total_closed = win_rate_data.get("total_closed", 0)
+    expectancy   = exp_data.get("expectancy")
+    pf           = exp_data.get("profit_factor")
+    drawdown     = exp_data.get("drawdown_from_peak", 0.0)
+
+    if total_closed >= _SOFT_MIN_TRADES:
+        # Any negative expectancy (hard threshold is -$5 — this fires much earlier)
+        if expectancy is not None and expectancy < 0:
+            soft_reasons.append(
+                f"Negative expectancy: {expectancy:+.2f}/trade after {total_closed} closed trades"
+            )
+        # Profit factor below 1.0 (total losses exceed total gains)
+        if pf is not None and pf < 1.0:
+            soft_reasons.append(
+                f"Profit factor {pf:.2f} \u2014 aggregate losses exceed aggregate gains"
+            )
+
+    # Session drawdown from peak (fires regardless of trade count)
+    if drawdown < -(_STARTING_CASH * _SOFT_DRAWDOWN_PCT):
+        soft_reasons.append(
+            f"Drawdown from session peak: ${abs(drawdown):.0f} below peak realized P\u0026L"
+        )
+
+    return {
+        "soft_triggered": bool(soft_reasons),
+        "soft_count":     len(soft_reasons),
+        "soft_reasons":   soft_reasons,
     }
 
 
@@ -320,7 +372,7 @@ def _research_triggers(
     triggered = bool(reasons)
     n         = len(reasons)
     if not triggered:
-        rec = "Continue trading — no issues detected."
+        rec = "Continue trading — no hard issues detected."
     elif n == 1 and "Regime mismatch" in reasons[0]:
         rec = "Monitor regime — no performance failure yet."
     elif n >= 2 or (realized_pnl < _STARTING_CASH * _RESEARCH_PNL_PCT and total_closed >= _RESEARCH_MIN_TRADES):
@@ -328,7 +380,19 @@ def _research_triggers(
     else:
         rec = "Consider targeted parameter adjustment or focused research."
 
-    return {"triggered": triggered, "count": n, "reasons": reasons, "recommendation": rec}
+    soft     = _soft_triggers(win_rate_data, exp_data)
+    pressure = "hard" if triggered else ("soft" if soft["soft_triggered"] else "none")
+
+    return {
+        "triggered":      triggered,
+        "count":          n,
+        "reasons":        reasons,          # hard trigger reasons
+        "soft_triggered": soft["soft_triggered"],
+        "soft_count":     soft["soft_count"],
+        "soft_reasons":   soft["soft_reasons"],
+        "pressure":       pressure,         # "none" | "soft" | "hard"
+        "recommendation": rec,
+    }
 
 
 def _baseline_comparison(
