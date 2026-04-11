@@ -1,5 +1,5 @@
 # Technical Requirements Document — The Abode
-*Last updated: 2026-04-10*
+*Last updated: 2026-04-11 (vision reset)*
 
 ---
 
@@ -35,56 +35,94 @@ No test framework or linter is configured. Test runs are executed directly as Py
 
 ## 2. Architecture layers
 
+The system has four layers. Each layer has a distinct role and must not absorb responsibilities from adjacent layers.
+
 ```
-[ Neighborhood HTML ]  ← served from /neighborhood (FastAPI)
-         ↕ polls /neighborhood/state every 5s
-[ FastAPI backend ]    ← port 8001
-    ├── Agent routes (Peter, Belfort, Custodian, Sentinel, Warden)
-    ├── Loop control routes
-    ├── Supervisor daemon (background thread)
-    ├── Checker daemon (background thread)
-    └── Portfolio / Strategy state
-[ Streamlit UI ]       ← port 8502, imports app.* directly
+┌─────────────────────────────────────────────────┐
+│  EXPERIENCE LAYER                               │
+│  Neighborhood HTML   → /neighborhood (FastAPI)  │
+│  Streamlit Dev UI    → port 8502                │
+└───────────────────────────┬─────────────────────┘
+                            │ aggregates state from all layers
+┌───────────────────────────▼─────────────────────┐
+│  EXECUTIVE / CONTROL LAYER                      │
+│  Peter — operator interface, coordinator        │
+│  Loop control routes (system-owned, not Peter)  │
+│  ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ │
+│  [control-plane daemons — operating services,   │
+│   not houses, not part of Peter's interface]    │
+│  Supervisor daemon (background thread)          │
+│  Checker daemon (background thread)             │
+└───────────────────────────┬─────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────┐
+│  SPECIALIST HOUSE LAYER                         │
+│  Mr Belfort — trading, research, readiness      │
+│  (Frank Lloyd — construction house, planned)    │
+└───────────────────────────┬─────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────┐
+│  OPERATING SERVICES LAYER                       │
+│  Custodian    — runtime health                  │
+│  Test Sentinel — patch-safety validation        │
+│  Cost Warden  — LM routing and budget           │
+│  Portfolio / Strategy state                     │
+└─────────────────────────────────────────────────┘
+             ↑ all layers served by FastAPI at port 8001
 ```
+
+**Note on Supervisor and Checker placement:** These are control-plane daemons that coordinate and audit execution. They run in the background behind Peter and are architecturally part of the control plane. However, they are operating services — not houses — and are not part of Peter's interface. They are shown in the executive/control layer box only to reflect their runtime placement, not to imply house status.
+
+**Layer discipline:**
+- Experience layer aggregates state from multiple downstream layers; it does not own logic
+- Executive/control layer: Peter routes and reports; loop control and daemons are system-owned, not Peter-owned
+- Specialist houses own domain-specific workflow and data; they do not absorb coordination or health-check logic
+- Operating services support all layers; they do not become product-facing identities unless they earn house status
 
 ---
 
 ## 3. Agent roles and code locations
 
-### Peter (coordinator, front door)
-- **Route**: `app/routes/monitor.py`
-- **Endpoints**: `/peter/chat`, `/peter/status`, `/logs`, `/loop/start`, `/loop/stop`
-- **LM use**: `cheap` tier via `LMHelper` for intent parsing and summaries
-- **Rule**: Peter reads from other agents; never acts as a backstage worker
+### Housed agents
 
-### Mr Belfort (trading research worker)
+#### Peter (executive layer — coordinator, front door)
+- **Route**: `app/routes/monitor.py`
+- **Endpoints (Peter-owned)**: `/peter/chat`, `/peter/status`, `/logs`
+- **System endpoints (accessible via Peter, not owned by Peter)**: `/loop/start`, `/loop/stop` — these are system-level controls routed through `app/main.py` / `app/loop.py`
+- **LM use**: `cheap` tier via `LMHelper` for intent parsing and summaries
+- **Rule**: Peter reads from other agents and reports upward. Peter is not a backstage worker. Heavy orchestration logic must not collapse into Peter. Loop control, supervisor management, and health checks are system capabilities that Peter can invoke — they are not Peter's capabilities.
+
+#### Mr Belfort (specialist house — trading research)
 - **Routes**: `app/routes/belfort_readiness.py`, `app/routes/belfort_learning.py`, `app/routes/belfort_diagnostics.py`, `app/routes/belfort_memory.py`
 - **Endpoints**: `/belfort/readiness`, `/belfort/readiness/reset`, `/belfort/learning`, `/belfort/diagnostics`, `/belfort/memory`
 - **Strategy core**: `app/strategy/` — `config.py`, `mean_reversion.py`, `applier.py`, `changelog.py`
 - **Portfolio**: `app/portfolio.py` — `get_snapshot()`, `get_trades()`
 - **State file**: `data/agent_state/mr_belfort.json`
+- **Role**: Prototype revenue house, proving ground for learning infrastructure, template for future specialist houses. Currently mock trading — live trading requires earned readiness.
 
-### Loop Supervisor (bounded execution coordinator)
+### Operating services
+
+#### Loop Supervisor (bounded execution coordinator)
 - **Daemon**: `app/supervisor.py` — starts on lifespan if enabled
 - **Route**: `app/routes/supervisor.py`
 - **Endpoints**: `/supervisor/status`, `/supervisor/enable`, `/supervisor/disable`, `/supervisor/reset`, `/supervisor/step`
 - **State**: `data/supervisor_state.json`
 
-### Loop Checker (audit / pattern finder)
+#### Loop Checker (audit / pattern finder)
 - **Daemon**: `app/checker.py` — starts unconditionally on lifespan
-- **No direct route** — checker findings surface via Peter and event log
+- **No direct route** — findings surface via Peter and event log
 
-### Custodian (runtime health monitor)
+#### Custodian (runtime health monitor)
 - **Route**: `app/routes/custodian.py`
 - **Endpoints**: `/custodian/check`
 - **Design**: read/diagnose/report only — never mutates system state
 
-### Test Sentinel (patch-safety validator)
+#### Test Sentinel (patch-safety validator)
 - **Route**: `app/routes/test_sentinel.py`
 - **Endpoints**: `/sentinel/run`
 - **Design**: targeted test runner — FILE_TEST_MAP maps changed files to relevant tests; verdicts: `safe/review/not_ready`
 
-### Cost Warden (LM routing and budget awareness)
+#### Cost Warden (LM routing and budget awareness)
 - **Module**: `app/cost_warden.py`
 - **Route**: `app/routes/cost_warden.py`
 - **Endpoints**: `/warden/status`, `/warden/usage`
@@ -117,7 +155,7 @@ explanation = result.content if result.ok else f"[LM unavailable: {result.error}
 
 ---
 
-## 5. Strategy architecture
+## 5. Strategy architecture (Belfort)
 
 ### Algorithm
 - Mean-reversion on 20-bar window, 1.0 std-dev threshold
@@ -133,6 +171,17 @@ explanation = result.content if result.ok else f"[LM unavailable: {result.error}
 1. Research campaign runs sweeps of candidate configs
 2. Best candidate promoted via `/belfort/readiness/reset` (records baseline snapshot)
 3. Current strategy tracked against baseline — drift detected in `/belfort/diagnostics`
+
+### Live trading preparation doctrine
+Belfort is currently mock-trading. Live trading is not unlocked on a schedule — it is earned when:
+- Readiness scorecard consistently passes all gates
+- Risk controls are real (stop-loss, position sizing, drawdown limits)
+- Trade costs and brokerage costs are modeled realistically
+- Performance is measurable, explainable, and auditable
+- Market and news awareness is incorporated
+- Operator has reviewed and accepted the autonomy grant
+
+No live money is deployed until this preparation is complete and documented.
 
 ---
 
@@ -157,7 +206,26 @@ Hard failure, drawdown, win-rate regression, expectancy collapse, regime mismatc
 
 ---
 
-## 7. Data persistence
+## 7. Intended platform capabilities
+
+These are capabilities currently implemented for Belfort that are **intended** to be reusable across future specialist houses. They are Belfort-specific implementations today — not generic frameworks. Generalization should happen when a second house actually needs them, not speculatively.
+
+| Capability | Current module | Current state | Intended reuse pattern |
+|---|---|---|---|
+| Readiness scorecard | `app/routes/belfort_readiness.py` | Belfort-specific gates | n-gate pass/fail health check for any house |
+| Learning verdict engine | `app/routes/belfort_learning.py` | Belfort-specific metrics | Performance verdict for any house that tracks outcomes over time |
+| Diagnostics sub-reports | `app/routes/belfort_diagnostics.py` | Belfort-specific | Drift detection, path analysis, threshold proximity pattern |
+| Campaign orchestration | `research/campaign_runner.py` | General-purpose | Parameter sweep or optimization runs for any house |
+| Candidate queue | `research/candidate_queue.py` | General-purpose | Operator review queue for any house producing candidates |
+| LMHelper / Cost Warden | `app/cost_warden.py` | General-purpose (live) | All agents that need LM calls |
+| Agent state persistence | `observability/`, `data/agent_state/` | General-purpose (live) | All agents that need cross-restart state |
+| Telemetry | `observability/`, `data/telemetry/` | General-purpose (live) | Per-run performance data for any house |
+
+**Rule:** Do not generalize the Belfort-specific implementations until a second house needs them. Premature abstraction is a non-goal.
+
+---
+
+## 8. Data persistence
 
 | File | Purpose | Append-only? |
 |---|---|---|
@@ -174,7 +242,7 @@ Hard failure, drawdown, win-rate regression, expectancy collapse, regime mismatc
 
 ---
 
-## 8. Neighborhood technical design
+## 9. Neighborhood technical design
 
 - Single-file HTML/CSS/JS: `app/routes/neighborhood.py` (~2700 lines)
 - Served at `/neighborhood` (GET returns full HTML page)
@@ -185,12 +253,14 @@ Hard failure, drawdown, win-rate regression, expectancy collapse, regime mismatc
 
 ---
 
-## 9. Key design constraints
+## 10. Key design constraints
 
 1. **No fake complexity** — don't add abstractions for hypothetical needs
 2. **No Discord** — not a current goal
 3. **Deterministic first** — every agent has a rule-based core before LM is added
 4. **Operator in the loop** — strategy changes are proposed and require approval
-5. **Minimal blast radius** — backstage agents read and report; they don't mutate state casually
+5. **Minimal blast radius** — backstage services read and report; they don't mutate state casually
 6. **Stable ports** — do not drift from 8001 (backend) / 8502 (UI)
 7. **Append-only audit trails** — event log and research ledger are never truncated
+8. **Layer discipline** — each layer owns its responsibilities; don't collapse adjacent layers
+9. **Houses earned, not declared** — UI real estate for agent identities tracks real maturity

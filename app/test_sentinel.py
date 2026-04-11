@@ -62,6 +62,8 @@ FILE_TEST_MAP: dict[str, list[str]] = {
     # App / backend
     "app/checker.py":           ["test_checker.py"],
     "app/main.py":              ["test_candidate_apply_route.py"],
+    "app/routes/event_query.py":          ["test_event_query.py"],
+    "app/routes/frank_lloyd_status.py":   ["test_frank_lloyd_status.py"],
     "app/routes/monitor.py":    ["test_candidate_apply_route.py"],
     "app/routes/supervisor.py": ["test_candidate_apply_route.py"],
     "app/strategy/applier.py":  ["test_candidate_apply_route.py", "test_review_actions.py"],
