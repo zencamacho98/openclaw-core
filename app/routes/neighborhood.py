@@ -98,6 +98,35 @@ def _belfort_state() -> dict:
         base["trading_active"]   = False
         base["trading_stopping"] = False
 
+    try:
+        from observability.belfort_summary import (
+            read_belfort_preflight, read_belfort_freshness_state,
+            read_latest_signal_decision, read_belfort_mode,
+            read_latest_paper_execution,
+        )
+        pf = read_belfort_preflight()
+        fs = read_belfort_freshness_state()
+        # Authoritative mode from state file — not from (possibly stale) preflight.
+        base["belfort_mode"]            = read_belfort_mode()
+        base["belfort_readiness"]       = pf.get("readiness_level", "NOT_READY")
+        base["belfort_data_lane"]       = pf.get("data_lane", "UNKNOWN")
+        base["belfort_ticks_today"]     = pf.get("observation_ticks_today", 0)
+        base["belfort_can_advance"]     = pf.get("can_advance_to")
+        base["belfort_freshness"]       = fs.get("freshness", "no_data")
+        base["belfort_freshness_label"] = fs.get("freshness_label", "No observation data")
+        base["belfort_latest_signal"]   = read_latest_signal_decision()
+        base["belfort_latest_paper_exec"] = read_latest_paper_execution()
+    except Exception:
+        base["belfort_mode"]              = "observation"
+        base["belfort_readiness"]         = "NOT_READY"
+        base["belfort_data_lane"]         = "UNKNOWN"
+        base["belfort_ticks_today"]       = 0
+        base["belfort_can_advance"]       = None
+        base["belfort_freshness"]         = "no_data"
+        base["belfort_freshness_label"]   = "Preflight unavailable"
+        base["belfort_latest_signal"]     = None
+        base["belfort_latest_paper_exec"] = None
+
     return base
 
 
@@ -270,11 +299,22 @@ def _frank_lloyd_state() -> dict:
                     pass
 
         try:
-            from frank_lloyd.job import load_active_job as _laj
+            from frank_lloyd.job import load_active_job as _laj, list_jobs as _lj
             _aj = _laj()
             active_job = _aj.to_dict() if _aj else None
+            # Last routing: from active job, or most recent job with routing info
+            last_routing = (_aj.routing if _aj else None)
+            if last_routing is None:
+                try:
+                    for _j in _lj():
+                        if _j.routing:
+                            last_routing = _j.routing
+                            break
+                except Exception:
+                    pass
         except Exception:
-            active_job = None
+            active_job   = None
+            last_routing = None
 
         # Consume unread Peter relay messages from auto_runner
         fl_relay: list[dict] = []
@@ -298,6 +338,7 @@ def _frank_lloyd_state() -> dict:
             "belfort_related_build":   belfort_related_build,
             "active_job":              active_job,
             "fl_relay":                fl_relay,
+            "last_routing":            last_routing,
         }
     except Exception:
         return {
@@ -314,6 +355,7 @@ def _frank_lloyd_state() -> dict:
             "belfort_related_build":   None,
             "active_job":              None,
             "fl_relay":                [],
+            "last_routing":            None,
         }
 
 
@@ -453,7 +495,6 @@ def peter_queue_build(body: dict = Body(default={})) -> dict:
     from fastapi import BackgroundTasks
     import frank_lloyd.brief_shaper   as _shaper
     import frank_lloyd.request_writer as _fl_rw
-    import frank_lloyd.auto_runner    as _auto_runner
 
     message = (body.get("message") or "").strip()[:2000]
     if not message:
@@ -493,15 +534,6 @@ def peter_queue_build(body: dict = Body(default={})) -> dict:
     build_id = result["build_id"]
     title    = result["title"]
 
-    # Fire auto-run in background (non-blocking)
-    import threading
-    def _bg():
-        try:
-            _auto_runner.run_safe_lane(build_id, initiated_by="peter_chat")
-        except Exception:
-            pass
-    threading.Thread(target=_bg, daemon=True).start()
-
     return {
         "ok":                  True,
         "queued":              True,
@@ -509,7 +541,7 @@ def peter_queue_build(body: dict = Body(default={})) -> dict:
         "needs_clarification": False,
         "text":                (
             f"Queued as {build_id} \u2014 \u201c{title}\u201d. "
-            "Frank Lloyd is on it. Check the Frank Lloyd panel for progress."
+            f"Say \u2018run {build_id}\u2019 when you want Frank Lloyd to start building."
         ),
     }
 
@@ -1047,6 +1079,18 @@ body {
 .fl-apply-val.risk-high   { color: #ef9a9a; }
 .fl-apply-val.risk-critical { color: #ef5350; font-weight: bold; }
 .fl-apply-loading { font-size: 9px; color: #37474f; letter-spacing: 0.5px; }
+.fl-source-chip {
+  display: inline-block; font-size: 7px; letter-spacing: 1px;
+  padding: 1px 5px; border-radius: 2px; margin-left: 4px;
+  background: #0d1b2e; border: 1px solid #1e2d45; color: #546e7a;
+  vertical-align: middle;
+}
+.fl-source-unknown { border-color: #ff8f00; color: #ff8f00; background: #1a1000; }
+.fl-source-warning {
+  font-size: 8px; color: #ef9a9a; background: #1a0505; border: 1px solid #ef535033;
+  border-radius: 2px; padding: 3px 7px; margin-top: 4px; letter-spacing: 0.3px;
+  line-height: 1.5;
+}
 
 .dp-items { display: flex; flex-direction: column; gap: 4px; }
 .dp-item {
@@ -1200,6 +1244,38 @@ body {
   color: #37474f; transition: all 0.3s;
 }
 .bpill-active { border-color: #00e676; color: #00e676; background: #001a0e; }
+.belfort-mode-readiness {
+  display: flex; gap: 6px; margin-top: 4px;
+}
+.bmr-cell {
+  flex: 1; background: #040d1a; border: 1px solid #1e2d45; border-radius: 2px;
+  padding: 4px 6px; font-size: 8px; letter-spacing: 1px; color: #546e7a;
+}
+.bmr-label { font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 1px; }
+.bmr-value { color: #b0bec5; font-weight: bold; }
+.bmr-value.bmr-stale  { color: #ff8f00; }
+.bmr-value.bmr-bad    { color: #ef5350; }
+.bmr-value.bmr-ok     { color: #00e676; }
+.belfort-signal-row {
+  margin-top: 4px; padding: 4px 6px; background: #040d1a;
+  border: 1px solid #1e2d45; border-radius: 2px; font-size: 8px;
+  color: #78909c; letter-spacing: 0.5px; line-height: 1.5;
+}
+.bsig-label { font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 2px; }
+.bsig-action-hold  { color: #78909c; }
+.bsig-action-buy   { color: #00e676; }
+.bsig-action-sell  { color: #ef9a9a; }
+.bsig-risk-allowed { color: #546e7a; }
+.bsig-risk-blocked { color: #ff8f00; }
+.belfort-paper-exec-row {
+  margin-top: 3px; padding: 4px 6px; background: #040d1a;
+  border: 1px solid #263238; border-left: 2px solid #37474f;
+  border-radius: 2px; font-size: 8px; color: #546e7a; letter-spacing: 0.5px; line-height: 1.5;
+}
+.bpex-label  { font-size: 7px; letter-spacing: 2px; color: #263238; margin-bottom: 2px; }
+.bpex-submitted { color: #78909c; }
+.bpex-gated     { color: #37474f; font-style: italic; }
+.bpex-error     { color: #ff6e40; }
 .belfort-controls-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 2px;
 }
@@ -1595,6 +1671,9 @@ body {
         <div class="dp-section-label">TRADING STATS</div>
         <div id="belfort-stats" class="belfort-stats"></div>
         <div id="belfort-pills" class="belfort-status-pills"></div>
+        <div id="belfort-mode-readiness" class="belfort-mode-readiness"></div>
+        <div id="belfort-signal-row" class="belfort-signal-row" style="display:none"></div>
+        <div id="belfort-paper-exec-row" class="belfort-paper-exec-row" style="display:none"></div>
         <div id="fl-belfort-work" class="fl-belfort-work" style="display:none"></div>
         <div class="dp-divider"></div>
         <div class="dp-section-label">CONTROLS</div>
@@ -1631,10 +1710,11 @@ body {
             </div>
           </div>
         </div>
-        <!-- Readiness scorecard (always shown in Belfort panel) -->
+        <!-- Mock trading history (old scorecard — historical performance only) -->
         <div id="belfort-readiness-section" style="display:none">
           <div class="dp-divider" style="margin-top:8px"></div>
-          <div class="dp-section-label" style="margin-top:8px">READINESS</div>
+          <div class="dp-section-label" style="margin-top:8px">MOCK TRADING HISTORY</div>
+          <div style="font-size:7px;color:#37474f;letter-spacing:0.5px;margin-bottom:4px">Past performance \u00b7 current readiness claim is above</div>
           <div class="dp-status-row" style="margin-bottom:5px;gap:8px">
             <span id="readiness-badge" class="dp-badge idle">—</span>
             <span id="readiness-gates-count" class="dp-detail-text"></span>
@@ -1649,10 +1729,10 @@ body {
             <div id="readiness-comparison" class="readiness-comparison"></div>
           </details>
         </div>
-        <!-- Learning pulse (loaded from /belfort/learning) -->
+        <!-- Mock trading learning history (loaded from /belfort/learning) -->
         <div id="belfort-learning-section" style="display:none">
           <div class="dp-divider" style="margin-top:8px"></div>
-          <div class="dp-section-label" style="margin-top:8px">LEARNING PULSE</div>
+          <div class="dp-section-label" style="margin-top:8px">MOCK TRADING LEARNING</div>
           <div id="learning-verdict-row" class="learning-verdict-row"></div>
           <div id="learning-hurting"        class="learning-item learning-hurting"></div>
           <div id="learning-helping"        class="learning-item learning-helping"></div>
@@ -1662,10 +1742,10 @@ body {
           <button id="learning-research-btn" class="learning-research-btn" style="display:none"
                   onclick="belfortResearchWithGoal()">\u25b6 Begin Research</button>
         </div>
-        <!-- Diagnostics (loaded from /belfort/diagnostics) -->
+        <!-- Mock trading diagnostics (loaded from /belfort/diagnostics) -->
         <div id="belfort-diagnostics-section" style="display:none">
           <div class="dp-divider" style="margin-top:8px"></div>
-          <div class="dp-section-label" style="margin-top:8px">DIAGNOSTICS</div>
+          <div class="dp-section-label" style="margin-top:8px">MOCK TRADING DIAGNOSTICS</div>
           <div id="diag-strategy" class="diag-block"></div>
           <div id="diag-pnl"      class="diag-block"></div>
           <div id="diag-triggers" class="diag-block"></div>
@@ -1685,6 +1765,7 @@ body {
               <span class="fl-phase-chip" id="fl-phase-chip"></span>
             </div>
             <div class="fl-job-meta" id="fl-job-meta"></div>
+            <div class="fl-source-warning" id="fl-source-warning" style="display:none"></div>
           </div>
           <!-- Work stream: chronological log of what Frank Lloyd is doing -->
           <div class="fl-stream">
@@ -2694,6 +2775,8 @@ function _isFlLifecycleIntent(msg) {
   // Lifecycle action verbs
   return /\b(approve|reject|authorize|run that|run the build|go ahead|auto.?run|discard|scrap|draft|generate draft|promote|ship that|apply that)\b/.test(lower);
 }
+// Note: _isFlLifecycleIntent is kept for reference but no longer used in peterChatSend.
+// All non-build input now routes through _peterCommandDispatch (deterministic-first).
 
 async function _peterSmartQueue(msg, inp, btn) {
   _peterChat.push({role: 'peter', text: '\u2026', loading: true});
@@ -2764,56 +2847,74 @@ async function peterChatSend() {
   btn.textContent = '\u2026';
   _peterChat.push({role: 'operator', text: msg});
 
-  // Route 1: FL build intent → smart intake (shape + queue + autorun)
+  // Route 1: FL build intent → smart intake via brief_shaper + /peter/queue-build
   if (_isFlBuildIntent(msg)) {
     await _peterSmartQueue(msg, inp, btn);
     return;
   }
 
-  // Route 2: FL lifecycle action → peter/action (approve/reject/run/draft/etc.)
-  if (_isFlLifecycleIntent(msg)) {
-    await _peterFlAction(msg, inp, btn);
-    return;
-  }
+  // Route 2: Deterministic Peter command path → /peter/action → parse_command() → router.
+  // If parse_command() recognises the input (command_type !== "unknown"), show the response.
+  // Unrecognised input falls through to LM chat or the offline deterministic answer.
+  await _peterCommandDispatch(msg, inp, btn);
+}
 
-  // Route 3: Info/status → LM guidance or deterministic fallback
-  const lmAvail = _lastState && _lastState.lm_available;
-
-  if (!lmAvail) {
-    _peterChat.push({role: 'peter', text: _peterDeterministicAnswer(msg)});
-    inp.disabled = false;
-    btn.disabled = false;
-    btn.textContent = 'SEND';
-    peterChatRender();
-    inp.focus();
-    return;
-  }
-
+// _peterCommandDispatch: deterministic-first Peter command handler.
+// Tries /peter/action for ALL non-build inputs. Only falls back to /peter/chat
+// when parse_command() returns command_type === "unknown".
+async function _peterCommandDispatch(msg, inp, btn) {
   _peterChat.push({role: 'peter', text: '\u2026', loading: true});
   peterChatRender();
+  let recognized = false;
   try {
-    const r = await fetch('/peter/chat', {
+    const r = await fetch('/peter/action', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({message: msg}),
     });
     const d = await r.json();
     _peterChat = _peterChat.filter(m => !m.loading);
-    if (d.ok && d.text) {
-      _peterChat.push({role: 'peter', text: d.text});
-    } else {
-      _peterChat.push({role: 'peter', text: _peterDeterministicAnswer(msg)});
+    if (d.command_type && d.command_type !== 'unknown') {
+      recognized = true;
+      _peterChat.push({role: 'peter', text: d.summary || (d.ok ? 'Done.' : 'Action failed.')});
+      if (d.ok) setTimeout(async () => { const s = await fetchState(); if (s) applyState(s); }, 600);
     }
-  } catch(e) {
+  } catch (_e) {
     _peterChat = _peterChat.filter(m => !m.loading);
-    _peterChat.push({role: 'peter', text: _peterDeterministicAnswer(msg)});
-  } finally {
-    inp.disabled = false;
-    btn.disabled = false;
-    btn.textContent = 'SEND';
-    peterChatRender();
-    inp.focus();
   }
+
+  if (!recognized) {
+    // Unknown command — fall through to LM chat or offline deterministic answer
+    const lmAvail = _lastState && _lastState.lm_available;
+    if (!lmAvail) {
+      _peterChat.push({role: 'peter', text: _peterDeterministicAnswer(msg)});
+    } else {
+      _peterChat.push({role: 'peter', text: '\u2026', loading: true});
+      peterChatRender();
+      try {
+        const cr = await fetch('/peter/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({message: msg}),
+        });
+        const cd = await cr.json();
+        _peterChat = _peterChat.filter(m => !m.loading);
+        _peterChat.push({
+          role: 'peter',
+          text: (cd.ok && cd.text) ? cd.text : _peterDeterministicAnswer(msg),
+        });
+      } catch (_e2) {
+        _peterChat = _peterChat.filter(m => !m.loading);
+        _peterChat.push({role: 'peter', text: _peterDeterministicAnswer(msg)});
+      }
+    }
+  }
+
+  inp.disabled = false;
+  btn.disabled = false;
+  btn.textContent = 'SEND';
+  peterChatRender();
+  inp.focus();
 }
 
 // ── Belfort inline review card ────────────────────────────────────────────
@@ -3235,6 +3336,75 @@ function updateBelfortStats(belfort, supervisor) {
       '<div class="bpill ' + (loopOn ? 'bpill-active' : '') + '">RESEARCH\u00a0' + (loopOn ? 'ON' : 'OFF') + '</div>';
   }
 
+  // Mode / readiness / freshness — always shown as separate labeled fields
+  const mrEl = document.getElementById('belfort-mode-readiness');
+  if (mrEl) {
+    const mode        = (belfort.belfort_mode      || 'observation').toUpperCase();
+    const readiness   = (belfort.belfort_readiness || 'NOT_READY');
+    const freshness   = (belfort.belfort_freshness || 'no_data');
+    const freshLabel  = (belfort.belfort_freshness_label || '\u2014');
+    const freshCls    = freshness === 'fresh'     ? 'bmr-ok'
+                      : freshness === 'stale'     ? 'bmr-stale'
+                      : freshness === 'very_stale'? 'bmr-bad'
+                      :                             'bmr-stale';
+    const rdyCls      = readiness === 'NOT_READY'   ? 'bmr-bad'
+                      : readiness === 'LIVE_ELIGIBLE'? 'bmr-ok'
+                      :                               '';
+    mrEl.innerHTML =
+      '<div class="bmr-cell"><div class="bmr-label">MODE</div><div class="bmr-value">' + _escHtml(mode) + '</div></div>' +
+      '<div class="bmr-cell"><div class="bmr-label">READINESS</div><div class="bmr-value ' + rdyCls + '">' + _escHtml(readiness.replace(/_/g, '\u00a0')) + '</div></div>' +
+      '<div class="bmr-cell" style="flex:2"><div class="bmr-label">DATA\u00a0FRESHNESS</div><div class="bmr-value ' + freshCls + '">' + _escHtml(freshLabel) + '</div></div>';
+  }
+
+  // Signal evaluation row — shadow/paper only
+  const sigEl = document.getElementById('belfort-signal-row');
+  if (sigEl) {
+    const sig  = belfort.belfort_latest_signal;
+    const mode = (belfort.belfort_mode || 'observation');
+    if (sig && (mode === 'shadow' || mode === 'paper')) {
+      const action    = (sig.signal_action || 'hold').toUpperCase();
+      const symbol    = _escHtml(sig.symbol || '?');
+      const rationale = _escHtml((sig.signal_rationale || '').substring(0, 80));
+      const riskOk    = sig.risk_can_proceed !== false;
+      const riskLbl   = riskOk ? 'allowed' : _escHtml(('blocked: ' + (sig.risk_block_reason || '')).substring(0, 60));
+      const actionCls = action === 'BUY' ? 'bsig-action-buy' : action === 'SELL' ? 'bsig-action-sell' : 'bsig-action-hold';
+      const riskCls   = riskOk ? 'bsig-risk-allowed' : 'bsig-risk-blocked';
+      sigEl.style.display = '';
+      sigEl.innerHTML =
+        '<div class="bsig-label">LATEST\u00a0SIGNAL\u00a0(\u2014\u00a0NO\u00a0ORDER\u00a0PLACED)</div>' +
+        '<span class="' + actionCls + '">' + action + '\u00a0' + symbol + '</span>' +
+        '\u00a0\u2014\u00a0' + rationale +
+        '\u00a0[\u00a0risk:\u00a0<span class="' + riskCls + '">' + riskLbl + '</span>\u00a0]';
+    } else {
+      sigEl.style.display = 'none';
+    }
+  }
+
+  // Paper execution row — paper mode only, clearly labeled as paper
+  const pexEl = document.getElementById('belfort-paper-exec-row');
+  if (pexEl) {
+    const pex  = belfort.belfort_latest_paper_exec;
+    const mode = (belfort.belfort_mode || 'observation');
+    if (pex && mode === 'paper') {
+      const status  = pex.execution_status || '';
+      const summary = _escHtml((pex.exec_summary || '').substring(0, 120));
+      let cls = 'bpex-gated', label = 'PAPER\u00a0ORDER\u00a0(\u2014\u00a0NO\u00a0REAL\u00a0MONEY)';
+      if (status === 'submitted') {
+        cls = 'bpex-submitted';
+        label = 'PAPER\u00a0ORDER\u00a0SUBMITTED\u00a0(\u2014\u00a0NO\u00a0REAL\u00a0MONEY)';
+      } else if (status === 'broker_error' || status === 'error') {
+        cls = 'bpex-error';
+        label = 'PAPER\u00a0ORDER\u00a0FAILED';
+      }
+      pexEl.style.display = '';
+      pexEl.innerHTML =
+        '<div class="bpex-label">' + label + '</div>' +
+        '<span class="' + cls + '">' + summary + '</span>';
+    } else {
+      pexEl.style.display = 'none';
+    }
+  }
+
   // Update toggle button labels based on current state
   const tradBtn = document.getElementById('btn-trading-toggle');
   if (tradBtn && !tradBtn.disabled) {
@@ -3506,7 +3676,7 @@ function _flRenderWorkspace(job) {
     chipEl.className = 'fl-phase-chip fl-phase-' + ph.cls;
   }
 
-  // Meta line: build_id · mode · build_type · risk
+  // Meta line: build_id · mode · build_type · risk · [provenance chip]
   const metaEl = document.getElementById('fl-job-meta');
   if (metaEl) {
     const parts = [job.build_id];
@@ -3519,7 +3689,32 @@ function _flRenderWorkspace(job) {
     if (job.risk_level && job.risk_level !== 'unknown') {
       parts.push(job.risk_level + ' risk');
     }
-    metaEl.textContent = parts.join(' \u00b7 ');
+    const _src = job.source || '';
+    const _srcLabel = _src === 'peter_chat'              ? 'via Peter chat'
+                    : _src === 'peter_chat_smart'         ? 'auto via Peter chat'
+                    : _src.startsWith('smart_queue_')     ? 'auto-queued'
+                    : _src === 'neighborhood_ui'          ? 'via Abode UI'
+                    : _src === 'operator'                 ? 'by operator'
+                    : null;
+    const _metaBase = _escHtml(parts.join(' \u00b7 '));
+    if (_srcLabel) {
+      metaEl.innerHTML = _metaBase + ' <span class="fl-source-chip">' + _escHtml(_srcLabel) + '</span>';
+    } else {
+      metaEl.innerHTML = _metaBase + ' <span class="fl-source-chip fl-source-unknown">\u26a0 origin unknown</span>';
+    }
+  }
+
+  // Source warning — shown for draft_generated builds from auto-intake channels
+  const warnEl = document.getElementById('fl-source-warning');
+  if (warnEl) {
+    const _isAutoDraft = job.status === 'draft_generated' && job.source === 'peter_chat_smart';
+    if (_isAutoDraft) {
+      warnEl.textContent = '\u26a0 This draft was auto-generated from a Peter chat side-effect \u2014 not an explicit Frank request. Review carefully or discard and re-queue intentionally.';
+      warnEl.style.display = '';
+    } else {
+      warnEl.textContent = '';
+      warnEl.style.display = 'none';
+    }
   }
 
   // Work stream

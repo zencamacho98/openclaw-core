@@ -44,6 +44,8 @@ from peter.handlers  import (
     handle_market_readiness,
     handle_kill_trading,
     handle_belfort_status,
+    handle_belfort_mode_control,
+    handle_fl_bulk_abandon,
 )
 
 _DISPATCH: dict[CommandType, object] = {
@@ -83,8 +85,11 @@ _DISPATCH: dict[CommandType, object] = {
     CommandType.MARKET_STATUS:      handle_market_status,
     CommandType.MARKET_READINESS:   handle_market_readiness,
     CommandType.KILL_TRADING:       handle_kill_trading,
+    # ── Frank Lloyd bulk maintenance ──────────────────────────────────────────────
+    CommandType.FL_BULK_ABANDON:      handle_fl_bulk_abandon,
     # ── Belfort mode/preflight ────────────────────────────────────────────────────
-    CommandType.BELFORT_STATUS:     handle_belfort_status,
+    CommandType.BELFORT_STATUS:       handle_belfort_status,
+    CommandType.BELFORT_MODE_CONTROL: handle_belfort_mode_control,
 }
 
 

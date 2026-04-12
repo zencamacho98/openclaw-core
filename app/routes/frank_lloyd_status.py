@@ -173,6 +173,7 @@ def _build_status_item(build_id: str, events: list[dict]) -> Optional[dict]:
 
     title        = _extract_title(build_id, request_ev)
     requested_at = request_ev.get("timestamp") if request_ev else None
+    source       = (request_ev.get("extra") or {}).get("source") or None if request_ev else None
 
     if etype in _PENDING_EVENTS:
         req_extra = (request_ev.get("extra") or {}) if request_ev else {}
@@ -183,6 +184,7 @@ def _build_status_item(build_id: str, events: list[dict]) -> Optional[dict]:
             "status":          "pending_spec" if etype == "request_queued" else "pending_review",
             "requested_at":    requested_at,
             "build_type_hint": req_extra.get("build_type_hint"),
+            "source":          source,
         }
 
     # draft_discarded resets the build to stage2_authorized for a new attempt.
@@ -201,6 +203,7 @@ def _build_status_item(build_id: str, events: list[dict]) -> Optional[dict]:
         "resolved_at":     latest_stage1_ev.get("timestamp"),
         "build_type":      extra.get("build_type") if etype == "spec_approved" else None,
         "risk_level":      extra.get("risk_level") if etype == "spec_approved" else None,
+        "source":          source,
     }
 
 

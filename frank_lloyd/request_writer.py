@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import re
 from datetime import datetime, timezone
@@ -44,6 +45,24 @@ _BOILERPLATE_RE = re.compile(
     r'^(?:peter[,.\s]+)?(?:please\s+)?(?:have|tell|ask)\s+frank\s*lloyd\s+(?:to\s+)?',
     re.IGNORECASE,
 )
+
+
+# ── Routing helpers ───────────────────────────────────────────────────────────
+
+def _build_default_routing() -> dict:
+    """Build a default Frank-first routing block for operator-queued builds."""
+    cheap_model = os.environ.get("CHEAP_MODEL", "openai/gpt-4o-mini")
+    return {
+        "builder_lane":       "frank",
+        "model_provider":     "openrouter",
+        "model_used":         cheap_model,
+        "cost_tier":          "cheap",
+        "escalation_reason":  None,
+        "absorption_candidate": False,
+        "absorption_notes":   "",
+        "routing_decided_at": datetime.now(timezone.utc).isoformat(),
+        "routing_decided_by": "default",
+    }
 
 
 # ── Text helpers ──────────────────────────────────────────────────────────────
@@ -107,7 +126,8 @@ def readiness_check(description: str, success_criterion: str) -> list[str]:
 def queue_build(
     description:      str,
     success_criterion: str,
-    source:           str                 = "operator",
+    source:           str                    = "operator",
+    routing:          Optional[dict]         = None,
     requests_dir:     Optional[pathlib.Path] = None,
     build_log:        Optional[pathlib.Path] = None,
 ) -> dict:
@@ -116,16 +136,19 @@ def queue_build(
 
     Does NOT call readiness_check() — caller must validate first.
     Returns {ok, build_id, title, request_path, error}.
+
+    routing: optional routing metadata block. If None, defaults to frank/cheap lane.
     """
     rdir = requests_dir or _FL_REQUESTS
     blog = build_log    or _FL_BUILD_LOG
 
+    resolved_routing = routing if routing is not None else _build_default_routing()
     title    = extract_title(description)
     build_id = _next_build_id(rdir)
 
     try:
-        req_path = _write_request_file(rdir, build_id, title, description, success_criterion)
-        _append_log_event(blog, build_id, title, source)
+        req_path = _write_request_file(rdir, build_id, title, description, success_criterion, resolved_routing)
+        _append_log_event(blog, build_id, title, source, resolved_routing)
     except OSError as exc:
         return {
             "ok":           False,
@@ -167,6 +190,7 @@ def _write_request_file(
     title:            str,
     description:      str,
     success_criterion: str,
+    routing:          Optional[dict] = None,
 ) -> pathlib.Path:
     """Write the request JSON file and return the path."""
     requests_dir.mkdir(parents=True, exist_ok=True)
@@ -181,6 +205,7 @@ def _write_request_file(
         "build_type_hint":  "",
         "context_refs":     [],
         "constraints":      [],
+        "routing":          routing or _build_default_routing(),
     }
     req_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return req_path
@@ -190,16 +215,20 @@ def _append_log_event(
     build_log: pathlib.Path,
     build_id:  str,
     title:     str,
-    source:    str = "operator",
+    source:    str           = "operator",
+    routing:   Optional[dict] = None,
 ) -> None:
     """Append a request_queued event to data/frank_lloyd/build_log.jsonl."""
     build_log.parent.mkdir(parents=True, exist_ok=True)
+    extra: dict = {"title": title, "build_type_hint": "", "source": source}
+    if routing:
+        extra["routing"] = routing
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "build_id":  build_id,
         "event":     "request_queued",
         "notes":     f"Request queued by {source}: {title}",
-        "extra":     {"title": title, "build_type_hint": "", "source": source},
+        "extra":     extra,
     }
     with build_log.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(event) + "\n")

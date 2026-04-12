@@ -271,8 +271,11 @@ class CommandType(str, Enum):
     MARKET_STATUS      = "market_status"       # feed, session, spread, cost model status
     MARKET_READINESS   = "market_readiness"    # readiness scorecard evaluation
     KILL_TRADING       = "kill_trading"        # engage kill switch (paper / live)
+    # ── Frank Lloyd bulk maintenance ──────────────────────────────────────────────
+    FL_BULK_ABANDON      = "fl_bulk_abandon"       # abandon all non-terminal builds by source
     # ── Belfort mode/preflight commands ──────────────────────────────────────────
-    BELFORT_STATUS     = "belfort_status"      # current mode + readiness claim
+    BELFORT_STATUS       = "belfort_status"        # current mode + readiness claim
+    BELFORT_MODE_CONTROL = "belfort_mode_control"  # advance / regress / set mode
 
 
 @dataclass
@@ -477,6 +480,39 @@ def parse_command(
     # market readiness — readiness scorecard
     if lower in ("readiness", "market readiness", "live readiness", "readiness scorecard"):
         return _cmd(CommandType.MARKET_READINESS)
+
+    # FL bulk abandon — clear auto-generated Frank Lloyd builds by source
+    # "abandon frank queue" / "clean frank queue" → peter_chat_smart (the main orphan source)
+    # "abandon frank queue <source>" → explicit source
+    if lower in (
+        "abandon frank queue", "clean frank queue",
+        "abandon peter chat builds", "clear frank queue",
+        "frank queue cleanup",
+    ):
+        return _cmd(CommandType.FL_BULK_ABANDON, {"source": "peter_chat_smart"})
+    if lower.startswith("abandon frank queue "):
+        source = t[len("abandon frank queue "):].strip()
+        return _cmd(CommandType.FL_BULK_ABANDON, {"source": source})
+
+    # belfort mode control — advance / regress / set
+    # Must precede belfort status / belfort mode rules.
+    if lower.startswith("belfort advance"):
+        tail = t[len("belfort advance"):].strip()
+        reason = (tail[len("because"):].strip() if tail.lower().startswith("because") else tail)
+        return _cmd(CommandType.BELFORT_MODE_CONTROL, {"action": "advance", "reason": reason})
+
+    if lower.startswith("belfort regress"):
+        tail = t[len("belfort regress"):].strip()
+        reason = (tail[len("because"):].strip() if tail.lower().startswith("because") else tail)
+        return _cmd(CommandType.BELFORT_MODE_CONTROL, {"action": "regress", "reason": reason})
+
+    if lower.startswith("belfort set "):
+        rest   = t[len("belfort set "):].strip()
+        tokens = rest.split(None, 1)
+        target = tokens[0].lower() if tokens else ""
+        reason = tokens[1].strip() if len(tokens) > 1 else ""
+        return _cmd(CommandType.BELFORT_MODE_CONTROL,
+                    {"action": "set", "target_mode": target, "reason": reason})
 
     # belfort status / mode / preflight / observation status
     if lower in (

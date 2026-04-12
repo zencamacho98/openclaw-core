@@ -147,6 +147,8 @@ class FLJob:
     build_type:   Optional[str]         = None
     risk_level:   Optional[str]         = None
     mode:         Optional[str]         = None   # brief_shaper mode (build/refactor/…)
+    source:       Optional[str]         = None   # origin channel (peter_chat, peter_chat_smart, neighborhood_ui, …)
+    routing:      Optional[dict]        = None   # Frank-first routing metadata
     events:       list[dict]            = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -162,6 +164,8 @@ class FLJob:
             "build_type":   self.build_type,
             "risk_level":   self.risk_level,
             "mode":         self.mode,
+            "source":       self.source,
+            "routing":      self.routing,
             "events":       self.events,
         }
 
@@ -334,15 +338,29 @@ def _build_job(build_id: str, events: list[dict]) -> Optional[FLJob]:
             if build_type and risk_level:
                 break
 
-    # Extract mode from source field in request_queued event
+    # Extract source and mode from request_queued event
+    source: Optional[str] = None
     for ev in build_events:
         if ev.get("event") == "request_queued":
-            source = (ev.get("extra") or {}).get("source", "")
+            source = (ev.get("extra") or {}).get("source") or None
             # "smart_queue_refactor" → mode="refactor"
-            mode = _MODE_FROM_SOURCE.get(source)
-            if mode is None and source.startswith("smart_queue_"):
+            mode = _MODE_FROM_SOURCE.get(source or "")
+            if mode is None and (source or "").startswith("smart_queue_"):
                 mode = source[len("smart_queue_"):]  # forward-compat
             break
+
+    # Read routing metadata from request file (written at queue time)
+    routing: Optional[dict] = None
+    req_file = _FL_REQUESTS / f"{build_id}_request.json"
+    if req_file.exists():
+        try:
+            req_data = json.loads(req_file.read_text(encoding="utf-8"))
+            routing = req_data.get("routing") or None
+        except (OSError, ValueError):
+            pass
+    # Fall back: check the request_queued event extra
+    if routing is None and request_ev:
+        routing = (request_ev.get("extra") or {}).get("routing") or None
 
     # Build humanized event stream (all recognisable events, chronological)
     humanized_events = [
@@ -362,6 +380,8 @@ def _build_job(build_id: str, events: list[dict]) -> Optional[FLJob]:
         build_type   = build_type,
         risk_level   = risk_level,
         mode         = mode,
+        source       = source,
+        routing      = routing,
         events       = humanized_events,
     )
 

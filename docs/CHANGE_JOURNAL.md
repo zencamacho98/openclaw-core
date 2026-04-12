@@ -1339,3 +1339,256 @@ New `frank_lloyd/relay.py` — counter-based JSONL append queue (`data/frank_llo
 **Left out**: Signal execution wiring (no paper order placement), neighborhood UI code, new API endpoints, real-time quote streaming, mode advancement controls, P&L or position display. Observation ticks do not auto-run — requires external trigger.
 **Tests**: 65 new tests pass (1870 total across the block). Pre-existing 19 auto_runner test-ordering failures unchanged.
 **Next block**: Wire observation runner to the trading loop (auto-tick on each loop iteration); add mode advancement command to Peter (`belfort advance shadow`); surface preflight data on Belfort neighborhood tile.
+
+---
+
+## 2026-04-11 BELFORT-REFLECTION-AND-CONTROL-01 — Freshness, mode control, and UI reflection
+**Commit**: unreleased
+**What changed**: Wired observation freshness into the trading loop, added Peter mode control commands, enriched the neighborhood Belfort tile with mode/readiness/freshness, and fixed the simulated-quote None-field bug.
+
+**Problems fixed**:
+- `app/belfort_observer.py`: `float(getattr(quote, "bid", 0.0))` raised `TypeError` for simulated quotes (`bid=None`). Added `_safe_float()` helper — silently converts None/unconvertible to 0.0.
+- `peter/commands.py` `lstrip("because ")` bug: strips individual characters from the set, not a prefix string. Replaced with explicit `startswith("because")` prefix removal.
+
+**New capabilities**:
+1. **Loop observation wiring** (`app/trading_loop.py`): `_run_observation_snapshot()` added — calls `run_observation_tick()` on every tick, silently swallowed. Wired into `_loop_body` after kill-signal check, before task execution.
+2. **Freshness state derivation** (`observability/belfort_summary.py`): `read_belfort_freshness_state()` — derives fresh/stale/very_stale/no_data from `last_tick_at`. Regular session: fresh ≤15 min, stale 15–60 min, very_stale >60 min. Off-hours: fresh ≤60 min, stale >60 min. Includes `loop_likely_running` heuristic (tick within 5 min). Mode-order helpers added: `compute_next_belfort_mode()` (LIVE blocked via command), `compute_prev_belfort_mode()`.
+3. **Mode transition bridge** (`observability/belfort_summary.py`): `apply_belfort_mode_transition()` — calls `set_mode()` via app-layer import. On failure, `previous_mode == mode` (both = unchanged current). Handler does not surface `previous_mode` as a pre-transition value on failure.
+4. **Peter mode control** (`peter/commands.py`, `peter/router.py`, `peter/handlers.py`): `belfort advance`, `belfort regress`, `belfort set <mode>` commands. LIVE is permanently blocked via command. Force-regression flag passed automatically for regressions. IEX cap note appended on success when readiness is capped.
+5. **Neighborhood state enrichment** (`app/routes/neighborhood.py`): `_belfort_state()` now includes `belfort_mode`, `belfort_readiness`, `belfort_data_lane`, `belfort_ticks_today`, `belfort_can_advance`, `belfort_freshness`, `belfort_freshness_label`.
+6. **Neighborhood UI** (`app/routes/neighborhood.py`): New `belfort-mode-readiness` row in Belfort panel — three labeled cells: MODE, READINESS, DATA FRESHNESS. Mode and readiness are always separate fields, never merged. Freshness cell uses color coding (green/amber/red).
+
+**Files edited**:
+- `app/belfort_observer.py` — `_safe_float()` + field reads fixed
+- `app/trading_loop.py` — `_run_observation_snapshot()`, wired into `_loop_body`
+- `observability/belfort_summary.py` — `read_belfort_freshness_state`, `compute_next_belfort_mode`, `compute_prev_belfort_mode`, `apply_belfort_mode_transition`, `_MODE_ORDER`, freshness thresholds
+- `peter/commands.py` — `BELFORT_MODE_CONTROL` CommandType, parse rules for advance/regress/set, `lstrip` bug fix
+- `peter/router.py` — dispatch for `BELFORT_MODE_CONTROL`
+- `peter/handlers.py` — `handle_belfort_mode_control()`
+- `app/routes/neighborhood.py` — `_belfort_state()` enriched, `belfort-mode-readiness` HTML element + CSS, `updateBelfortStats()` updated
+- `tests/test_belfort_observation_freshness.py` (21 tests — loop wiring, freshness derivation, labels)
+- `tests/test_belfort_mode_control.py` (18 tests — parse rules, handler advance/regress/set, failure contract, mode-order helpers)
+
+**Reuses**: Observability bridge pattern (belfort_summary.read_*), Peter command/router/handler pattern, `_loop_body` existing kill-signal + tick structure, `updateBelfortStats` existing stats/pills flow.
+**Left out**: Neighborhood UI mode-control buttons (Peter handles this via chat). Staleness alerts or notifications. Real market data freshness (requires Alpaca credentials — simulated quotes still produce valid observation records with IEX_ONLY lane).
+**Tests**: 39 new tests pass (104 total across all Belfort test files). No regressions in Peter/market/kill-switch test files.
+**Next block**: Paper signal evaluation — wire `MeanReversionV1` into a shadow/paper execution path so Belfort can log signal decisions on each trading tick.
+
+---
+
+## 2026-04-12 Provenance audit + truth cleanup (diagnostic-and-fix block)
+**Commit**: unreleased
+
+**Root cause of unexplained Frank Lloyd builds:**
+Every Peter chat interaction matching a build-intent pattern triggered `handle_build_intent` → `run_full_auto()` in background. The auto-pipeline ran spec→approve→authorize→draft for every such message. Promotion silently failed (no valid target path from spec). Result: 48+ `draft_generated` orphan builds all with `source: "peter_chat_smart"`. None were explicitly requested as standalone Frank Lloyd builds. The `source` field was logged in `request_queued` events but never surfaced in the UI — so every draft card looked identical: no indication of origin.
+
+**Was it a bug or intended?**
+The auto-run behavior was intentional (from the "fully-automated pipeline" block). The missing provenance display was an oversight — the `source` field was recorded but never plumbed to the UI. The result was theater: draft builds appearing in the UI with no explanation of where they came from.
+
+**What was changed:**
+
+A. **Frank Lloyd provenance** (`frank_lloyd/job.py`, `app/routes/frank_lloyd_status.py`):
+- Added `source: Optional[str]` field to `FLJob` dataclass and `to_dict()`
+- `source` is extracted from `request_queued` event's `extra.source` in both `_build_job()` (job.py) and `_build_status_item()` (frank_lloyd_status.py)
+- `source` is now included in all pending and inprogress build dicts returned by `frank_lloyd_status()`
+
+B. **Provenance chip in UI** (`app/routes/neighborhood.py`):
+- `fl-job-meta` line now renders a provenance chip alongside build_id · mode · risk
+- Source labels: "via Peter chat" / "auto via Peter chat" / "auto-queued" / "via Abode UI" / "by operator"
+- Unknown/missing source → orange warning chip "⚠ origin unknown"
+- Added `.fl-source-chip` and `.fl-source-unknown` CSS classes
+
+C. **Belfort section header renames** (`app/routes/neighborhood.py` HTML):
+- `belfort-readiness-section`: "READINESS" → "MOCK TRADING HISTORY" + sub-label "Past performance · current readiness claim is above"
+- `belfort-learning-section`: "LEARNING PULSE" → "MOCK TRADING LEARNING"
+- `belfort-diagnostics-section`: "DIAGNOSTICS" → "MOCK TRADING DIAGNOSTICS"
+- New preflight MODE/READINESS/FRESHNESS row (from previous block) now unambiguously owns the "current readiness" concept
+- Old scorecard sections are visually separated as historical mock-trading performance
+
+**Peter `belfort status`:** Already clean — reads only from `observability/belfort_summary.read_belfort_preflight()`. No changes needed.
+
+**Files edited:**
+- `frank_lloyd/job.py` — `source` field in FLJob, extracted in `_build_job()`
+- `app/routes/frank_lloyd_status.py` — `source` in `_build_status_item()` return dicts
+- `app/routes/neighborhood.py` — provenance chip CSS + JS, Belfort section header renames
+
+**Tests added:**
+- `tests/test_frank_lloyd_provenance.py` (22 tests): FLJob.source extraction, frank_lloyd_status source field, provenance label mapping, review gate unaffected by provenance
+
+**Review/apply gates:** Unaffected. Unknown provenance does NOT remove the review gate — it only changes the visual warning level.
+
+**What remains before real Alpaca-backed Belfort validation:**
+1. Alpaca paper trading credentials not configured — `has_credentials=False`, `DATA_LANE=IEX_ONLY`, quotes are simulated
+2. Signal evaluation not wired — `MeanReversionV1` runs in tests only, not on live ticks
+3. 48+ orphaned `draft_generated` builds (all `peter_chat_smart` source) remain pending — operator must review or discard individually. Consider a bulk-abandon endpoint for same-source orphans.
+4. `handle_build_intent` auto-run behavior unchanged — every Peter chat build-intent still fires `run_full_auto()`
+
+---
+
+## 2026-04-12 FRANK-INTAKE-SAFETY-01 — Frank Lloyd intake gate
+
+**Commit**: unreleased
+**What changed**:
+
+A. **Queue-only build intake** (Peter chat and Neighborhood UI):
+- `peter/handlers.py` `handle_build_intent()`: Removed `threading.Thread` that fired `run_full_auto()` automatically. Build is now queued only — operator must say `run BUILD-N` to start the pipeline.
+- `app/routes/neighborhood.py` `peter_queue_build()`: Removed `auto_runner.run_safe_lane()` background thread. Response text updated to say `say 'run BUILD-N' when you want Frank Lloyd to start building`.
+- `handle_fl_lifecycle_nl` "run" action unchanged — explicit `run BUILD-N` still fires `run_full_auto()`.
+
+B. **Bulk-abandon by source** (cleanup path for orphan drafts):
+- `frank_lloyd/abandoner.py`: Added `abandon_by_source(source, notes)` — abandons all non-terminal builds with matching `request_queued.extra.source`. Skips terminal builds. Added `_read_log()` helper.
+- `app/routes/frank_lloyd_actions.py`: Added `POST /frank-lloyd/bulk-abandon` endpoint.
+- `peter/commands.py`: Added `FL_BULK_ABANDON` CommandType + parse rules: "abandon frank queue", "clean frank queue", "abandon peter chat builds", "abandon frank queue <source>".
+- `peter/router.py`: Registered `handle_fl_bulk_abandon`.
+- `peter/handlers.py`: Added `handle_fl_bulk_abandon()` handler.
+
+C. **UI source warning** (`app/routes/neighborhood.py`):
+- HTML: Added `<div id="fl-source-warning">` after `fl-job-meta`.
+- CSS: Added `.fl-source-warning` (red-tinted warning band).
+- JS: For `draft_generated` builds with `source === 'peter_chat_smart'`, shows: "⚠ This draft was auto-generated from a Peter chat side-effect — not an explicit Frank request."
+
+**Why**: 48+ orphan draft_generated builds appeared because both `handle_build_intent` and `peter_queue_build` auto-fired the Frank Lloyd pipeline on casual Peter chat build-like phrases. The operator never explicitly asked for these builds.
+
+**Files edited**:
+- `peter/handlers.py` — remove auto-run from `handle_build_intent`, add `handle_fl_bulk_abandon`
+- `peter/commands.py` — add `FL_BULK_ABANDON` + parse rules
+- `peter/router.py` — add dispatch
+- `frank_lloyd/abandoner.py` — add `abandon_by_source`, `_read_log`
+- `app/routes/frank_lloyd_actions.py` — add `POST /frank-lloyd/bulk-abandon`
+- `app/routes/neighborhood.py` — remove auto_runner from `peter_queue_build`, add source warning HTML/CSS/JS
+
+**Tests added**: `tests/test_frank_intake_safety.py` (21 tests)
+
+**Reuses**: `frank_lloyd.abandoner.abandon_build` (single-build path), `frank_lloyd.auto_runner.run_full_auto` (still used by explicit `run BUILD-N`), existing `request_queued.extra.source` log field
+
+**Left out**: No changes to the smart-queue endpoint (`/frank-lloyd/smart-queue`) — that path already uses explicit FL compose form, not casual Peter chat. No removal of existing orphan builds — operator can now use `abandon frank queue` to clean them.
+
+**Remaining gaps**:
+1. 48+ existing orphan `draft_generated` builds — use `abandon frank queue` to bulk-abandon them
+2. Alpaca paper credentials still not configured — IEX_ONLY data lane
+3. Signal evaluation still not live-wired
+
+---
+
+## 2026-04-12 PETER-COMMAND-DISPATCH-01 — Fix deterministic command dispatch in side-panel
+
+**Commit**: unreleased
+**What changed**:
+
+**Root cause**: `peterChatSend()` in the neighborhood JS had three routes:
+1. `_isFlBuildIntent(msg)` → `/peter/queue-build`
+2. `_isFlLifecycleIntent(msg)` → `/peter/action` (only `approve|reject|authorize|discard|promote|draft` verbs)
+3. Everything else → `/peter/chat` (LM) or `_peterDeterministicAnswer()`
+
+Commands like `belfort status`, `belfort advance`, `belfort regress`, `abandon frank queue`, `run BUILD-N` did not match either Route 1 or Route 2, so they fell through to LM chat and produced conversational replies instead of structured handler responses.
+
+**Fix**: Replaced Routes 2+3 with a single unified `_peterCommandDispatch()` function:
+1. Always POST to `/peter/action` for any non-build-intent input
+2. If `command_type !== "unknown"`, the handler recognised the command — show the response
+3. If `command_type === "unknown"`, fall through to `/peter/chat` (LM) or `_peterDeterministicAnswer()` offline
+
+`_isFlLifecycleIntent()` is now unused in the dispatch path (kept in place, commented). `_peterFlAction()` is also unused (kept in place).
+
+**Files edited**:
+- `app/routes/neighborhood.py` — rewrote `peterChatSend()`, added `_peterCommandDispatch()`, noted `_isFlLifecycleIntent` as no longer called
+
+**Tests added**: `tests/test_peter_action_dispatch.py` (27 tests):
+- `/peter/action` returns `command_type != "unknown"` for: belfort status, abandon frank queue, belfort advance/regress/set, run BUILD-N, approve/reject/authorize/discard BUILD-N
+- Freeform input returns `command_type = "unknown"` (frontend falls through to LM)
+- `parse_command()` classification tests for all problem commands
+
+**Reuses**: Existing `/peter/action` endpoint (unchanged), `peter.commands.parse_command()`, `peter.router.route()`, `_peterSmartQueue()` / `_isFlBuildIntent()` (unchanged)
+
+**Left out**: No changes to parse_command rules, handler logic, or /peter/chat LM path. No JS test framework added.
+
+---
+
+## 2026-04-12 BELFORT-SIGNAL-EVAL-01
+**Commit**: unreleased
+
+**What changed**: Wired MeanReversionV1 into the live tick path as a non-executing signal evaluation layer. Belfort now evaluates signals every tick in SHADOW or PAPER mode, runs them through RiskGuardrails, and logs the full decision record to `data/belfort/signal_log.jsonl`. No orders are placed. `was_executed = False` / `execution_mode = "none"` are invariants across all records.
+
+**Files added**:
+- `app/belfort_signal_eval.py` — `_QuoteProxy`, `evaluate_signal()`, `read_signal_log()`
+- `tests/test_belfort_signal_eval.py` — 21 tests
+
+**Files edited**:
+- `observability/belfort_summary.py` — added `_SIGNAL_LOG` path constant, `read_latest_signal_decision()`, `read_signal_stats_today()`
+- `app/trading_loop.py` — added `_run_signal_evaluation()`, wired into `_loop_body()` after `_run_observation_snapshot()`
+- `peter/handlers.py` — `handle_belfort_status()` now includes latest signal decision + today's stats for shadow/paper modes; imported `read_latest_signal_decision`, `read_signal_stats_today`
+- `app/routes/neighborhood.py` — `_belfort_state()` adds `belfort_latest_signal`; HTML: `belfort-signal-row` div; CSS: `.belfort-signal-row`, `.bsig-*` classes; JS: `updateBelfortStats()` renders signal row for shadow/paper
+- `docs/CAPABILITY_REGISTRY.md` — updated B.3 entry
+
+**Reuses**: `_loop_body()` tick structure, `_run_observation_snapshot()` pattern (swallowed exceptions), observability bridge disk-read pattern, `_SIGNAL_LOG` path convention from existing data/belfort/ layout, `_escHtml()` in JS
+
+**Left out**: No execution path. No order placement. No LM integration. No strategy config changes. No new Peter commands. No new UI controls.
+
+**Remaining gaps**: Signal log rotation/pruning. Strategy config overrides via Peter. Signal-based alerts. Multi-symbol signal evaluation (currently SPY only in `_run_signal_evaluation`).
+
+**Next block**: BELFORT-PAPER-EXEC-01 — connect signal evaluation output to a simulated paper order placement path (paper mode only, operator-gated, no real orders).
+
+---
+
+## 2026-04-12 BELFORT-MODE-TRUTH-01
+**Commit**: unreleased
+
+**What changed**: Fixed Belfort current-mode truth path. `belfort set shadow` followed by `belfort status` now correctly reports the new mode immediately — no dependency on stale preflight data.
+
+Root cause: two callsites read `mode` from `pf.get("mode")` (preflight, only refreshed on observation ticks) instead of `read_belfort_mode()` (authoritative state file, updated immediately on transition).
+
+Fix A — both callsites now use `read_belfort_mode()`:
+- `peter/handlers.py` `handle_belfort_status()`: `mode = read_belfort_mode()` (was `pf.get("mode")`)
+- `app/routes/neighborhood.py` `_belfort_state()`: `base["belfort_mode"] = read_belfort_mode()` (was `pf.get("mode")`)
+
+Fix B — `apply_belfort_mode_transition()` now calls `write_preflight_snapshot()` immediately after a successful transition, so `can_advance_to` / `advancement_blocked_by` are also synced. Failure is non-fatal.
+
+Preflight continues to supply: readiness_level, data_lane, session_type, observation_ticks_today, broker_environment, advancement fields.
+
+**Files edited**:
+- `peter/handlers.py` — one-line fix in `handle_belfort_status()`
+- `app/routes/neighborhood.py` — one-line fix in `_belfort_state()` + added `read_belfort_mode` import
+- `observability/belfort_summary.py` — added preflight sync after successful `set_mode()` in `apply_belfort_mode_transition()`
+
+**Tests added**: `tests/test_belfort_mode_truth.py` (18 tests):
+- Peter status reports new mode despite stale preflight (shadow/paper/observation variants)
+- UI _belfort_state() uses authoritative mode
+- Stale preflight does not override authoritative mode
+- Readiness/data_lane/ticks/broker_env still come from preflight
+- Preflight sync fires on success, skips on failure, is non-fatal if it errors
+- read_belfort_mode() reads from state file, defaults to observation when missing
+
+**Reuses**: `read_belfort_mode()` (already imported in handlers.py), `write_preflight_snapshot()` (already in belfort_observer), existing observability bridge pattern
+
+**Left out**: No signal-eval changes. No order placement. No Alpaca config changes. No UI redesign.
+
+---
+
+## 2026-04-12 BELFORT-PAPER-EXEC-01
+**Commit**: unreleased
+
+**What changed**: Connected Belfort's signal evaluation output to an Alpaca paper order placement path. In PAPER mode, eligible buy signals that pass all gates are submitted as limit orders to the Alpaca paper API and logged with full audit detail. No real money. No silent execution. Sell orders explicitly blocked (requires position tracking — future block).
+
+**Gate sequence**: mode=paper → session=regular → action=buy → risk_can_proceed → qty>0 → price>0 → broker URL is paper endpoint → credentials present → submit. All outcomes logged regardless.
+
+**Files added**:
+- `app/belfort_broker.py` — thin Alpaca paper order client; buy-only; paper URL enforced; `paper_only=True` invariant; returns `BrokerResult` dataclass; never raises
+- `app/belfort_paper_exec.py` — execution layer; gate checks; calls broker; builds + logs execution record to `data/belfort/paper_exec_log.jsonl`
+- `tests/test_belfort_paper_exec.py` — 35 tests
+
+**Files edited**:
+- `app/trading_loop.py` — `_run_signal_evaluation()` now returns signal dict; `_run_paper_execution(signal)` added after signal eval in `_loop_body()`
+- `observability/belfort_summary.py` — added `_PAPER_EXEC_LOG` path, `read_latest_paper_execution()`, `read_paper_exec_stats_today()`
+- `peter/handlers.py` — `handle_belfort_status()` includes paper exec summary in PAPER mode; imports `read_latest_paper_execution`, `read_paper_exec_stats_today`
+- `app/routes/neighborhood.py` — `_belfort_state()` adds `belfort_latest_paper_exec`; HTML: `belfort-paper-exec-row`; CSS: `.bpex-*` classes (dim, not trade-like); JS: renders paper exec row in paper mode
+- `docs/CAPABILITY_REGISTRY.md` — B.3 entry updated
+
+**Reused**: Same Alpaca API credentials as `market_data_feed.py`. `_loop_body` tick pattern. Observability bridge disk-read pattern.
+
+**Left out**: Sell order execution (requires position reconciliation). Live trading path. PnL analytics. Multi-symbol expansion. Position tracking mutation. Fill polling/reconciliation.
+
+**What remains before live trading is discussable**:
+1. Sell order execution with position tracking (BELFORT-PAPER-SELL-01)
+2. Fill reconciliation — poll Alpaca order status and update paper_exec_log (BELFORT-FILL-RECONCILE-01)
+3. Position tracking from paper fills (separate from mock portfolio)
+4. Shadow mode extended run with clean signal log showing consistent behavior
+5. Human sign-off file creation (data/belfort/live_sign_off.json) with explicit operator approval

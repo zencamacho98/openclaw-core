@@ -92,9 +92,18 @@ Frank Lloyd owns the construction, modification, duplication, and evolution of a
 |---|---|
 | Status | live |
 | Business purpose | Operator types approve/reject/run/discard/promote in Peter chat and Frank Lloyd responds |
-| Technical description | `POST /peter/action` → `peter.commands.parse_command()` → `peter.router.route()` with `transport="cli", operator_id="neighborhood_ui"`. JS `_isFlLifecycleIntent()` detects these before LM chat fallthrough. |
+| Technical description | `POST /peter/action` → `peter.commands.parse_command()` → `peter.router.route()` with `transport="cli", operator_id="neighborhood_ui"`. JS `_isFlLifecycleIntent()` detects these before LM chat fallthrough. Build intake (`handle_build_intent`, `peter_queue_build`) is now **queue-only** — operator must say `run BUILD-N` to fire the pipeline. |
 | Code location | `app/routes/neighborhood.py`, `peter/router.py`, `peter/handlers.py` |
 | Reuse | Full peter router/handler stack; identity.json `transport_id: "*"` wildcard |
+
+### A.0.8 Bulk-abandon by source
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Operator cleanup path for orphan builds auto-queued by a source channel (e.g. peter_chat_smart) |
+| Technical description | `frank_lloyd.abandoner.abandon_by_source(source)` abandons all non-terminal builds whose `request_queued.extra.source` matches. Exposed via `POST /frank-lloyd/bulk-abandon` and Peter command `abandon frank queue` (defaults to `peter_chat_smart`). |
+| Code location | `frank_lloyd/abandoner.py`, `app/routes/frank_lloyd_actions.py`, `peter/commands.py`, `peter/handlers.py` |
+| Reuse | `frank_lloyd.abandoner.abandon_build` (single-build path) |
 
 ---
 
@@ -367,21 +376,26 @@ These are cross-cutting capabilities built once, usable by all houses and servic
 
 ---
 
-## B.5 Belfort Foundation Layer (BELFORT-FOUNDATION-01)
+## B.5 Belfort Foundation + Reflection Layer (BELFORT-FOUNDATION-01 + BELFORT-REFLECTION-AND-CONTROL-01)
 | Field | Value |
 |---|---|
-| Status | live (observation mode only — no execution) |
+| Status | live (paper execution active) |
 | Category | Belfort house |
-| Business purpose | Typed strategy interface, risk guardrails, operating mode state machine, preflight snapshot — the foundation required before any signal execution |
-| Technical description | 5 modules: belfort_mode (OBSERVATION→SHADOW→PAPER→LIVE enum + journal-first state machine), belfort_strategy (BelfortSignal dataclass + MeanReversionV1 rolling-window), belfort_risk (RiskGuardrails — 7 ordered checks, stateless, all blocks logged), belfort_observer (observation tick runner + write_preflight_snapshot()), observability/belfort_summary (disk-read bridge). Peter command: `belfort status`. |
-| Code location | `app/belfort_mode.py`, `app/belfort_strategy.py`, `app/belfort_risk.py`, `app/belfort_observer.py`, `observability/belfort_summary.py` |
-| Data paths | `data/belfort/observation_log.jsonl`, `data/belfort/preflight.json`, `data/agent_state/belfort_mode.json` |
-| Observability bridge | `observability/belfort_summary.py` — disk-read bridge; Peter never imports from app/ |
-| Peter commands | `belfort status`, `belfort mode`, `belfort preflight`, `observation status` |
-| SIP cap rule | `data_lane == "IEX_ONLY"` → readiness_level capped at OBSERVATION_ONLY in all surfaces |
-| UI contract | `docs/UI_REFLECTIONS/BELFORT_FOUNDATION_01.md` — mode and readiness always presented separately |
-| Reuse | Observability bridge pattern (market_summary), event_log.append_event, agent_state file pattern, Peter command/router/handler pattern |
-| Tests | 65 new tests across 5 test files: test_belfort_mode, test_belfort_strategy, test_belfort_risk, test_belfort_observer, test_belfort_preflight |
+| Business purpose | Typed strategy interface, risk guardrails, operating mode state machine, observation runner, preflight snapshot, freshness tracking, signal evaluation path, paper order placement, and Peter mode control — full foundation through paper execution |
+| Technical description | 8 core modules + trading loop wiring + freshness bridge + signal eval + paper execution + Peter mode control. `belfort_observer` runs every tick. `belfort_signal_eval` evaluates MeanReversionV1 + RiskGuardrails in SHADOW/PAPER mode. In PAPER mode, eligible buy signals are forwarded to `belfort_paper_exec` which submits limit orders to the Alpaca paper API and logs results. Signal eval and paper exec results are returned to `_loop_body` for clean sequencing. |
+| Code location | `app/belfort_mode.py`, `app/belfort_strategy.py`, `app/belfort_risk.py`, `app/belfort_observer.py`, `app/belfort_signal_eval.py`, `app/belfort_broker.py`, `app/belfort_paper_exec.py`, `app/trading_loop.py`, `observability/belfort_summary.py` |
+| Data paths | `data/belfort/observation_log.jsonl`, `data/belfort/preflight.json`, `data/agent_state/belfort_mode.json`, `data/belfort/signal_log.jsonl`, `data/belfort/paper_exec_log.jsonl` |
+| Observability bridge | `observability/belfort_summary.py` — disk-read bridge for Peter and UI. Functions: `read_latest_signal_decision()`, `read_signal_stats_today()`, `read_latest_paper_execution()`, `read_paper_exec_stats_today()`. |
+| Peter commands | `belfort status` — includes signal summary (shadow/paper) and paper exec summary (paper only). `belfort advance/regress/set`. |
+| Freshness rule | Regular session: fresh ≤15 min, stale 15–60 min, very_stale >60 min. Off-hours: fresh ≤60 min, stale >60 min. Freshness and readiness always separate. |
+| SIP cap rule | `data_lane == "IEX_ONLY"` → readiness_level capped at OBSERVATION_ONLY. Paper execution still runs (gating is independent of readiness label). |
+| Signal eval invariants | `was_executed = False` always in signal log. Signal log never triggers orders. |
+| Paper exec invariants | `paper_only = True` always. `was_submitted_to_broker` reflects actual submission result. Broker URL validated against `paper-api.alpaca.markets` on every call. No shorting (sell blocked). No margin. No options. All outcomes logged. |
+| Paper exec gates | mode=paper + session=regular + action=buy + risk_can_proceed + qty>0 + price>0 — all must pass |
+| Mode control contract | `set_mode()` failure: `previous_mode == mode`. Handler never surfaces wrong previous_mode. Mode transitions sync preflight snapshot immediately. |
+| UI contract | MODE and READINESS always separate. Signal row shown for shadow/paper. Paper exec row shown for paper mode only — styled with `bpex-*` classes, NOT styled like live trading. |
+| Reuse | `_loop_body` tick structure, observability bridge pattern, `submit_paper_order` uses same Alpaca credentials as data feed |
+| Tests | 160 tests across 9 Belfort test files (adding test_belfort_paper_exec: 35) |
 
 ---
 

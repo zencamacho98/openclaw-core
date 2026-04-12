@@ -72,12 +72,77 @@ def _poll_kill_signal() -> bool:
     return True
 
 
+def _run_observation_snapshot() -> None:
+    """
+    Non-execution observation side-effect called on every loop tick.
+    Refreshes the Belfort preflight snapshot from live market data.
+    Never places orders. Never evaluates signals. Never modifies trading state.
+    Failure is silently swallowed — the trading loop must never fail due to
+    an observer error.
+    """
+    try:
+        from app.belfort_observer import run_observation_tick
+        run_observation_tick()
+    except Exception:
+        pass
+
+
+def _run_signal_evaluation() -> dict | None:
+    """
+    Non-executing signal evaluation called on every loop tick after observation.
+    Only active in SHADOW or PAPER mode. Evaluates MeanReversionV1 on the live
+    quote, runs RiskGuardrails, and logs the decision artifact.
+    Never places orders. Never modifies trading state.
+    Failure is silently swallowed — the trading loop must never fail here.
+
+    Returns the signal record dict (for handoff to paper exec), or None on skip/error.
+    """
+    try:
+        from app.belfort_mode import current_mode
+        mode = current_mode().value
+        if mode not in ("shadow", "paper"):
+            return None
+
+        from app.market_data_feed import get_quote
+        from app.belfort_signal_eval import evaluate_signal
+        from app.portfolio import get_snapshot
+
+        quote     = get_quote("SPY")
+        portfolio = get_snapshot()
+        return evaluate_signal(quote, mode=mode, portfolio=portfolio)
+    except Exception:
+        return None
+
+
+def _run_paper_execution(signal_record: dict | None) -> None:
+    """
+    Paper-only order placement — fires only when mode=paper and the signal is
+    an eligible buy with risk cleared.
+    Failure is silently swallowed — the trading loop must never fail here.
+    """
+    if not signal_record:
+        return
+    if signal_record.get("mode") != "paper":
+        return
+    try:
+        from app.belfort_paper_exec import execute_paper_signal
+        execute_paper_signal(signal_record)
+    except Exception:
+        pass
+
+
 def _loop_body(interval: int) -> None:
     global _running, _stop_requested, _ticks
     while _running:
         # Check disk-based kill signal before each tick
         if _poll_kill_signal():
             break
+        # Non-execution observation side-effect — refreshes preflight snapshot
+        _run_observation_snapshot()
+        # Signal evaluation — returns record for paper handoff
+        signal = _run_signal_evaluation()
+        # Paper-only order placement (PAPER mode, eligible signals only)
+        _run_paper_execution(signal)
         manager.assign(AGENT_NAME, TASK_NAME)
         run_once(max_tasks=1)
         _ticks += 1

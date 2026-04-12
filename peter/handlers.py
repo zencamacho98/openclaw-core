@@ -36,7 +36,7 @@ from __future__ import annotations
 import json
 import pathlib
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from peter.commands import Command, CommandType, HELP_TEXT
 from peter.responses import Response, error_response, no_data_response
@@ -1019,38 +1019,35 @@ def handle_build_intent(command: Command) -> Response:
     if missing:
         return _fl_not_ready_response(missing, nl_mode=nl_intake)
 
-    # Request is clear enough — assign ID, persist, and immediately start building
+    # Request is clear enough — assign ID and queue (no auto-run).
+    # Operator must say 'run BUILD-N' to start the pipeline.
+    routing  = _fl_build_default_routing()
     build_id = _fl_next_build_id(_FL_REQUESTS)
-    req_path = _fl_write_request(_FL_REQUESTS, build_id, title, description, success_criteria)
-    _fl_append_log_event(_FL_BUILD_LOG, build_id, title)
+    req_path = _fl_write_request(_FL_REQUESTS, build_id, title, description, success_criteria, routing)
+    _fl_append_log_event(_FL_BUILD_LOG, build_id, title, routing)
 
-    # Fire the full auto pipeline in the background — no human gates required.
-    # Frank Lloyd will spec, draft, and promote to the repo autonomously.
-    import threading as _threading
-    def _auto_build():
-        try:
-            import frank_lloyd.auto_runner as _fl_auto
-            _fl_auto.run_full_auto(build_id, initiated_by="peter_build_intent")
-        except Exception:
-            pass
-    _threading.Thread(target=_auto_build, daemon=True).start()
+    lane      = routing.get("builder_lane", "frank")
+    tier      = routing.get("cost_tier", "cheap")
+    routing_line = f"Builder: Frank Lloyd ({tier} lane)"
 
     if nl_intake:
         summary  = (
-            f"Got it \u2014 Frank Lloyd is building {build_id}: \"{title}\". "
-            "I\u2019ll let you know when it\u2019s done."
+            f"Got it \u2014 queued {build_id}: \u201c{title}\u201d. "
+            f"{routing_line}. "
+            f"Say \u2018run {build_id}\u2019 when you want Frank Lloyd to start building."
         )
         next_act = (
-            f"Frank Lloyd is on it. I\u2019ll flag it when the code lands in the repo."
+            f"Say \u2018run {build_id}\u2019 to start the Frank Lloyd pipeline, "
+            "or check the Frank Lloyd panel."
         )
     else:
         summary  = (
-            f"Frank Lloyd building {build_id}: \"{title}\". "
-            "Running full pipeline now \u2014 no review needed."
+            f"Queued {build_id}: \u201c{title}\u201d. "
+            f"{routing_line}. "
+            f"Say \u2018run {build_id}\u2019 to start building."
         )
         next_act = (
-            f"Frank Lloyd is working autonomously. "
-            f"Check the build log or Frank Lloyd panel for progress on {build_id}."
+            f"Say \u2018run {build_id}\u2019 to start the Frank Lloyd pipeline."
         )
 
     return Response(
@@ -1071,6 +1068,55 @@ def handle_build_intent(command: Command) -> Response:
             "description":      description,
             "success_criteria": success_criteria,
         },
+    )
+
+
+def handle_fl_bulk_abandon(command: Command) -> Response:
+    """
+    Bulk-abandon all non-terminal Frank Lloyd builds by source channel.
+
+    Typical usage: "abandon frank queue" → abandons all peter_chat_smart builds.
+    For explicit source: "abandon frank queue <source>".
+    """
+    source = (command.args.get("source") or "").strip()
+    if not source:
+        return Response(
+            command_type = "fl_bulk_abandon",
+            ok           = False,
+            summary      = (
+                "No source specified. "
+                "Try \u2018abandon frank queue\u2019 to clear peter_chat_smart builds."
+            ),
+            raw          = {},
+        )
+
+    import frank_lloyd.abandoner as _abandoner
+    result    = _abandoner.abandon_by_source(source, notes="Bulk-abandoned by operator")
+    abandoned = result.get("abandoned", [])
+    skipped   = result.get("skipped", [])
+    errors    = result.get("errors", [])
+
+    if abandoned:
+        summary = (
+            f"Abandoned {len(abandoned)} build(s) from \u2018{source}\u2019: "
+            + ", ".join(abandoned) + "."
+        )
+        if skipped:
+            summary += f" Skipped {len(skipped)} already-terminal."
+    elif skipped:
+        summary = (
+            f"All {len(skipped)} build(s) from \u2018{source}\u2019 are already terminal "
+            "\u2014 nothing abandoned."
+        )
+    else:
+        summary = f"No builds found with source \u2018{source}\u2019."
+
+    return Response(
+        command_type = "fl_bulk_abandon",
+        ok           = True,
+        summary      = summary,
+        metrics      = {"source": source, "abandoned_count": len(abandoned), "skipped_count": len(skipped)},
+        raw          = {"source": source, "abandoned": abandoned, "skipped": skipped, "errors": errors},
     )
 
 
@@ -1187,12 +1233,31 @@ def _fl_next_build_id(requests_dir: pathlib.Path) -> str:
     return f"BUILD-{max(existing, default=0) + 1:03d}"
 
 
+def _fl_build_default_routing() -> dict:
+    """Default Frank-first routing block for Peter-queued builds."""
+    import os as _os
+    from datetime import datetime as _dt, timezone as _tz
+    cheap_model = _os.environ.get("CHEAP_MODEL", "openai/gpt-4o-mini")
+    return {
+        "builder_lane":         "frank",
+        "model_provider":       "openrouter",
+        "model_used":           cheap_model,
+        "cost_tier":            "cheap",
+        "escalation_reason":    None,
+        "absorption_candidate": False,
+        "absorption_notes":     "",
+        "routing_decided_at":   _dt.now(_tz.utc).isoformat(),
+        "routing_decided_by":   "default",
+    }
+
+
 def _fl_write_request(
     requests_dir: pathlib.Path,
     build_id: str,
     title: str,
     description: str,
     success_criteria: str,
+    routing: Optional[dict] = None,
 ) -> pathlib.Path:
     """Write the request JSON file and return the path."""
     requests_dir.mkdir(parents=True, exist_ok=True)
@@ -1207,20 +1272,29 @@ def _fl_write_request(
         "build_type_hint":  "",
         "context_refs":     [],
         "constraints":      [],
+        "routing":          routing or _fl_build_default_routing(),
     }
     req_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return req_path
 
 
-def _fl_append_log_event(build_log: pathlib.Path, build_id: str, title: str) -> None:
+def _fl_append_log_event(
+    build_log: pathlib.Path,
+    build_id: str,
+    title: str,
+    routing: Optional[dict] = None,
+) -> None:
     """Append a request_queued event to data/frank_lloyd/build_log.jsonl."""
     build_log.parent.mkdir(parents=True, exist_ok=True)
+    extra: dict = {"title": title, "build_type_hint": ""}
+    if routing:
+        extra["routing"] = routing
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "build_id":  build_id,
         "event":     "request_queued",
         "notes":     f"Request queued by Peter: {title}",
-        "extra":     {"title": title, "build_type_hint": ""},
+        "extra":     extra,
     }
     with build_log.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(event) + "\n")
@@ -2407,6 +2481,8 @@ def handle_kill_trading(command: Command) -> Response:
 
 from observability.belfort_summary import (
     read_belfort_preflight, read_belfort_mode,
+    read_latest_signal_decision, read_signal_stats_today,
+    read_latest_paper_execution, read_paper_exec_stats_today,
 )
 
 
@@ -2421,7 +2497,9 @@ def handle_belfort_status(command: Command) -> Response:
     try:
         pf = read_belfort_preflight()
 
-        mode            = pf.get("mode", "observation")
+        # Authoritative mode comes from the mode state file, not the (possibly stale) preflight.
+        # Preflight supplies readiness, data_lane, session, ticks, freshness — but NOT mode.
+        mode            = read_belfort_mode()
         readiness_level = pf.get("readiness_level", "NOT_READY")
         data_lane       = pf.get("data_lane", "UNKNOWN")
         session_type    = pf.get("session_type", "unknown")
@@ -2463,12 +2541,74 @@ def handle_belfort_status(command: Command) -> Response:
         elif blocked_by:
             advance_line = f"Blocked: {blocked_by}."
 
+        # Signal summary (secondary — only shown for shadow/paper modes)
+        signal_line = ""
+        signal_metrics: dict = {}
+        if mode in ("shadow", "paper"):
+            latest = read_latest_signal_decision()
+            stats  = read_signal_stats_today()
+            if latest:
+                action_up = latest.get("signal_action", "hold").upper()
+                symbol    = latest.get("symbol", "?")
+                rationale = latest.get("signal_rationale", "")
+                risk_ok   = latest.get("risk_can_proceed", True)
+                risk_lbl  = "allowed" if risk_ok else f"blocked ({latest.get('risk_block_reason', '')})"
+                signal_line = (
+                    f" Latest {mode} decision: {action_up} {symbol}. "
+                    f"Rationale: {rationale}. Risk: {risk_lbl}. No order was placed."
+                )
+            if stats["total"] > 0:
+                signal_line += (
+                    f" Today: {stats['total']} decisions "
+                    f"({stats['actions'].get('buy', 0)} buy, "
+                    f"{stats['actions'].get('sell', 0)} sell, "
+                    f"{stats['holds']} hold; "
+                    f"{stats['blocked']} blocked by risk)."
+                )
+            signal_metrics = {
+                "signal_decisions_today": stats["total"],
+                "signal_holds_today":     stats["holds"],
+                "signal_blocked_today":   stats["blocked"],
+            }
+
+        # Paper execution summary (PAPER mode only — clearly labeled, not styled as live)
+        paper_exec_line = ""
+        paper_exec_metrics: dict = {}
+        if mode == "paper":
+            latest_exec = read_latest_paper_execution()
+            exec_stats  = read_paper_exec_stats_today()
+            if latest_exec:
+                exec_status = latest_exec.get("execution_status", "")
+                broker_id   = latest_exec.get("broker_order_id", "")
+                gate_reason = latest_exec.get("gate_block_reason", "")
+                if exec_status == "submitted":
+                    paper_exec_line = (
+                        f" Paper order submitted: {latest_exec.get('exec_summary', '')} "
+                        "(paper account only — no real money)"
+                    )
+                elif exec_status == "gated":
+                    paper_exec_line = f" Paper order gated: {gate_reason}."
+                else:
+                    err = latest_exec.get("broker_error") or latest_exec.get("submission_error", "")
+                    paper_exec_line = f" Paper order failed: {err}."
+            if exec_stats["total"] > 0:
+                paper_exec_line += (
+                    f" Paper orders today: {exec_stats['submitted']} submitted, "
+                    f"{exec_stats['gated']} gated, {exec_stats['errored']} errored."
+                )
+            paper_exec_metrics = {
+                "paper_orders_submitted_today": exec_stats["submitted"],
+                "paper_orders_gated_today":     exec_stats["gated"],
+            }
+
         summary = (
             f"Current mode: {mode_line}. "
             f"Current readiness claim: {readiness_line}. "
             f"Data lane: {data_lane}. Session: {session_type}. "
             f"{tick_line}."
             + (f" {advance_line}" if advance_line else "")
+            + signal_line
+            + paper_exec_line
         )
 
         return Response(
@@ -2483,6 +2623,8 @@ def handle_belfort_status(command: Command) -> Response:
                 "ticks_today":      ticks_today,
                 "broker_env":       broker_env,
                 "paper_credentials": paper_creds,
+                **signal_metrics,
+                **paper_exec_metrics,
             },
             next_action  = advance_line or "Run observation tick to refresh preflight.",
             raw          = pf,
@@ -2493,5 +2635,175 @@ def handle_belfort_status(command: Command) -> Response:
             ok           = False,
             summary      = f"Belfort status unavailable: {exc}",
             next_action  = "Check belfort_observer module.",
+            raw          = {"error": str(exc)},
+        )
+
+
+def handle_belfort_mode_control(command: Command) -> Response:
+    """
+    Advance, regress, or set Belfort's operating mode.
+    Reads and writes via observability bridge only. No app.* imports.
+
+    Actions:
+        advance — move to next mode (observation→shadow→paper); LIVE blocked via command
+        regress — move to previous mode (force_regression=True)
+        set     — jump to named mode (live is blocked)
+
+    set_mode() return contract:
+        success: {ok: True,  mode: new,  previous_mode: genuine_prev, error: None}
+        failure: {ok: False, mode: cur,  previous_mode: cur,          error: str}
+    On failure previous_mode == mode (both = unchanged current).
+    Do NOT surface previous_mode as a pre-transition value on failure.
+    """
+    from observability.belfort_summary import (
+        read_belfort_mode, read_belfort_preflight,
+        compute_next_belfort_mode, compute_prev_belfort_mode,
+        apply_belfort_mode_transition,
+    )
+
+    args            = command.args or {}
+    action          = args.get("action", "")
+    reason          = args.get("reason", "") or ""
+    target_mode_raw = args.get("target_mode", "")
+
+    _ORDER = ["observation", "shadow", "paper", "live"]
+
+    def _mode_idx(m: str) -> int:
+        try:
+            return _ORDER.index(m)
+        except ValueError:
+            return -1
+
+    try:
+        cur = read_belfort_mode()
+
+        # ── Determine target mode ─────────────────────────────────────────────
+        if action == "advance":
+            nxt = compute_next_belfort_mode(cur)
+            if nxt is None:
+                return Response(
+                    command_type = "belfort_mode_control",
+                    ok           = False,
+                    summary      = (
+                        f"Cannot advance: already at {cur!r}. "
+                        "Paper is the highest mode reachable via command. "
+                        "LIVE requires manual sign-off file."
+                    ),
+                    metrics      = {"current_mode": cur},
+                    next_action  = "Place data/belfort/live_sign_off.json to reach LIVE.",
+                    raw          = {"action": action, "current_mode": cur},
+                )
+            target        = nxt
+            force_regress = False
+
+        elif action == "regress":
+            prv = compute_prev_belfort_mode(cur)
+            if prv is None:
+                return Response(
+                    command_type = "belfort_mode_control",
+                    ok           = False,
+                    summary      = f"Cannot regress: already at {cur!r} (bottom of mode order).",
+                    metrics      = {"current_mode": cur},
+                    next_action  = "No further regression possible.",
+                    raw          = {"action": action, "current_mode": cur},
+                )
+            target        = prv
+            force_regress = True
+
+        elif action == "set":
+            target = target_mode_raw.lower()
+            if target == "live":
+                return Response(
+                    command_type = "belfort_mode_control",
+                    ok           = False,
+                    summary      = (
+                        "Cannot set mode to LIVE via command. "
+                        "Place data/belfort/live_sign_off.json manually."
+                    ),
+                    metrics      = {"current_mode": cur},
+                    next_action  = "Manual sign-off required for LIVE mode.",
+                    raw          = {"action": action, "target_mode": target},
+                )
+            if target not in ("observation", "shadow", "paper"):
+                return Response(
+                    command_type = "belfort_mode_control",
+                    ok           = False,
+                    summary      = f"Unknown mode {target!r}. Valid: observation, shadow, paper.",
+                    metrics      = {"current_mode": cur},
+                    next_action  = "Specify a valid target mode.",
+                    raw          = {"action": action, "target_mode": target},
+                )
+            force_regress = _mode_idx(target) < _mode_idx(cur)
+
+        else:
+            return Response(
+                command_type = "belfort_mode_control",
+                ok           = False,
+                summary      = (
+                    f"Unknown action {action!r}. "
+                    "Use: belfort advance, belfort regress, belfort set <mode>."
+                ),
+                next_action  = "Re-issue with a valid action.",
+                raw          = {"action": action},
+            )
+
+        # ── Apply transition ───────────────────────────────────────────────────
+        result = apply_belfort_mode_transition(
+            target_mode      = target,
+            initiated_by     = "peter_command",
+            reason           = reason,
+            force_regression = force_regress,
+        )
+
+        ok        = result.get("ok", False)
+        new_mode  = result.get("mode", cur)
+        error_msg = result.get("error")
+
+        # Readiness from preflight after transition attempt
+        pf        = read_belfort_preflight()
+        readiness = pf.get("readiness_level", "NOT_READY")
+
+        if ok:
+            genuine_prev = result.get("previous_mode", cur)
+            summary = f"Mode changed: {genuine_prev} → {new_mode}."
+            if readiness == "OBSERVATION_ONLY" and new_mode != "observation":
+                summary += (
+                    " Note: readiness capped at OBSERVATION_ONLY "
+                    "(IEX_ONLY data lane — SIP required for higher claims)."
+                )
+            return Response(
+                command_type = "belfort_mode_control",
+                ok           = True,
+                summary      = summary,
+                metrics      = {
+                    "previous_mode":  genuine_prev,
+                    "mode":           new_mode,
+                    "readiness_level": readiness,
+                    "action":         action,
+                },
+                next_action  = f"Belfort is now in {new_mode} mode.",
+                raw          = result,
+            )
+
+        # Failure — previous_mode == mode == unchanged current; do not surface it as pre-transition
+        return Response(
+            command_type = "belfort_mode_control",
+            ok           = False,
+            summary      = f"Mode transition to {target!r} failed: {error_msg or 'unknown error'}.",
+            metrics      = {
+                "current_mode":    new_mode,
+                "readiness_level": readiness,
+                "action":          action,
+            },
+            next_action  = "Check mode transition gate conditions.",
+            raw          = result,
+        )
+
+    except Exception as exc:
+        return Response(
+            command_type = "belfort_mode_control",
+            ok           = False,
+            summary      = f"Belfort mode control error: {exc}",
+            next_action  = "Check belfort_summary module.",
             raw          = {"error": str(exc)},
         )
