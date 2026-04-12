@@ -29,6 +29,40 @@ _ROOT      = pathlib.Path(__file__).resolve().parent.parent
 _STAGING   = _ROOT / "staging" / "frank_lloyd"
 _BUILD_LOG = _ROOT / "data" / "frank_lloyd" / "build_log.jsonl"
 
+# ── Stop flag — operator can request pipeline halt between steps ──────────────
+_stop_requested: bool      = False
+_active_build_id: str | None = None
+
+
+def request_stop() -> dict:
+    """
+    Signal the active pipeline to stop after its current step.
+    Non-blocking — the thread checks this flag between pipeline steps.
+    Returns the active build ID so the caller can report it.
+    """
+    global _stop_requested
+    _stop_requested = True
+    return {"stop_requested": True, "active_build_id": _active_build_id}
+
+
+def get_runner_state() -> dict:
+    """Return current auto-runner state (thread-safe read)."""
+    return {
+        "active_build_id": _active_build_id,
+        "stop_requested":  _stop_requested,
+        "running":         _active_build_id is not None,
+    }
+
+
+def _set_active(build_id: str | None) -> None:
+    global _active_build_id
+    _active_build_id = build_id
+
+
+def _clear_stop() -> None:
+    global _stop_requested
+    _stop_requested = False
+
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
@@ -52,7 +86,12 @@ def run_full_auto(build_id: str, initiated_by: str = "frank_lloyd_auto") -> dict
       ok=False + error   → unexpected failure
     """
     build_id = build_id.strip().upper()
+    _set_active(build_id)
+    _clear_stop()
     steps: list[dict] = []
+
+    def _stopped() -> bool:
+        return _stop_requested
 
     try:
         import frank_lloyd.relay as _relay
@@ -62,6 +101,10 @@ def run_full_auto(build_id: str, initiated_by: str = "frank_lloyd_auto") -> dict
         pass
 
     # ── Step 1: generate spec ─────────────────────────────────────────────────
+    if _stopped():
+        _set_active(None)
+        return _paused(build_id, steps, "Stopped by operator before spec generation.")
+
     import frank_lloyd.spec_writer as _spec_writer
     spec_result = _spec_writer.generate_spec_packet(build_id)
     steps.append({"step": "generate_spec", "ok": spec_result["ok"],
@@ -83,6 +126,10 @@ def run_full_auto(build_id: str, initiated_by: str = "frank_lloyd_auto") -> dict
         return _fail(build_id, steps, spec_result.get("error", "Spec generation failed."))
 
     # ── Step 2: approve spec ──────────────────────────────────────────────────
+    if _stopped():
+        _set_active(None)
+        return _paused(build_id, steps, "Stopped by operator before spec approval.")
+
     risk_level = _read_risk_level(build_id)
     steps.append({"step": "risk_note", "risk_level": risk_level})
 
@@ -98,6 +145,10 @@ def run_full_auto(build_id: str, initiated_by: str = "frank_lloyd_auto") -> dict
                        f"Auto-approval failed: {approve_result.get('error')}.")
 
     # ── Step 3: authorize Stage 2 ─────────────────────────────────────────────
+    if _stopped():
+        _set_active(None)
+        return _paused(build_id, steps, "Stopped by operator before Stage 2 authorization.")
+
     import frank_lloyd.stage2_authorizer as _s2auth
     auth_result = _s2auth.authorize_stage2(
         build_id,
@@ -110,6 +161,10 @@ def run_full_auto(build_id: str, initiated_by: str = "frank_lloyd_auto") -> dict
                        f"Stage 2 authorization failed: {auth_result.get('error')}.")
 
     # ── Step 4: generate draft ────────────────────────────────────────────────
+    if _stopped():
+        _set_active(None)
+        return _paused(build_id, steps, "Stopped by operator before draft generation.")
+
     import frank_lloyd.stage2_drafter as _drafter
     draft_result = _drafter.generate_stage2_draft(build_id)
     steps.append({"step": "generate_draft", "ok": draft_result["ok"],
@@ -126,6 +181,10 @@ def run_full_auto(build_id: str, initiated_by: str = "frank_lloyd_auto") -> dict
                        f"Draft generation failed: {draft_result.get('error')}.")
 
     # ── Step 5: auto-promote ──────────────────────────────────────────────────
+    if _stopped():
+        _set_active(None)
+        return _paused(build_id, steps, "Stopped by operator before auto-promotion.")
+
     target_paths = _read_all_target_paths(build_id)
     target_path  = target_paths[0] if target_paths else None
 
@@ -164,11 +223,14 @@ def run_full_auto(build_id: str, initiated_by: str = "frank_lloyd_auto") -> dict
 
     try:
         import frank_lloyd.relay as _relay
+        _title = _read_build_title(build_id)
+        _title_part = f' "{_title}"' if _title else ""
         _relay.append(build_id, "build_complete",
-                      f"{build_id} — Done. Code written to {target_path}.")
+                      f"{build_id}{_title_part} — Done. Written to {target_path}.")
     except Exception:
         pass
 
+    _set_active(None)
     return {
         "ok":            True,
         "build_id":      build_id,
@@ -397,6 +459,18 @@ def _read_risk_level(build_id: str) -> str:
 
 # ── Result helpers ────────────────────────────────────────────────────────────
 
+def _read_build_title(build_id: str) -> str:
+    """Read the build title from the request file. Returns '' if unavailable."""
+    req_path = _ROOT / "data" / "frank_lloyd" / "requests" / f"{build_id}_request.json"
+    if not req_path.exists():
+        return ""
+    try:
+        data = json.loads(req_path.read_text(encoding="utf-8"))
+        return data.get("title", "")
+    except Exception:
+        return ""
+
+
 def _paused(build_id: str, steps: list, reason: str) -> dict:
     return {
         "ok":            False,
@@ -409,6 +483,12 @@ def _paused(build_id: str, steps: list, reason: str) -> dict:
 
 
 def _fail(build_id: str, steps: list, error: str) -> dict:
+    try:
+        import frank_lloyd.relay as _relay
+        _relay.append(build_id, "build_failed",
+                      f"{build_id} — Build failed: {(error or 'unknown error')[:120]}.")
+    except Exception:
+        pass
     return {
         "ok":            False,
         "build_id":      build_id,

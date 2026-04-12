@@ -277,7 +277,8 @@ class TestLoadJob(unittest.TestCase):
         expected_keys = {
             "build_id", "title", "status", "phase",
             "next_action", "waiting_on", "requested_at", "updated_at",
-            "build_type", "risk_level",
+            "build_type", "risk_level", "mode", "source", "routing",
+            "execution_policy", "events",
         }
         self.assertEqual(set(d.keys()), expected_keys)
 

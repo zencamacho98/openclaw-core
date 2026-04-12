@@ -1,0 +1,23 @@
+{
+  "request_id": "BUILD-263",
+  "title": "Add endpoint returns current portfolio snapshot",
+  "description": "Add a new endpoint that returns the current portfolio snapshot in JSON format.",
+  "requester": "operator",
+  "requested_at": "2026-04-12T09:37:33.050300+00:00",
+  "success_criteria": "The new endpoint successfully returns the current portfolio snapshot in JSON when accessed.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": [],
+  "execution_policy": "auto_apply",
+  "routing": {
+    "builder_lane": "frank",
+    "model_provider": "openrouter",
+    "model_used": "openai/gpt-4o-mini",
+    "cost_tier": "cheap",
+    "escalation_reason": null,
+    "absorption_candidate": false,
+    "absorption_notes": "",
+    "routing_decided_at": "2026-04-12T09:37:33.048838+00:00",
+    "routing_decided_by": "default"
+  }
+}

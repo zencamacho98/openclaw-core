@@ -1,0 +1,12 @@
+{
+  "build_id": "BUILD-157",
+  "outcome": "spec_approved",
+  "stage": 1,
+  "decided_at": "2026-04-12T04:14:16.360910+00:00",
+  "decided_by": "operator",
+  "notes": "Auto-approved (initiated_by=neighborhood_ui, risk_level=low).",
+  "deferred_items": null,
+  "stage2_authorized": false,
+  "spec_hash": "sha256:0aac02f6507a428a55b395f60443f6869a74a204edbe69267fc1ff14bd22ce5d",
+  "revision_cycle": null
+}

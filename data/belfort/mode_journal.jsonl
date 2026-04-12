@@ -1,0 +1,2 @@
+{"timestamp": "2026-04-12T02:41:31.114596+00:00", "event": "mode_transition", "from_mode": "observation", "to_mode": "shadow", "initiated_by": "peter_command", "reason": ""}
+{"timestamp": "2026-04-12T07:53:57.535908+00:00", "event": "mode_transition", "from_mode": "shadow", "to_mode": "paper", "initiated_by": "neighborhood_ui", "reason": "Operator advanced mode via neighborhood UI"}

@@ -5,8 +5,8 @@
 # Promotes a reviewed staged draft (draft_generated) into the live repo.
 # This is the first bounded promotion pass — conservative and narrow:
 #
-#   Promotable drafts:   CODE_DRAFT_LOW only (cheap tier, new isolated module)
-#   Destination:         new .py files only — no overwriting existing live files
+#   Promotable drafts:   CODE_DRAFT_LOW, CODE_PATCH_LOW, doc/text variants
+#   Destination:         .py or safe text/doc files (.md, .yaml, .yml, .json, .txt, .rst)
 #   Source:              staging/frank_lloyd/{build_id}/stage2/draft_module.py
 #   Evidence archived:   data/frank_lloyd/archives/{build_id}/promotion_record.json
 #
@@ -55,8 +55,19 @@ _STATUS_FROM_EVENT: dict[str, str] = {
     "draft_discarded":           "stage2_authorized",
 }
 
-# First-pass: code_draft_low (new isolated module) and code_patch_low (file modification).
-_PROMOTABLE_TASK_CLASSES = frozenset({"code_draft_low", "code_patch_low"})
+# First-pass: code_draft_low (new isolated module), code_patch_low (file modification),
+# and doc/text equivalents — all produced by the standard stage2 drafter.
+_PROMOTABLE_TASK_CLASSES = frozenset({
+    "code_draft_low", "code_patch_low",
+    "doc_draft_low",  "doc_patch_low",
+    "text_draft_low", "text_patch_low",
+})
+
+# File extensions allowed for safe text / doc targets (in addition to .py).
+# Must not be in any off-limits directory — the existing prefix check still applies.
+_SAFE_TEXT_EXTENSIONS = frozenset({
+    ".md", ".yaml", ".yml", ".json", ".txt", ".rst",
+})
 
 # Files that can NEVER be a promotion target — core runtime entrypoints only.
 # app/routes/neighborhood.py is intentionally NOT here — Frank Lloyd may modify it.
@@ -88,7 +99,7 @@ def promote_draft(build_id: str, target_path: str, notes: str = "") -> dict:
     - Build must be in draft_generated state.
     - draft_manifest.json and draft_module.py must exist in staging.
     - manifest task_class must be code_draft_low.
-    - target_path must be a new .py file (does not already exist).
+    - target_path must be a .py or safe doc/text (.md, .yaml, etc.) file.
     - target_path must not be in any off-limits file or directory.
     - target_path must remain within the repo root (no path traversal).
 
@@ -307,12 +318,23 @@ def _validate_target_path(target_path: str) -> Optional[str]:
     """
     Validate the promotion target path.
     Returns an error string if invalid, else None.
+
+    Allowed file types:
+      .py  — Python modules (original pass)
+      .md, .yaml, .yml, .json, .txt, .rst — safe doc/text files in non-off-limits paths
     """
-    # Must be .py
-    if not target_path.endswith(".py"):
+    # Must be a known-safe file type
+    path_lower = target_path.lower()
+    is_py   = path_lower.endswith(".py")
+    dot_idx = path_lower.rfind(".")
+    ext     = path_lower[dot_idx:] if dot_idx != -1 else ""
+    is_safe_text = ext in _SAFE_TEXT_EXTENSIONS
+
+    if not is_py and not is_safe_text:
         return (
-            f"target_path must be a .py file (got: {target_path!r}). "
-            "First-pass promotion only supports Python modules."
+            f"target_path must be a Python (.py) or safe doc/text file "
+            f"(.md, .yaml, .yml, .json, .txt, .rst) — got: {target_path!r}. "
+            "Other file types are not promotable in this pass."
         )
 
     # No absolute paths or path traversal

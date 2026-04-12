@@ -1019,36 +1019,60 @@ def handle_build_intent(command: Command) -> Response:
     if missing:
         return _fl_not_ready_response(missing, nl_mode=nl_intake)
 
-    # Request is clear enough — assign ID and queue (no auto-run).
-    # Operator must say 'run BUILD-N' to start the pipeline.
+    # Intake gate — reject if Frank is explicitly disabled
+    try:
+        import frank_lloyd.control as _fl_ctrl
+        if not _fl_ctrl.is_enabled():
+            ctrl = _fl_ctrl.read_control()
+            reason = ctrl.get("disabled_reason") or "Frank disabled by operator"
+            return Response(
+                command_type = "build_intent",
+                ok           = False,
+                summary      = (
+                    f"Frank Lloyd is currently disabled: {reason}. "
+                    "Say \u2018enable frank\u2019 to re-enable build intake."
+                ),
+                raw          = {"disabled": True, "reason": reason},
+            )
+    except Exception:
+        pass
+
+    # Request is clear enough — assign ID, queue, and auto-start.
+    source   = "peter_chat"
     routing  = _fl_build_default_routing()
     build_id = _fl_next_build_id(_FL_REQUESTS)
     req_path = _fl_write_request(_FL_REQUESTS, build_id, title, description, success_criteria, routing)
-    _fl_append_log_event(_FL_BUILD_LOG, build_id, title, routing)
+    _fl_append_log_event(_FL_BUILD_LOG, build_id, title, routing, source=source)
 
-    lane      = routing.get("builder_lane", "frank")
-    tier      = routing.get("cost_tier", "cheap")
+    # Auto-start the full-auto pipeline immediately in a background thread.
+    # Operator does not need to say "run BUILD-N" for normal safe work.
+    import threading
+    import frank_lloyd.auto_runner as _fl_auto_runner
+    _t = threading.Thread(
+        target=_fl_auto_runner.run_full_auto,
+        args=(build_id,),
+        kwargs={"initiated_by": "peter_chat"},
+        daemon=True,
+    )
+    _t.start()
+
+    tier         = routing.get("cost_tier", "cheap")
     routing_line = f"Builder: Frank Lloyd ({tier} lane)"
 
     if nl_intake:
         summary  = (
-            f"Got it \u2014 queued {build_id}: \u201c{title}\u201d. "
+            f"Got it \u2014 {build_id}: \u201c{title}\u201d. "
             f"{routing_line}. "
-            f"Say \u2018run {build_id}\u2019 when you want Frank Lloyd to start building."
+            f"Frank Lloyd is building now \u2014 I\u2019ll update you when it\u2019s done."
         )
-        next_act = (
-            f"Say \u2018run {build_id}\u2019 to start the Frank Lloyd pipeline, "
-            "or check the Frank Lloyd panel."
-        )
+        next_act = "Watch the Frank Lloyd panel or check back for the result."
     else:
         summary  = (
-            f"Queued {build_id}: \u201c{title}\u201d. "
+            f"{build_id}: \u201c{title}\u201d. "
             f"{routing_line}. "
-            f"Say \u2018run {build_id}\u2019 to start building."
+            f"Frank Lloyd is on it."
         )
-        next_act = (
-            f"Say \u2018run {build_id}\u2019 to start the Frank Lloyd pipeline."
-        )
+        next_act = "Frank is building \u2014 check the Frank Lloyd panel for progress."
 
     return Response(
         command_type        = "build_intent",
@@ -1067,6 +1091,7 @@ def handle_build_intent(command: Command) -> Response:
             "title":            title,
             "description":      description,
             "success_criteria": success_criteria,
+            "auto_started":     True,
         },
     )
 
@@ -1117,6 +1142,140 @@ def handle_fl_bulk_abandon(command: Command) -> Response:
         summary      = summary,
         metrics      = {"source": source, "abandoned_count": len(abandoned), "skipped_count": len(skipped)},
         raw          = {"source": source, "abandoned": abandoned, "skipped": skipped, "errors": errors},
+    )
+
+
+def handle_fl_hard_stop(command: Command) -> Response:
+    """
+    Stop the currently active Frank Lloyd pipeline.
+
+    Sets the auto_runner stop flag. The pipeline checks this between steps
+    and exits cleanly. Does not cancel queued builds — use fl_clear_all for that.
+    """
+    import frank_lloyd.auto_runner as _ar
+    state = _ar.request_stop()
+    active = state.get("active_build_id")
+    if active:
+        summary = (
+            f"Frank stopped. Active job {active} will halt after its current step. "
+            "Queued builds are still present \u2014 say \u2018clear frank\u2019 to purge them."
+        )
+    else:
+        summary = (
+            "Frank has no active pipeline running. "
+            "Stop flag set \u2014 it will be honoured if a build starts before being cleared."
+        )
+    return Response(
+        command_type = "fl_hard_stop",
+        ok           = True,
+        summary      = summary,
+        metrics      = {"active_build_id": active, "stop_requested": True},
+        raw          = state,
+    )
+
+
+def handle_fl_clear_all(command: Command) -> Response:
+    """
+    Stop the active Frank Lloyd pipeline AND purge all non-terminal builds.
+
+    Steps (always in this order):
+      1. Set auto_runner stop flag — active pipeline halts after current step
+      2. abandon_all() — all non-terminal queued builds archived as 'abandoned'
+
+    After this, Frank is idle with an empty queue. Nothing respawns on refresh.
+    """
+    import frank_lloyd.auto_runner as _ar
+    import frank_lloyd.abandoner as _ab
+
+    # 1. Stop active pipeline
+    stop_state = _ar.request_stop()
+    active     = stop_state.get("active_build_id")
+
+    # 2. Purge all non-terminal builds
+    result   = _ab.abandon_all(notes="Cleared by operator — stop and purge all")
+    abandoned = result.get("abandoned", [])
+    skipped   = result.get("skipped",   [])
+    errors    = result.get("errors",    [])
+
+    parts: list[str] = []
+    if active:
+        parts.append(f"active job {active} halted")
+    if abandoned:
+        parts.append(f"{len(abandoned)} queued job(s) archived: {', '.join(abandoned)}")
+    if skipped:
+        parts.append(f"{len(skipped)} already-terminal skipped")
+    if errors:
+        parts.append(f"{len(errors)} error(s)")
+
+    if not active and not abandoned:
+        summary = "Frank queue is already empty. Nothing to clear."
+    else:
+        summary = "Frank stopped and cleared. " + ". ".join(parts) + "."
+
+    return Response(
+        command_type = "fl_clear_all",
+        ok           = True,
+        summary      = summary,
+        metrics      = {
+            "active_stopped":   active,
+            "abandoned_count":  len(abandoned),
+            "skipped_count":    len(skipped),
+        },
+        raw          = {
+            "active_build_id": active,
+            "abandoned":       abandoned,
+            "skipped":         skipped,
+            "errors":          errors,
+        },
+    )
+
+
+def handle_fl_disable(command: Command) -> Response:
+    """
+    Disable Frank Lloyd intake — no new builds accepted until re-enabled.
+
+    Does not stop an in-progress pipeline. Combine with 'stop frank' or
+    'clear frank' for a complete shutdown.
+    """
+    import frank_lloyd.control as _ctrl
+    reason = (command.args.get("reason") or "Disabled by operator via Peter").strip()
+    result = _ctrl.disable(reason)
+    if not result.get("ok"):
+        return Response(
+            command_type = "fl_disable",
+            ok           = False,
+            summary      = f"Failed to disable Frank: {result.get('error')}",
+            raw          = result,
+        )
+    return Response(
+        command_type = "fl_disable",
+        ok           = True,
+        summary      = (
+            "Frank disabled. No new build intake will run until explicitly re-enabled. "
+            "Say \u2018enable frank\u2019 to restore intake."
+        ),
+        metrics      = {"enabled": False, "disabled_at": result.get("disabled_at")},
+        raw          = result,
+    )
+
+
+def handle_fl_enable(command: Command) -> Response:
+    """Re-enable Frank Lloyd build intake."""
+    import frank_lloyd.control as _ctrl
+    result = _ctrl.enable()
+    if not result.get("ok"):
+        return Response(
+            command_type = "fl_enable",
+            ok           = False,
+            summary      = f"Failed to enable Frank: {result.get('error')}",
+            raw          = result,
+        )
+    return Response(
+        command_type = "fl_enable",
+        ok           = True,
+        summary      = "Frank enabled. Build intake is active.",
+        metrics      = {"enabled": True, "enabled_at": result.get("enabled_at")},
+        raw          = result,
     )
 
 
@@ -1272,6 +1431,7 @@ def _fl_write_request(
         "build_type_hint":  "",
         "context_refs":     [],
         "constraints":      [],
+        "execution_policy": "auto_apply",
         "routing":          routing or _fl_build_default_routing(),
     }
     req_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -1283,10 +1443,11 @@ def _fl_append_log_event(
     build_id: str,
     title: str,
     routing: Optional[dict] = None,
+    source: str = "peter_chat",
 ) -> None:
     """Append a request_queued event to data/frank_lloyd/build_log.jsonl."""
     build_log.parent.mkdir(parents=True, exist_ok=True)
-    extra: dict = {"title": title, "build_type_hint": ""}
+    extra: dict = {"title": title, "build_type_hint": "", "source": source}
     if routing:
         extra["routing"] = routing
     event = {
@@ -2483,6 +2644,10 @@ from observability.belfort_summary import (
     read_belfort_preflight, read_belfort_mode,
     read_latest_signal_decision, read_signal_stats_today,
     read_latest_paper_execution, read_paper_exec_stats_today,
+    read_latest_sim_trade, read_sim_stats_today, read_sim_running_status,
+    read_regime_metrics, read_strategy_profile,
+    read_sim_performance, read_latest_regime_snapshot,
+    read_live_readiness, read_market_session,
 )
 
 
@@ -2511,12 +2676,12 @@ def handle_belfort_status(command: Command) -> Response:
         paper_creds     = pf.get("paper_credentials", False)
         written_at      = pf.get("written_at")
 
-        # Mode description
+        # Mode description — use operator-facing labels that match the UI controls
         _mode_desc = {
-            "observation": "Observation — watching market data, no execution",
-            "shadow":      "Shadow — evaluating signals, no orders placed",
-            "paper":       "Paper — simulated order execution",
-            "live":        "Live — real order execution",
+            "observation": "Observe Live — watching market data, refreshing preflight snapshot, no signal eval, no orders",
+            "shadow":      "Shadow Live — evaluating signals and logging decisions, no orders placed, no broker calls",
+            "paper":       "Paper Trade Live — evaluating signals and submitting to Alpaca paper account (no real money)",
+            "live":        "Live — real order execution (sign-off required)",
         }
         mode_line = _mode_desc.get(mode, f"Mode: {mode}")
 
@@ -2553,8 +2718,9 @@ def handle_belfort_status(command: Command) -> Response:
                 rationale = latest.get("signal_rationale", "")
                 risk_ok   = latest.get("risk_can_proceed", True)
                 risk_lbl  = "allowed" if risk_ok else f"blocked ({latest.get('risk_block_reason', '')})"
+                _mode_ui = {"shadow": "Shadow Live", "paper": "Paper Trade Live"}.get(mode, mode)
                 signal_line = (
-                    f" Latest {mode} decision: {action_up} {symbol}. "
+                    f" Latest {_mode_ui} decision: {action_up} {symbol}. "
                     f"Rationale: {rationale}. Risk: {risk_lbl}. No order was placed."
                 )
             if stats["total"] > 0:
@@ -2601,6 +2767,133 @@ def handle_belfort_status(command: Command) -> Response:
                 "paper_orders_gated_today":     exec_stats["gated"],
             }
 
+        # Sim lane summary (always shown — available regardless of mode)
+        sim_line = ""
+        sim_metrics: dict = {}
+        try:
+            ss = read_sim_running_status()
+            sim_stats  = read_sim_stats_today()
+            sim_latest = read_latest_sim_trade()
+            if ss["running"]:
+                sim_line = (
+                    f" Practice sim is RUNNING — {ss['fills']} fills this session, "
+                    f"position {ss['sim_position']} shares, cash ${ss['sim_cash']:.0f}. "
+                    "No real money involved."
+                )
+            elif sim_stats["fills"] > 0:
+                sim_line = (
+                    f" Sim practice today: {sim_stats['fills']} fills "
+                    f"({sim_stats['buys']} buy, {sim_stats['sells']} sell). "
+                    "Sim is currently stopped."
+                )
+            if sim_latest:
+                act   = sim_latest.get("action", "hold").upper()
+                price = sim_latest.get("fill_price", 0.0)
+                pnl   = sim_latest.get("sim_pnl")
+                pnl_str = f", P&L ${pnl:+.2f}" if pnl is not None else ""
+                sim_line += f" Last sim fill: {act} @ ${price:.2f}{pnl_str}."
+            sim_metrics = {
+                "sim_fills_today":  sim_stats.get("fills", 0),
+                "sim_running":      ss.get("running", False),
+            }
+        except Exception:
+            pass
+
+        # Sim performance (separate from paper — labeled clearly)
+        sim_perf_line = ""
+        try:
+            sim_perf = read_sim_performance()
+            if sim_perf["sells"] > 0:
+                wr_str = ""
+                if sim_perf["win_rate"] is not None:
+                    wr_pct = int(round(sim_perf["win_rate"] * 100))
+                    wr_note = "" if sim_perf["win_rate_valid"] else " (few trades)"
+                    wr_str = f", win rate {wr_pct}%{wr_note}"
+                sim_perf_line = (
+                    f" Sim performance today: realized P&L ${sim_perf['realized_pnl']:+.2f}"
+                    f"{wr_str}, {sim_perf['sells']} completed trade(s) "
+                    "(sim only — no broker, no real money)."
+                )
+        except Exception:
+            pass
+
+        # Paper availability (market session context)
+        paper_avail_line = ""
+        try:
+            _cur_sess = read_market_session()
+            _avail_labels = {
+                "regular":     "open \u2014 paper execution available",
+                "pre_market":  "pre-market \u2014 paper not supported, sim available",
+                "after_hours": "after hours \u2014 paper not supported, sim available",
+                "closed":      "closed \u2014 paper not available, sim runs any time",
+            }
+            paper_avail_line = f" Market session: {_avail_labels.get(_cur_sess, _cur_sess)}."
+        except Exception:
+            pass
+
+        # Latest auto-learning snapshot
+        snapshot_line = ""
+        try:
+            snap = read_latest_regime_snapshot()
+            if snap:
+                snap_time    = (snap.get("written_at") or "")[:16] + " UTC"
+                snap_verdict = snap.get("verdict", "unknown")
+                snap_regime  = snap.get("market_regime") or snap.get("regime", "")
+                snapshot_line = (
+                    f" Latest learning snapshot: {snap_time} \u2014 verdict: {snap_verdict}"
+                    + (f" [{snap_regime}]" if snap_regime else "") + "."
+                )
+            else:
+                snapshot_line = " No auto-snapshots yet \u2014 trade 20 ticks to generate."
+        except Exception:
+            pass
+
+        # Regime learning summary
+        regime_line = ""
+        try:
+            profile    = read_strategy_profile()
+            cur_regime = profile.get("current_regime", "unknown")
+            _reg_labels = {
+                "regular":     "Regular hours",
+                "pre_market":  "Pre-market (extended)",
+                "after_hours": "After hours (extended)",
+                "closed":      "Market closed",
+            }
+            reg_label   = _reg_labels.get(cur_regime, cur_regime)
+            fit_regular = profile.get("fitness_regular", "no data")
+            fit_sim     = profile.get("fitness_sim", "no data")
+            regime_line = (
+                f" Market regime: {reg_label}. "
+                f"Paper [regular hours]: {fit_regular} "
+                f"Sim [any-hour]: {fit_sim} "
+                "Extended hours paper: not supported."
+            )
+        except Exception:
+            pass
+
+        # Live readiness gate verdict
+        live_readiness_line = ""
+        try:
+            lr = read_live_readiness()
+            _lr_labels = {
+                "not_enough_data": "not enough data",
+                "not_ready":       "not ready",
+                "candidate":       "candidate (human sign-off required)",
+            }
+            lr_label = _lr_labels.get(lr["verdict"], lr["verdict"])
+            live_readiness_line = (
+                f" Live readiness gate: {lr_label}. "
+                f"{lr['note']}"
+            )
+        except Exception:
+            pass
+
+        # Auto-learning vs manual research distinction
+        auto_learn_line = (
+            " Auto-learning: runs automatically every 20 ticks from paper/sim lanes \u2014 "
+            "no Research Campaigns needed for learning snapshots."
+        )
+
         summary = (
             f"Current mode: {mode_line}. "
             f"Current readiness claim: {readiness_line}. "
@@ -2609,6 +2902,13 @@ def handle_belfort_status(command: Command) -> Response:
             + (f" {advance_line}" if advance_line else "")
             + signal_line
             + paper_exec_line
+            + sim_line
+            + sim_perf_line
+            + paper_avail_line
+            + snapshot_line
+            + regime_line
+            + live_readiness_line
+            + auto_learn_line
         )
 
         return Response(
@@ -2625,6 +2925,7 @@ def handle_belfort_status(command: Command) -> Response:
                 "paper_credentials": paper_creds,
                 **signal_metrics,
                 **paper_exec_metrics,
+                **sim_metrics,
             },
             next_action  = advance_line or "Run observation tick to refresh preflight.",
             raw          = pf,

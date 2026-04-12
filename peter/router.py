@@ -46,6 +46,10 @@ from peter.handlers  import (
     handle_belfort_status,
     handle_belfort_mode_control,
     handle_fl_bulk_abandon,
+    handle_fl_hard_stop,
+    handle_fl_clear_all,
+    handle_fl_disable,
+    handle_fl_enable,
 )
 
 _DISPATCH: dict[CommandType, object] = {
@@ -87,6 +91,11 @@ _DISPATCH: dict[CommandType, object] = {
     CommandType.KILL_TRADING:       handle_kill_trading,
     # ── Frank Lloyd bulk maintenance ──────────────────────────────────────────────
     CommandType.FL_BULK_ABANDON:      handle_fl_bulk_abandon,
+    # ── Frank Lloyd hard-stop and purge ──────────────────────────────────────────
+    CommandType.FL_HARD_STOP:         handle_fl_hard_stop,
+    CommandType.FL_CLEAR_ALL:         handle_fl_clear_all,
+    CommandType.FL_DISABLE:           handle_fl_disable,
+    CommandType.FL_ENABLE:            handle_fl_enable,
     # ── Belfort mode/preflight ────────────────────────────────────────────────────
     CommandType.BELFORT_STATUS:       handle_belfort_status,
     CommandType.BELFORT_MODE_CONTROL: handle_belfort_mode_control,

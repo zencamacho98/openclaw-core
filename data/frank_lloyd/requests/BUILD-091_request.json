@@ -1,0 +1,11 @@
+{
+  "request_id": "BUILD-091",
+  "title": "Create endpoint provides current portfolio snapshot",
+  "description": "Create a new endpoint that provides the current portfolio snapshot in JSON format.",
+  "requester": "operator",
+  "requested_at": "2026-04-12T00:33:48.462156+00:00",
+  "success_criteria": "The new endpoint returns the correct portfolio snapshot in JSON when accessed.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": []
+}

@@ -1,5 +1,5 @@
 # Capability Registry — The Abode
-*Last updated: 2026-04-11 (Frank Lloyd identity pass)*
+*Last updated: 2026-04-12 (BELFORT-TRADE-AND-LEARN-01)*
 
 This registry is an inventory of all live capabilities in the system. Capabilities are organized by category:
 
@@ -31,7 +31,7 @@ This registry is an inventory of all live capabilities in the system. Capabiliti
 
 Frank Lloyd owns the construction, modification, duplication, and evolution of agents and houses inside the Abode. It is the mechanism by which the workforce can grow itself rather than requiring all construction work to happen outside the system.
 
-**Status: OPERATIONAL — Safe-lane CODE_DRAFT_LOW pipeline active. Operator can prompt via neighborhood/Peter, Frank Lloyd plans, builds, and awaits review. Apply (promote) always requires manual approval.**
+**Status: OPERATIONAL — Full-auto pipeline active. Operator talks to Peter; Peter queues and auto-starts immediately via daemon thread; Frank Lloyd plans, drafts, and promotes. Safe text targets (.md/.yaml/.yml/.json/.txt/.rst) supported in addition to .py. Source-based execution policy: Abode-native sources → auto_apply; external → review_required.**
 
 ### A.0.1 Brief shaper (intent classifier)
 | Field | Value |
@@ -46,19 +46,28 @@ Frank Lloyd owns the construction, modification, duplication, and evolution of a
 | Field | Value |
 |---|---|
 | Status | live |
-| Business purpose | Accepts freeform operator text, shapes it into a brief, queues the build, and fires the safe lane automatically |
-| Technical description | `POST /frank-lloyd/smart-queue` → brief_shaper.shape() → if needs_clarification return question → queue_build() + BackgroundTask(run_safe_lane). Also available as `POST /frank-lloyd/queue-and-run` for pre-shaped briefs. |
+| Business purpose | Accepts freeform operator text, shapes it into a brief, queues the build, and fires the full-auto pipeline |
+| Technical description | `POST /frank-lloyd/smart-queue` → brief_shaper.shape() → if needs_clarification return question → queue_build() + BackgroundTask(run_full_auto). Also available as `POST /frank-lloyd/queue-and-run` for pre-shaped briefs. All builds get `execution_policy: "auto_apply"` in the request file. |
 | Code location | `app/routes/frank_lloyd_actions.py` |
-| Reuse | `frank_lloyd.request_writer.queue_build()`, `frank_lloyd.auto_runner.run_safe_lane()` |
+| Reuse | `frank_lloyd.request_writer.queue_build()`, `frank_lloyd.auto_runner.run_full_auto()` |
 
-### A.0.3 Safe-lane build pipeline
+### A.0.3 Full-auto build pipeline
 | Field | Value |
 |---|---|
 | Status | live |
-| Business purpose | Fully automatic plan + draft generation for low-risk (CODE_DRAFT_LOW) builds. Operator reviews draft and chooses to apply or discard. |
-| Technical description | `auto_runner.run_safe_lane()`: spec_gen → spec_approved (auto) → stage2_authorized (auto) → draft_gen. Never auto-promotes. Medium/high risk halts at pending_review. |
-| Code location | `frank_lloyd/auto_runner.py` |
+| Business purpose | Fully automatic plan → build → apply pipeline. Normal safe builds queue, plan, draft, and promote to the repo with no manual gates. Peter relay reports the outcome. |
+| Technical description | `auto_runner.run_full_auto()`: spec_gen → spec_approved (auto) → stage2_authorized (auto) → draft_gen → auto_promote. Pauses with relay message if spec is blocked or no target path found in spec. `execution_policy: "auto_apply"` written to all operator-queued request files. Legacy `run_safe_lane()` kept for backward compatibility but no longer called by any intake endpoint. |
+| Code location | `frank_lloyd/auto_runner.py`, `frank_lloyd/request_writer.py`, `frank_lloyd/job.py` |
 | Reuse | `frank_lloyd/spec_writer.py`, `frank_lloyd/draft_writer.py`, `frank_lloyd/relay.py` |
+
+### A.0.3a Legacy orphan cleanup
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Bulk-abandon `draft_generated` builds with no `execution_policy` — created before the auto-apply policy; would otherwise sit in the Frank panel indefinitely |
+| Technical description | `POST /frank-lloyd/cleanup-orphans` → reads `list_jobs()`, filters `status==draft_generated AND execution_policy is None`, calls `abandon_build()` for each |
+| Code location | `app/routes/frank_lloyd_actions.py` |
+| Reuse | `frank_lloyd.abandoner.abandon_build()`, `frank_lloyd.job.list_jobs()` |
 
 ### A.0.4 Build log + FLJob view
 | Field | Value |
@@ -82,19 +91,19 @@ Frank Lloyd owns the construction, modification, duplication, and evolution of a
 | Field | Value |
 |---|---|
 | Status | live |
-| Business purpose | Frank Lloyd → Peter progress messages delivered on each neighborhood poll tick |
-| Technical description | JSONL log + cursor in `data/frank_lloyd/`. `relay.append()` at pipeline moments; `consume_unread()` by `/neighborhood/state` tick; injected into Peter chat panel. |
-| Code location | `frank_lloyd/relay.py` |
-| Reuse | Peter chat panel injection pattern |
+| Business purpose | Frank Lloyd → Peter progress messages delivered automatically in Peter's chat panel; operator sees build start, completion, and failure without opening the Frank panel |
+| Technical description | Append-only JSONL + cursor in `data/frank_lloyd/`. `relay.append()` at all pipeline moments: `pipeline_start`, `spec_blocked`, `draft_blocked`, `draft_ready`, `promote_failed`, `build_complete`, `build_failed`, `abandoned`. `consume_unread()` called by `/neighborhood/state` tick; messages injected into `_peterChat` array with per-event icons (✅ complete, ⚠️ alert, 🔨 start). All alert events (`spec_blocked`, `draft_blocked`, `promote_failed`, `draft_ready`, `build_failed`, `review_needed`) trigger `needsAttn` indicator. Cursor is advanced on each consumption so messages are never duplicated. |
+| Code location | `frank_lloyd/relay.py`, `frank_lloyd/auto_runner.py` (`relay.append` calls), `app/routes/neighborhood.py` (consumption + injection) |
+| Reuse | Cursor-advance pattern; `_peterChat` array already used for operator messages |
 
 ### A.0.7 Peter lifecycle command routing
 | Field | Value |
 |---|---|
 | Status | live |
-| Business purpose | Operator types approve/reject/run/discard/promote in Peter chat and Frank Lloyd responds |
-| Technical description | `POST /peter/action` → `peter.commands.parse_command()` → `peter.router.route()` with `transport="cli", operator_id="neighborhood_ui"`. JS `_isFlLifecycleIntent()` detects these before LM chat fallthrough. Build intake (`handle_build_intent`, `peter_queue_build`) is now **queue-only** — operator must say `run BUILD-N` to fire the pipeline. |
+| Business purpose | Operator talks to Peter; Peter queues and auto-starts Frank Lloyd immediately — no "run BUILD-N" step needed for normal safe work |
+| Technical description | `POST /peter/action` → `peter.commands.parse_command()` → `peter.router.route()`. Build intake (`handle_build_intent`) queues then fires `run_full_auto()` in `threading.Thread(daemon=True)` immediately. Response says "Frank Lloyd is building now." Lifecycle commands (approve/reject/discard/promote) still available for manual intervention. |
 | Code location | `app/routes/neighborhood.py`, `peter/router.py`, `peter/handlers.py` |
-| Reuse | Full peter router/handler stack; identity.json `transport_id: "*"` wildcard |
+| Reuse | Full peter router/handler stack; `frank_lloyd.auto_runner.run_full_auto()` |
 
 ### A.0.8 Bulk-abandon by source
 | Field | Value |
@@ -104,6 +113,42 @@ Frank Lloyd owns the construction, modification, duplication, and evolution of a
 | Technical description | `frank_lloyd.abandoner.abandon_by_source(source)` abandons all non-terminal builds whose `request_queued.extra.source` matches. Exposed via `POST /frank-lloyd/bulk-abandon` and Peter command `abandon frank queue` (defaults to `peter_chat_smart`). |
 | Code location | `frank_lloyd/abandoner.py`, `app/routes/frank_lloyd_actions.py`, `peter/commands.py`, `peter/handlers.py` |
 | Reuse | `frank_lloyd.abandoner.abandon_build` (single-build path) |
+
+### A.0.10 Source-based execution policy
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Every build carries an `execution_policy` that determines whether it auto-applies or requires review — set at intake time based on who queued it |
+| Technical description | `frank_lloyd.request_writer._policy_for_source(source)`: `_ABODE_SOURCES = {"operator", "peter_chat", "peter_chat_smart", "neighborhood_ui", "queue_and_run"}` + `smart_queue_*` prefix → `"auto_apply"`. All other sources → `"review_required"`. Written into every request JSON. `FLJob.execution_policy` exposes it. `load_active_job()` filters `notify_only`/`hidden_import`. Neighborhood suppresses `auto_apply + draft_generating` from the workspace card. |
+| Code location | `frank_lloyd/request_writer.py` (`_ABODE_SOURCES`, `_policy_for_source`), `frank_lloyd/job.py` (`FLJob.execution_policy`, `load_active_job` filter), `app/routes/neighborhood.py` (active_job suppression) |
+| Reuse | `FLJob` request-file read pattern |
+
+### A.0.11 Safe text target promotion
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Frank Lloyd can now build and promote doc/config files (.md, .yaml, .yml, .json, .txt, .rst) in addition to Python code |
+| Technical description | `stage2_promoter._SAFE_TEXT_EXTENSIONS` frozenset; `_validate_target_path()` allows safe text extensions. `stage2_drafter._detect_doc_build_from_spec()` detects doc builds by checking spec's `affected_files` for non-.py extensions; routes to `_DOC_SYSTEM` prompt instead of code prompt. |
+| Code location | `frank_lloyd/stage2_promoter.py`, `frank_lloyd/stage2_drafter.py` |
+| Reuse | `_detect_modification_build()` pattern in stage2_drafter |
+
+### A.0.12 Frank Lloyd operator emergency controls
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Operator can halt a running build, purge all pending builds, and disable/enable Frank Lloyd intake — without killing the process |
+| Technical description | Stop flag (`frank_lloyd.auto_runner._stop_requested`) checked between all 5 pipeline steps in `run_full_auto()`. `request_stop()` sets flag; `get_runner_state()` reports active build. `abandon_all()` in abandoner scans full build log (no source filter) and abandons all non-terminal builds. `frank_lloyd/control.py` owns `data/frank_lloyd/control.json` (enabled/disabled state). Intake gate in `handle_build_intent` calls `is_enabled()` before queueing. HTTP: POST /frank-lloyd/hard-stop, /purge-all, /disable, /enable; GET /frank-lloyd/control-state. Peter commands: "stop frank", "clear frank", "disable frank", "enable frank". Neighborhood: disabled banner, stop/purge/toggle-intake buttons. |
+| Code location | `frank_lloyd/auto_runner.py`, `frank_lloyd/abandoner.py`, `frank_lloyd/control.py` (new), `app/routes/frank_lloyd_actions.py`, `peter/handlers.py`, `peter/commands.py`, `peter/router.py`, `app/routes/neighborhood.py` |
+| Reuse | `frank_lloyd.abandoner.abandon_build()` (single-build path), observability bridge transport pattern |
+
+### A.0.9 Frank-first routing metadata
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Tracking which builds were built by Frank Lloyd vs escalated to Claude, at what cost tier, and which are candidates for Frank absorption — fulfilling the Frank-first doctrine |
+| Technical description | Every build request carries a `routing` block: `builder_lane` (frank/claude), `cost_tier` (cheap/standard/escalated/escalated_high), `escalation_reason`, `absorption_candidate`, `absorption_notes`, `model_used` (from CHEAP_MODEL env). Written into request file and build log event. `FLJob.routing` exposes it via the job model. Peter's queue confirmation shows the routing lane. Neighborhood state includes `last_routing`. |
+| Code location | `frank_lloyd/request_writer.py` (`_build_default_routing`, `queue_build`), `frank_lloyd/job.py` (`FLJob.routing`, `_build_job`), `peter/handlers.py` (`_fl_build_default_routing`), `app/routes/neighborhood.py` (`last_routing` in `_frank_lloyd_state`; `_flRenderRoutingRow` JS; `#fl-routing-row` HTML) |
+| Reuse | `FLJob` event-sourcing and request-file read pattern |
 
 ---
 
@@ -212,6 +257,15 @@ Belfort is the prototype revenue house and proving ground for real learning infr
 | Technical description | Reads/writes `data/agent_state/mr_belfort.json`. Includes last seen regime, last trade summary, session P&L markers. |
 | Code location | `app/routes/belfort_memory.py` — `GET /belfort/memory` |
 | Reuse | Neighborhood Belfort panel reads this for position + last trade display |
+
+### A.2.8 Live Readiness Gate
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Evaluates whether paper trading track record meets minimum thresholds for live consideration; provides informational verdict to operator |
+| Technical description | Computes trade count, win rate, expectancy from paper portfolio; paper order count from `paper_exec_log.jsonl`; signal block rate from `signal_log.jsonl`. Verdicts: not_enough_data / not_ready / candidate. Informational only — does not block mode-advance. |
+| Code location | `app/belfort_live_gate.py` — `compute_live_readiness()`; `observability/belfort_summary.py` — `read_live_readiness()` |
+| Reuse | `_belfort_state()` in neighborhood, `handle_belfort_status()` in Peter handlers, existing paper/signal logs |
 
 ---
 
@@ -385,17 +439,23 @@ These are cross-cutting capabilities built once, usable by all houses and servic
 | Technical description | 8 core modules + trading loop wiring + freshness bridge + signal eval + paper execution + Peter mode control. `belfort_observer` runs every tick. `belfort_signal_eval` evaluates MeanReversionV1 + RiskGuardrails in SHADOW/PAPER mode. In PAPER mode, eligible buy signals are forwarded to `belfort_paper_exec` which submits limit orders to the Alpaca paper API and logs results. Signal eval and paper exec results are returned to `_loop_body` for clean sequencing. |
 | Code location | `app/belfort_mode.py`, `app/belfort_strategy.py`, `app/belfort_risk.py`, `app/belfort_observer.py`, `app/belfort_signal_eval.py`, `app/belfort_broker.py`, `app/belfort_paper_exec.py`, `app/trading_loop.py`, `observability/belfort_summary.py` |
 | Data paths | `data/belfort/observation_log.jsonl`, `data/belfort/preflight.json`, `data/agent_state/belfort_mode.json`, `data/belfort/signal_log.jsonl`, `data/belfort/paper_exec_log.jsonl` |
-| Observability bridge | `observability/belfort_summary.py` — disk-read bridge for Peter and UI. Functions: `read_latest_signal_decision()`, `read_signal_stats_today()`, `read_latest_paper_execution()`, `read_paper_exec_stats_today()`. |
-| Peter commands | `belfort status` — includes signal summary (shadow/paper) and paper exec summary (paper only). `belfort advance/regress/set`. |
+| Observability bridge | `observability/belfort_summary.py` — disk-read bridge for Peter and UI. Functions: `read_latest_signal_decision()`, `read_signal_stats_today()`, `read_latest_paper_execution()`, `read_paper_exec_stats_today()`, `read_latest_sim_trade()`, `read_sim_stats_today()`, `read_sim_running_status()`. |
+| Peter commands | `belfort status` — includes signal summary (shadow/paper), paper exec summary (paper only), and sim lane summary (always). `belfort advance/regress/set`. |
 | Freshness rule | Regular session: fresh ≤15 min, stale 15–60 min, very_stale >60 min. Off-hours: fresh ≤60 min, stale >60 min. Freshness and readiness always separate. |
 | SIP cap rule | `data_lane == "IEX_ONLY"` → readiness_level capped at OBSERVATION_ONLY. Paper execution still runs (gating is independent of readiness label). |
 | Signal eval invariants | `was_executed = False` always in signal log. Signal log never triggers orders. |
 | Paper exec invariants | `paper_only = True` always. `was_submitted_to_broker` reflects actual submission result. Broker URL validated against `paper-api.alpaca.markets` on every call. No shorting (sell blocked). No margin. No options. All outcomes logged. |
 | Paper exec gates | mode=paper + session=regular + action=buy + risk_can_proceed + qty>0 + price>0 — all must pass |
 | Mode control contract | `set_mode()` failure: `previous_mode == mode`. Handler never surfaces wrong previous_mode. Mode transitions sync preflight snapshot immediately. |
-| UI contract | MODE and READINESS always separate. Signal row shown for shadow/paper. Paper exec row shown for paper mode only — styled with `bpex-*` classes, NOT styled like live trading. |
+| UI contract | MODE and READINESS always separate. Lane header always visible with dot indicator (green=active, blue=sim, grey=paused), mode chip, session sub-line. Session notice bar shown for market-closed/stale/sim-running states. Signal row shown for shadow/paper. Paper exec row shown for paper mode only. Sim row shown when sim is running or has ticks today. Learn strip (4-cell: VERDICT/PAPER TODAY/BLOCKED/SIM TODAY). Controls grid 2×2: Observe Live (→Shadow Live→Paper Trade Live based on mode), Practice Sim, Review / Learn, Pause. Mode-advance button (`#btn-mode-advance`, class `.bmode-advance-btn`) shown when next mode is available — calls `/monitor/belfort/mode/advance`. Pause stops all active lanes via `belfortPauseAll()`. |
+| Mode advance | `POST /monitor/belfort/mode/advance` — advances observation→shadow→paper one step. LIVE not reachable from UI. Gate-checked by existing `can_advance_to()`. Returns `{ok, mode, previous_mode, error}`. JS: `belfortModeAdvance()` — shows error in `#belfort-mode-note`, refreshes state after 400ms. |
+| Operator labels | Observe Live (mode=observation, trading thread running), Shadow Live (mode=shadow, signals evaluated no orders), Paper Trade Live (mode=paper, signals + Alpaca paper), Practice Sim (sim thread, any hour, no broker), Review / Learn (research campaigns via supervisor daemon, not a persistent mode). |
+| Sim lane | `app/belfort_sim.py` — separate MeanReversionV1 instance, `_SimQuoteProxy` (session_type→"regular", data_lane→real or IEX_ONLY), mock fill accounting ($10k sim capital, in-memory), daemon thread, `data/belfort/sim_log.jsonl`. All sim records tagged `market_regime: "closed_sim"`. Controls: `/monitor/trading/sim/start`, `/monitor/trading/sim/stop`, `/monitor/trading/sim/status`. |
+| Observability bridge additions | `read_learn_strip()` — reads `learning_history.jsonl` (verdict), signal log (blocked count, main blocker), paper exec log (submitted/gated/errored today). `read_regime_metrics()` — per-regime counts (regular/closed_sim/extended). `read_strategy_profile()` — current market session + fitness text per regime. |
+| Regime learning | `app/belfort_regime_learning.py` — `compute_regime_metrics()`, `current_strategy_profile()`, `maybe_record_regime_snapshot(tick)`. Auto-snapshot every 20 trading ticks writes to `data/learning_history.jsonl`. Paper exec records tagged `market_regime` from session_type. Extended-hours paper: NOT supported (blocked at 3 layers — honestly labeled in UI and Peter). |
+| UI regime elements | Regime indicator chip (`#belfort-regime-chip`) shows REGULAR/CLOSED/PRE-MKT/AFTER-HRS. Strategy profile row (`#belfort-strategy-profile`) shows per-regime fitness text. Both update with each `updateBelfortStats()` call. |
 | Reuse | `_loop_body` tick structure, observability bridge pattern, `submit_paper_order` uses same Alpaca credentials as data feed |
-| Tests | 160 tests across 9 Belfort test files (adding test_belfort_paper_exec: 35) |
+| Tests | 326 tests across 12 Belfort test files (adding test_belfort_regime_learning: 64) |
 
 ---
 

@@ -1,0 +1,48 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-157"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-12T04:14:16.353877+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Create documentation file named FRANK_SMOKE_TEST.md in"
+description: "Create a documentation file named FRANK_SMOKE_TEST.md in the docs directory with the specified content."
+success_criteria: "The file exists and contains exactly the specified content."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: docs_only
+risk_level: low
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "docs/FRANK_SMOKE_TEST.md"
+      purpose: "Documentation for Frank Lloyd smoke tests."
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "app/cost_warden.LMHelper"
+      decision: not_needed
+      reason: "No integration with existing capabilities required."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: specialist_house
+layer_justification: "The documentation pertains to the Frank Lloyd workforce construction capabilities."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_frank_smoke.py"
+  coverage_note: "The test will verify the existence and content of the documentation file."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: silent
+  rollback: "No rollback is needed as it is a documentation change."
+  scope: "The change is limited to the documentation directory."

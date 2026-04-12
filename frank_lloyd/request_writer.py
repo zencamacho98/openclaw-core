@@ -47,6 +47,31 @@ _BOILERPLATE_RE = re.compile(
 )
 
 
+# ── Source policy ─────────────────────────────────────────────────────────────
+
+# Sources that are considered Abode-native and trusted for auto_apply.
+# All intake points initiated by the operator through Peter/Neighborhood qualify.
+_ABODE_SOURCES = frozenset({
+    "operator",
+    "peter_chat",
+    "peter_chat_smart",
+    "neighborhood_ui",
+    "queue_and_run",
+})
+
+
+def _policy_for_source(source: str) -> str:
+    """
+    Return execution_policy for a given intake source.
+
+    Abode-native sources (Peter chat, neighborhood UI, smart queue) → "auto_apply"
+    Unknown / external sources → "review_required"
+    """
+    if source in _ABODE_SOURCES or source.startswith("smart_queue_"):
+        return "auto_apply"
+    return "review_required"
+
+
 # ── Routing helpers ───────────────────────────────────────────────────────────
 
 def _build_default_routing() -> dict:
@@ -128,6 +153,7 @@ def queue_build(
     success_criterion: str,
     source:           str                    = "operator",
     routing:          Optional[dict]         = None,
+    execution_policy: Optional[str]          = None,
     requests_dir:     Optional[pathlib.Path] = None,
     build_log:        Optional[pathlib.Path] = None,
 ) -> dict:
@@ -138,16 +164,19 @@ def queue_build(
     Returns {ok, build_id, title, request_path, error}.
 
     routing: optional routing metadata block. If None, defaults to frank/cheap lane.
+    execution_policy: override the source-derived policy. If None, uses _policy_for_source(source).
+      Abode sources → "auto_apply"; unknown/external sources → "review_required".
     """
     rdir = requests_dir or _FL_REQUESTS
     blog = build_log    or _FL_BUILD_LOG
 
     resolved_routing = routing if routing is not None else _build_default_routing()
+    policy   = execution_policy if execution_policy is not None else _policy_for_source(source)
     title    = extract_title(description)
     build_id = _next_build_id(rdir)
 
     try:
-        req_path = _write_request_file(rdir, build_id, title, description, success_criterion, resolved_routing)
+        req_path = _write_request_file(rdir, build_id, title, description, success_criterion, resolved_routing, policy)
         _append_log_event(blog, build_id, title, source, resolved_routing)
     except OSError as exc:
         return {
@@ -191,6 +220,7 @@ def _write_request_file(
     description:      str,
     success_criterion: str,
     routing:          Optional[dict] = None,
+    execution_policy: str            = "auto_apply",
 ) -> pathlib.Path:
     """Write the request JSON file and return the path."""
     requests_dir.mkdir(parents=True, exist_ok=True)
@@ -205,6 +235,7 @@ def _write_request_file(
         "build_type_hint":  "",
         "context_refs":     [],
         "constraints":      [],
+        "execution_policy": execution_policy,
         "routing":          routing or _build_default_routing(),
     }
     req_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

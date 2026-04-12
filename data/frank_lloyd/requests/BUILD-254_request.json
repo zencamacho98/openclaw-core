@@ -1,0 +1,23 @@
+{
+  "request_id": "BUILD-254",
+  "title": "Create health endpoint checks status of",
+  "description": "Create a health endpoint that checks the status of the database and returns a response indicating its health.",
+  "requester": "operator",
+  "requested_at": "2026-04-12T09:04:42.865379+00:00",
+  "success_criteria": "The health endpoint returns a successful response when the database is operational.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": [],
+  "execution_policy": "auto_apply",
+  "routing": {
+    "builder_lane": "frank",
+    "model_provider": "openrouter",
+    "model_used": "openai/gpt-4o-mini",
+    "cost_tier": "cheap",
+    "escalation_reason": null,
+    "absorption_candidate": false,
+    "absorption_notes": "",
+    "routing_decided_at": "2026-04-12T09:04:42.864160+00:00",
+    "routing_decided_by": "default"
+  }
+}

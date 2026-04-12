@@ -98,6 +98,22 @@ _DRAFT_SYSTEM = (
     "- Do not include markdown code fences in module_code — raw Python only"
 )
 
+# System prompt for doc / text builds — generates appropriate file content.
+_DOC_SYSTEM = (
+    "You are Frank Lloyd, the construction AI for THE ABODE. "
+    "You generate documentation, configuration, and text files for builds that have "
+    "been reviewed and approved by an operator.\n\n"
+    "Output JSON with exactly two keys:\n"
+    "  \"module_code\" — complete file content in the appropriate format "
+    "(Markdown, YAML, plain text, etc.) — no code fences, no language markers\n"
+    "  \"notes\" — 1-3 sentences: what was produced, key design choices, notable gaps\n\n"
+    "Rules:\n"
+    "- Write actual content, not pseudocode or placeholders\n"
+    "- Match the format appropriate for the target file type described in the spec\n"
+    "- No markdown code fences or language specifiers — raw content only\n"
+    "- Do not add Python code unless the spec explicitly requires it"
+)
+
 # System prompt for modification/patch builds — generates a complete file replacement.
 _PATCH_SYSTEM = (
     "You are Frank Lloyd, the construction AI for THE ABODE. "
@@ -214,12 +230,22 @@ def generate_stage2_draft(
 
     spec_text = spec_path.read_text(encoding="utf-8")
 
-    # Detect modification vs new-file build from spec
+    # Detect build type: doc/text → use doc prompt; modification → use patch prompt; else new-file
+    is_doc          = _detect_doc_build_from_spec(spec_text)
     is_modification = _detect_modification_build(spec_text)
-    system_prompt   = _PATCH_SYSTEM if is_modification else _DRAFT_SYSTEM
-    build_type_label = "modification" if is_modification else "new_file"
-    # Modification builds may need more tokens for a complete file replacement
-    max_tokens = 2400 if is_modification else 1400
+
+    if is_doc:
+        system_prompt    = _DOC_SYSTEM
+        build_type_label = "doc_or_text"
+        max_tokens       = 1400
+    elif is_modification:
+        system_prompt    = _PATCH_SYSTEM
+        build_type_label = "modification"
+        max_tokens       = 2400
+    else:
+        system_prompt    = _DRAFT_SYSTEM
+        build_type_label = "new_file"
+        max_tokens       = 1400
 
     request_info: dict = {}
     req_path = archive_dir / "request.json"
@@ -239,6 +265,8 @@ def generate_stage2_draft(
         user_prompt += f"Request: {description}\n"
     if is_modification:
         user_prompt += f"Build type: modification (generate complete replacement file)\n"
+    elif is_doc:
+        user_prompt += f"Build type: doc/text (generate appropriate file content, not Python code)\n"
     user_prompt += f"\nApproved Spec:\n{spec_text}"
     if notes:
         user_prompt += f"\n\nGeneration notes from operator: {notes}"
@@ -369,6 +397,28 @@ def generate_stage2_draft(
         "routing":        routing_meta,
         "error":          None,
     }
+
+
+# ── Doc / text build detection ───────────────────────────────────────────────
+
+_DOC_EXTENSIONS = frozenset({".md", ".yaml", ".yml", ".json", ".txt", ".rst"})
+
+
+def _detect_doc_build_from_spec(spec_text: str) -> bool:
+    """
+    Return True if the spec targets a non-Python text or doc file.
+
+    Checks the affected_files section for path entries with doc/text extensions.
+    Used to switch to the _DOC_SYSTEM prompt for appropriate content generation.
+    """
+    import re as _re
+    for m in _re.finditer(r'\s*-\s*path:\s*["\']?([^"\']+)["\']?', spec_text):
+        path = m.group(1).strip().strip("\"'")
+        dot_idx = path.rfind(".")
+        ext = path[dot_idx:].lower() if dot_idx != -1 else ""
+        if ext in _DOC_EXTENSIONS:
+            return True
+    return False
 
 
 # ── Modification detection ────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 {
-  "reset_at": "2026-04-11T07:12:46.957828+00:00",
+  "reset_at": "2026-04-12T07:52:49.529787+00:00",
   "reason": "Operator reset from neighborhood",
   "strategy_label": "Mean-reversion (20-bar window, 1.0\u00a0std-dev trigger); MA crossover filter (3/7-bar); Stop 1.5%, target 4.0%; 5-tick cooldown",
   "config_snapshot": {
@@ -36,12 +36,12 @@
   "promotion_ref": "2026-04-10T03:00:42.491550+00:00",
   "promotion_param": "promotion:batch_20260410T021930_004",
   "prev_portfolio": {
-    "trade_count": 6,
-    "realized_pnl": -64.13,
-    "cash": 99935.87,
-    "win_rate": 0.3333333333333333,
-    "wins": 1,
-    "losses": 2,
-    "total_closed": 3
+    "trade_count": 76,
+    "realized_pnl": 797.93,
+    "cash": 100797.93,
+    "win_rate": 0.42105263157894735,
+    "wins": 16,
+    "losses": 22,
+    "total_closed": 38
   }
 }

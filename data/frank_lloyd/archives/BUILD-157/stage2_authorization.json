@@ -1,0 +1,21 @@
+{
+  "build_id": "BUILD-157",
+  "stage": 2,
+  "authorized_at": "2026-04-12T04:14:16.366832+00:00",
+  "authorized_by": "operator",
+  "authorization_notes": "Auto-authorized (initiated_by=neighborhood_ui).",
+  "stage1_decision_outcome": "spec_approved",
+  "provider_readiness": {
+    "executable_lanes": [
+      "cheap",
+      "strong",
+      "critical_only"
+    ],
+    "config_only_lanes": [
+      "coding"
+    ],
+    "external_supervised_lanes": [
+      "codex_supervised"
+    ]
+  }
+}

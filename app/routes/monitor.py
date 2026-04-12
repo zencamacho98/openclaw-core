@@ -112,6 +112,55 @@ def trading_stop():
     return stop_trading()
 
 
+@router.post("/trading/sim/start")
+def sim_start(interval: int = 5):
+    from app.belfort_sim import start_sim
+    return start_sim(interval)
+
+
+@router.post("/trading/sim/stop")
+def sim_stop():
+    from app.belfort_sim import stop_sim
+    return stop_sim()
+
+
+@router.get("/trading/sim/status")
+def sim_status():
+    from app.belfort_sim import get_sim_status
+    return get_sim_status()
+
+
+@router.post("/belfort/mode/advance")
+def belfort_mode_advance():
+    """
+    Advance Belfort's operating mode one step (observation→shadow→paper).
+    LIVE is not reachable from this endpoint — requires human sign-off.
+    Gate-checked by the existing can_advance_to() logic.
+    """
+    from app.belfort_mode import current_mode, set_mode, BelfortMode, _ORDER, _index
+    cur     = current_mode()
+    cur_idx = _index(cur)
+    # Never advance to LIVE from the UI
+    if cur_idx >= len(_ORDER) - 2:
+        return {
+            "ok":    False,
+            "mode":  cur.value,
+            "error": "Already at Paper mode. LIVE requires a human sign-off file and is not accessible from the UI.",
+        }
+    next_mode = _ORDER[cur_idx + 1]
+    if next_mode == BelfortMode.LIVE:
+        return {
+            "ok":    False,
+            "mode":  cur.value,
+            "error": "Cannot advance to LIVE from the neighborhood UI. Use the sign-off process.",
+        }
+    return set_mode(
+        next_mode,
+        reason="Operator advanced mode via neighborhood UI",
+        initiated_by="neighborhood_ui",
+    )
+
+
 @router.post("/trading/reset")
 def trading_reset(body: dict = Body(default={})):
     from app.portfolio import reset_portfolio

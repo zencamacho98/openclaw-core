@@ -262,9 +262,10 @@ class TestTargetPathValidation(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn(".py", r["error"])
 
-    def test_txt_extension_rejected(self):
-        r = self._promote("frank_lloyd/notes.txt")
-        self.assertFalse(r["ok"])
+    def test_txt_extension_accepted(self):
+        """Since FRANK-FINAL-OPERATOR-MODE-01 .txt is a safe text extension."""
+        err = _mod._validate_target_path("frank_lloyd/notes.txt")
+        self.assertIsNone(err)
 
     def test_absolute_path_rejected(self):
         r = self._promote("/frank_lloyd/x.py")
@@ -317,9 +318,10 @@ class TestTargetPathValidation(unittest.TestCase):
         # ctl.sh is not .py, so will fail on extension first
         # but must still be rejected
 
-    def test_offlimits_exact_neighborhood_rejected(self):
-        r = self._promote("app/routes/neighborhood.py")
-        self.assertFalse(r["ok"])
+    def test_neighborhood_not_offlimits(self):
+        """app/routes/neighborhood.py is intentionally NOT off-limits — Frank Lloyd may modify it."""
+        err = _mod._validate_target_path("app/routes/neighborhood.py")
+        self.assertIsNone(err)
 
     def test_valid_path_in_frank_lloyd_accepted(self):
         # A new path in a non-off-limits directory should pass validation

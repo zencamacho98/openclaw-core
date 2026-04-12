@@ -1,0 +1,23 @@
+{
+  "request_id": "BUILD-143",
+  "title": "Add health endpoint checks status of",
+  "description": "Add a health endpoint that checks the status of the database and returns a response indicating whether it is operational.",
+  "requester": "operator",
+  "requested_at": "2026-04-12T03:56:57.109561+00:00",
+  "success_criteria": "The health endpoint returns a success status when the database is operational and an error status when it is not.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": [],
+  "execution_policy": "auto_apply",
+  "routing": {
+    "builder_lane": "frank",
+    "model_provider": "openrouter",
+    "model_used": "openai/gpt-4o-mini",
+    "cost_tier": "cheap",
+    "escalation_reason": null,
+    "absorption_candidate": false,
+    "absorption_notes": "",
+    "routing_decided_at": "2026-04-12T03:56:57.108888+00:00",
+    "routing_decided_by": "default"
+  }
+}

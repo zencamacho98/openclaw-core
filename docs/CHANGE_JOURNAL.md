@@ -1592,3 +1592,369 @@ Preflight continues to supply: readiness_level, data_lane, session_type, observa
 3. Position tracking from paper fills (separate from mock portfolio)
 4. Shadow mode extended run with clean signal log showing consistent behavior
 5. Human sign-off file creation (data/belfort/live_sign_off.json) with explicit operator approval
+
+---
+
+## 2026-04-12 FRANK-FIRST-TRACKING-01
+**Commit**: unreleased
+
+**What changed**: Baked the Frank-first doctrine into the system as lightweight metadata and operator visibility. Every build queued through Frank Lloyd now carries a `routing` block recording who built it, at what cost tier, and whether it is a candidate for future Frank absorption. Peter's queue confirmation includes the routing lane. The neighborhood state exposes the most recent routing block. No routing automation added — tracking only.
+
+**Files added**:
+- `tests/test_frank_first_tracking.py` — 20 tests (routing persistence, FLJob.routing, Peter lane visibility, absorption visibility, regression suite)
+
+**Files edited**:
+- `frank_lloyd/request_writer.py` — added `_build_default_routing()` helper; `routing` param to `queue_build()`, `_write_request_file()`, `_append_log_event()`; routing block written into request JSON and build log event extra
+- `frank_lloyd/job.py` — added `routing: Optional[dict]` to `FLJob` dataclass and `to_dict()`; `_build_job()` reads routing from request file (falls back to log event extra for legacy builds)
+- `frank_lloyd/abandoner.py` — added `abandon_by_source(source, notes)` for bulk-abandon by intake channel
+- `peter/handlers.py` — added `_fl_build_default_routing()`, `routing` param to `_fl_write_request()` and `_fl_append_log_event()`; `handle_build_intent()` appends "Builder: Frank Lloyd (cheap lane)" to queue-confirmation summary
+- `app/routes/neighborhood.py` — `_frank_lloyd_state()` exposes `last_routing` from active/most-recent job
+- `tests/test_frank_lloyd_job.py` — updated `test_to_dict_has_all_fields` to include `mode`, `source`, `routing`, `events` in expected key set
+- `tests/test_belfort_signal_eval.py` — `test_observation_mode_no_signal_line` now patches `read_belfort_mode` in addition to preflight (mode truth fix)
+
+**Reused**: `FLJob` event-sourcing pattern. Existing `_fl_write_request` and `_fl_append_log_event` helpers. `read_belfort_mode()` authoritative mode path.
+
+**Left out**: Routing automation (no auto-classification of escalations). Frank-side UI routing display (routing data is in state, JS rendering deferred). Escalation reason detection. Absorption workflow.
+
+**Remaining gaps**:
+- Frank neighborhood panel doesn't yet render the routing lane in the pixel UI (data available via `last_routing`, JS display not written)
+- No escalation reason detection — all Peter/neighborhood-sourced builds default to `frank / cheap lane`
+- Absorption workflow (approve/reject absorption candidates) not yet built
+
+**Next block**: Either (A) render `last_routing` in the Frank Lloyd neighborhood panel (one JS row, minimal CSS) or (B) begin BELFORT-PAPER-SELL-01 for position-aware sell execution.
+
+---
+
+## 2026-04-12 FRANK-FIRST-VISIBILITY-02
+**Commit**: unreleased
+
+**What changed**: Made Frank-first routing metadata visible in the Frank Lloyd neighborhood panel. The Frank panel now shows a routing lane indicator line while the panel is open — "Builder: Frank Lloyd · Cost: cheap" or "Builder: Claude escalation · Cost: escalated · Reason: safety_boundary" — surfacing the Frank-first doctrine as operator-visible UI rather than buried metadata.
+
+**Files added**:
+- `tests/test_frank_first_visibility.py` — 20 tests
+
+**Files edited**:
+- `app/routes/neighborhood.py`:
+  - HTML: `<div id="fl-routing-row">` added inside `frank-lloyd-section`, before `fl-composer`
+  - CSS: `.fl-routing-row`, `.fl-routing-lane`, `.fl-routing-escalated`, `.fl-routing-absorption` — 4 rules
+  - JS: `_flRenderRoutingRow(routing)` helper — renders lane/tier/reason/absorption from last_routing
+  - JS: `_flRenderRoutingRow(fl.last_routing || null)` call wired into Frank panel branch of `populatePanel()`
+- `docs/CAPABILITY_REGISTRY.md` — A.0.9 updated with UI surface note
+
+**Reused**: `fl.last_routing` already in Frank state from FRANK-FIRST-TRACKING-01. `_escHtml()` sanitizer already in JS. `_flRenderWorkspace` call pattern.
+
+**Left out**: Routing line in Peter's build status response (already shows "cheap lane" text). Editing the routing block post-queue. Escalation classification. Absorption workflow.
+
+**Remaining gaps**:
+- No UI affordance to escalate a build to Claude lane (still operator-only decision through metadata)
+- Absorption workflow (mark/unmark candidates, promote to Frank) not built
+- Routing line only visible when Frank panel is open; no persistent indicator on the house itself
+
+---
+
+## 2026-04-12 FRANK-LLOYD-FINAL-POLISH-01
+**Commit**: unreleased
+
+**What changed**: Frank-first auto-apply — normal safe builds no longer stop at a manual "Apply to Repo" card. All intake endpoints now call `run_full_auto()` instead of `run_safe_lane()`. An `execution_policy` field is baked into every new request file and FLJob. Legacy orphan builds (draft_generated with no execution_policy) can be bulk-abandoned via a new cleanup endpoint. The neighborhood panel suppresses auto_apply builds that are actively running in the background (draft_generating) so the workspace card only appears for builds that genuinely need operator attention.
+
+**Files added**:
+- `tests/test_frank_lloyd_execution_policy.py` — 18 tests covering execution_policy field, endpoint routing, panel filtering, orphan cleanup, and no-regression
+
+**Files edited**:
+- `frank_lloyd/request_writer.py` — `_write_request_file()` now writes `execution_policy: "auto_apply"` into every new request JSON
+- `frank_lloyd/job.py` — `FLJob` gets `execution_policy: Optional[str]` field; `_build_job()` reads it from request file (None for legacy builds); `to_dict()` includes it
+- `app/routes/frank_lloyd_actions.py`:
+  - `auto-run`, `queue-and-run`, `smart-queue` — all switched from `run_safe_lane()` to `run_full_auto()`
+  - Added `POST /frank-lloyd/cleanup-orphans` — abandons `draft_generated` builds with no `execution_policy` (true legacy orphans)
+- `peter/handlers.py` — `_fl_write_request()` now writes `execution_policy: "auto_apply"` into every Peter-queued build
+- `app/routes/neighborhood.py` — `_frank_lloyd_state()` suppresses `auto_apply + draft_generating` builds from `active_job` (they're running in background; not a blocking card)
+- `tests/test_frank_lloyd_job.py` — `test_to_dict_has_all_fields` expected_keys updated to include `execution_policy`
+
+**Reused**: `run_full_auto()` already existed in `frank_lloyd/auto_runner.py` but was never called from any intake endpoint. `abandon_build()` from `frank_lloyd/abandoner.py`. `list_jobs()` from `frank_lloyd/job.py`. `peter_relay` notification path already set up in `run_full_auto()`.
+
+**Left out**: UI affordance to mark a build as `review_required` (deferred — operator can use the existing spec/approve/authorize flow for explicit review). Escalation to Claude lane from the neighborhood. Routing display on the Frank house sprite (not the panel).
+
+**Remaining gaps**:
+- `auto_apply + draft_generated` (paused auto-promotion — no target path in spec) still shows the "Apply to Repo" card with no differentiation from a review_required card. A small JS badge could distinguish them.
+- No Peter command to trigger cleanup-orphans directly ("abandon legacy drafts" or similar)
+- Absorption workflow (mark/unmark candidates, promote to Frank) not built
+
+---
+
+## 2026-04-12 FRANK-FINAL-OPERATOR-MODE-01
+**Commit**: unreleased
+
+**What changed**: Final Frank Lloyd operator hardening. Peter now auto-starts `run_full_auto()` in a daemon thread immediately after queuing — the operator no longer needs to say "run BUILD-N". Safe text targets (`.md`, `.yaml`, `.yml`, `.json`, `.txt`, `.rst`) are now promotable in addition to `.py`. The stage2 drafter detects doc builds from the spec's affected_files section and switches to a doc-appropriate system prompt. `notify_only`/`hidden_import` builds are filtered from `load_active_job()` so they never surface in the active workspace card. Source-based execution policy (`_policy_for_source`) is the single decision point: Abode-native sources get `auto_apply`; unknown/external sources get `review_required`. `_ABODE_SOURCES` frozenset is the canonical allowlist.
+
+**Files added**:
+- `tests/test_frank_final_operator_mode.py` — 44 tests covering auto-start, safe text targets, doc drafter, execution policy filtering, source policy, neighborhood filtering, no-regression
+
+**Files edited**:
+- `peter/handlers.py` — `handle_build_intent()` fires `run_full_auto()` in `threading.Thread(daemon=True)` immediately after queuing; response says "Frank Lloyd is building now"; `_fl_write_request()` writes `execution_policy: "auto_apply"`
+- `frank_lloyd/stage2_promoter.py` — `_SAFE_TEXT_EXTENSIONS` frozenset added; `_validate_target_path()` allows safe text extensions; `_PROMOTABLE_TASK_CLASSES` expanded with doc/text variants
+- `frank_lloyd/stage2_drafter.py` — `_DOC_SYSTEM` prompt added; `_DOC_EXTENSIONS` frozenset; `_detect_doc_build_from_spec()` helper; `generate_stage2_draft()` branches to doc prompt for doc builds
+- `frank_lloyd/job.py` — `load_active_job()` filters `notify_only`/`hidden_import` from the active queue
+- `frank_lloyd/request_writer.py` — `_ABODE_SOURCES` frozenset + `_policy_for_source(source)` function; `queue_build()` takes explicit `execution_policy` override; `_write_request_file()` parameterized on `execution_policy`
+- `tests/test_frank_lloyd_execution_policy.py` — `source="test"` → `source="peter_chat"` to match source-based policy
+- `tests/test_frank_intake_safety.py` — `TestHandleBuildIntentQueueOnly` updated to reflect new auto-start behavior (thread is expected, response says "building now")
+- `tests/test_frank_lloyd_stage2_promoter.py` — `test_txt_extension_rejected` → `test_txt_extension_accepted`; `test_offlimits_exact_neighborhood_rejected` → `test_neighborhood_not_offlimits` (both tests had wrong assertions relative to the code's documented intent)
+
+**Reused**: `threading.Thread` (daemon pattern); `frank_lloyd.auto_runner.run_full_auto()` already existed and was already the correct pipeline; `_build_default_routing()` already in peter/handlers.py; `_detect_modification_build()` already in stage2_drafter.py; `LMHelper` usage pattern from drafter unchanged.
+
+**Left out**: Peter relay reporting on auto-started builds (relay path exists in `run_full_auto` but Peter chat confirmation happens before the build finishes). `notify_only`/`hidden_import` intake endpoints (those policy values are filterable now but no intake surface produces them yet). Cross-build cancellation when a new build arrives while one is running.
+
+**Remaining gaps**:
+- Peter does not yet report back when an auto-started build completes (relay message exists in the build log but no Peter chat injection on completion)
+- No intake surface produces `notify_only` or `hidden_import` policy values yet
+- `review_required` builds from external sources have no UI differentiation from `auto_apply` builds that paused mid-pipeline
+
+---
+
+## 2026-04-12 FRANK-RELAY-COMPLETION-01
+**Commit**: unreleased
+
+**What changed**: Closed the last Frank Lloyd operator-flow gap — Peter now reports build completions and failures in the neighborhood chat panel automatically. Two changes: (1) `_fail()` in `auto_runner.py` now emits a `build_failed` relay event (previously silent — if spec generation failed without `blocked=True`, the operator got nothing); (2) `build_complete` relay message now includes the build title for at-a-glance identification. JS alert classification in neighborhood.py extended to include `promote_failed`, `draft_ready`, `build_failed` in all four `needsAttn`/`flRelayAlert`/`flHasAlert`/workspace-feedback checks. Relay injection in Peter's chat now uses per-event icons: ✅ for completion, ⚠️ for all alert events, 🔨 for pipeline_start, 🔧 for others.
+
+**Files added**:
+- `tests/test_frank_relay_completion.py` — 23 tests: _fail() relay, build_complete title, JS alert classification, cursor no-duplicate, relay contract, no-regression
+
+**Files edited**:
+- `frank_lloyd/auto_runner.py`:
+  - Added `_read_build_title(build_id)` helper (reads from request JSON file)
+  - `build_complete` relay message now includes title: `BUILD-N "title" — Done. Written to path.`
+  - `_fail()` now emits `build_failed` relay before returning
+- `app/routes/neighborhood.py` — 5 JS edits:
+  - `needsAttn` check: added `promote_failed`, `draft_ready`, `build_failed` to relay alert list
+  - Peter chat injection: per-event icon (✅/⚠️/🔨/🔧) instead of uniform 🚧; updated alert list
+  - `_flRelayAlert` (status bar): added `promote_failed`, `draft_ready`, `build_failed`
+  - `flHasAlert` (Frank house sprite): added `promote_failed`, `build_failed`
+  - Frank workspace feedback: added `build_complete` as `'ok'` feedback alongside `draft_ready`
+
+**Reused**: `frank_lloyd.relay.append()` / `consume_unread()` already fully operational. JS relay → `_peterChat` injection already in place — only extended classification and icon.
+
+**Left out**: Relay cursor per-channel isolation (single global cursor is correct for single-consumer design). Per-relay-event CSS class applied to chat messages (the `cls` field is stored but `peterChatRender()` does not render it — out of scope for this block). Peter chat injection of relay on page load (relay only arrives via state poll — acceptable).
+
+**Remaining gaps**:
+- The `cls` field on `_peterChat` entries is stored but not rendered (warn/ok CSS on individual Peter chat bubbles not implemented)
+- No Peter chat injection when the neighborhood page is not open (relay messages accumulate in the log and deliver on next poll)
+- This is the last Frank Lloyd operator-flow block — no remaining planned gaps in the operator loop
+
+---
+
+## 2026-04-12 BELFORT-UI-INTENT-RECOVERY-01
+**Commit**: unreleased
+
+**What changed**: Two immediate fixes. (1) Backend boot restored: `app/routes/belfort_readiness.py` was overwritten by a Frank Lloyd build with Flask code (Blueprint + render_template) — incompatible with the FastAPI/Uvicorn stack. Restored from `git HEAD~1`. (2) Intent routing fixed: cosmetic/UI requests about Belfort's house (color, style, appearance, panel, tile) were falling through Peter's chat to the LM and being answered with Belfort trading-mode/observation logic. Fixed by adding a cosmetic UI detection clause to `_isFlBuildIntent()` in the JS routing — these requests now route to Frank via smart-queue. Also updated the `/peter/chat` LM system prompt with an explicit instruction not to answer cosmetic requests with trading state.
+
+**Files restored**:
+- `app/routes/belfort_readiness.py` — full FastAPI APIRouter restored from git HEAD~1 (Flask Blueprint replaced)
+
+**Files edited**:
+- `app/routes/neighborhood.py`:
+  - `_isFlBuildIntent()`: added cosmetic UI detection clause — `(change|update|modify|set|paint|make|turn|switch)` + `(color|colour|style|styling|appearance|tile|panel|house|sprite|icon|theme|background|visual|look)` → routes to Frank smart-queue; trading-state guard (`stop-loss|threshold|strategy|model|parameter|trading`) prevents false positives
+  - `/peter/chat` LM system prompt: added explicit IMPORTANT note — if operator asks to change color/style/appearance of a house, Peter must say "That's a UI build — I'll queue it for Frank Lloyd" and NOT respond with trading mode or readiness info
+
+**Tests added**:
+- `tests/test_belfort_ui_intent_recovery.py` — 24 tests: Flask-free boot, FastAPI router, required helper exports, app/main.py import, cosmetic routing JS patterns, trading guard, LM prompt note, Peter command no-regression
+
+**Reused**: `git show HEAD~1:...` to restore the correct file. Existing `_isFlBuildIntent()` pattern extended. `_peterSmartQueue()` path already exists and is the correct intake.
+
+**Left out**: Preventing Frank Lloyd from generating Flask code in the future (that's a spec/prompt quality issue, not a routing issue). Broad protection against future Frank overwrites of core files (app/main.py is already in _OFFLIMITS_FILES but belfort_readiness.py is not — could add it).
+
+**Remaining gaps**:
+- `app/routes/belfort_readiness.py` is NOT in `stage2_promoter._OFFLIMITS_FILES` — Frank Lloyd could overwrite it again. Add it if this recurs.
+- LM fallback still runs for truly ambiguous cosmetic requests that don't match the JS pattern (e.g., "paint the Belfort widget")
+
+---
+
+## 2026-04-12 BELFORT-TRADE-AND-LEARN-01
+**Commit**: unreleased
+
+**What changed**: Added a Practice Simulation lane to Belfort — a separate non-broker, non-live execution path that allows Belfort to practice trading at any time of day (market open or closed). Built the full stack: sim engine, observability bridge, neighborhood UI, Peter status enrichment, monitor endpoints.
+
+**Files added**:
+- `app/belfort_sim.py` — sim lane engine: `_SimQuoteProxy` (overrides `session_type` → "regular", `data_lane` → real or IEX_ONLY), separate `MeanReversionV1` instance (never pollutes live rolling history), mock fill accounting (in-memory sim portfolio: $10k cash, shares), daemon thread loop, `start_sim()`/`stop_sim()`/`get_sim_status()` public API, appends fills and hold ticks to `data/belfort/sim_log.jsonl`
+- `tests/test_belfort_trade_and_learn.py` — 34 acceptance tests across 7 test classes
+
+**Files edited**:
+- `app/routes/monitor.py` — added `/trading/sim/start`, `/trading/sim/stop`, `/trading/sim/status` endpoints
+- `observability/belfort_summary.py` — added `_SIM_LOG` path, `read_latest_sim_trade()`, `read_sim_stats_today()`, `read_sim_running_status()` (transport-safe wrapper for peter/handlers.py)
+- `app/routes/neighborhood.py` — (1) `_belfort_state()` enriched with `sim_active`, `sim_position`, `sim_cash`, `sim_fills`, `belfort_latest_sim_trade`, `belfort_sim_stats_today`; (2) HTML: added `belfort-sim-row` div and `btn-sim-toggle` button to controls grid; (3) JS: `_BELFORT_ENDPOINTS` wired with sim_start/sim_stop, `belfortToggle()` extended with sim branch, `updateBelfortStats()` renders sim row with fill count/position/cash and toggles sim button label
+- `peter/handlers.py` — `handle_belfort_status()` reports sim lane: running state, fills today, last fill action/price/P&L; uses observability bridge (transport-isolated)
+
+**Reuses**: Existing `_BELFORT_ENDPOINTS`/`belfortToggle()` pattern extended (no new toggle infrastructure). Existing `MeanReversionV1` strategy reused as separate instance. Existing monitoring endpoint pattern in `monitor.py`. Existing observability bridge pattern for transport isolation.
+
+**Left out**: LM-driven strategy parameter adaptation from sim outcomes (that's a future Research block — existing research/campaign loop is the correct path). Sim against historical replay (requires different data source). Sim P&L persistence across restarts (in-memory resets on each start). Per-symbol sim (SPY only, matching live trading).
+
+**Remaining gaps**:
+- `data/belfort/sim_log.jsonl` accumulates indefinitely — no rotation or pruning
+- Sim position is not surfaced in Peter neighborhood chat (available in belfort status command)
+- Learning adaptation from sim data (reading sim fills → research campaign trigger) not yet wired
+
+---
+
+## 2026-04-12 BELFORT-OPERATING-MODE-CLEANUP-01
+**Commit**: unreleased
+
+**What changed**: Made Belfort's operating modes clear and interactable from the neighborhood UI. Replaced ambiguous controls with explicit lane-aware buttons, added a persistent lane header (dot indicator + mode chip), session notices (market closed/stale/sim running), a learn strip (verdict + paper + blocked + sim cells), and a Pause All function that stops all active lanes in parallel.
+
+**Files added**:
+- `tests/test_belfort_operating_mode_cleanup.py` — 68 acceptance tests covering HTML structure, CSS classes, JS functions, Python enrichment, observability bridge shape, button label correctness, transport isolation
+
+**Files edited**:
+- `app/routes/neighborhood.py` — (1) CSS: `.belfort-lane-header`, `.blane-dot` (+`.active`/`.sim`/`.paused`), `.bnotice` variants, `.belfort-learn-strip`, `.blearn-*` grid, `.bctrl-dimmed`, `.bctrl-explain`, `.blane-mode-chip`; (2) HTML: `#belfort-lane-header` (dot/label/sub/mode-chip), `#belfort-session-notice`, `#belfort-paper-block`, `#belfort-sim-block`, `#belfort-learn-strip`/`#blearn-content`, 2×2 controls grid (Paper Trade, Practice Sim, Start Learning, Pause All); (3) JS: `updateBelfortStats()` fully replaced — renders lane header, session notice, paper/sim blocks conditional on active state, learn strip 4-cell grid, context-aware button labels and explain text; `belfortPauseAll()` added — stops all three lanes via `Promise.all`, no-ops when nothing active, refreshes state after 600ms; (4) `_belfort_state()` enriched with `belfort_session_type` and `belfort_learn_strip`
+- `observability/belfort_summary.py` — added `read_learn_strip()`: reads `learning_history.jsonl` for verdict, signal log for blocked count + main blocker, paper exec log for today's submission counts
+
+**Reuses**: Existing `_BELFORT_ENDPOINTS`/`belfortToggle()` pattern (Pause All is additive, not a replacement). Existing `fetchState()`/`applyState()` cycle for post-action refresh. Existing observability bridge transport-isolation pattern for `read_learn_strip()`. Existing `#belfort-readiness-section`, `#belfort-learning-section`, `#belfort-diagnostics-section` untouched.
+
+**Left out**: Discord notification on Pause All. Learn strip LM summary (verdict note is plain-text from the log, no LM involved). Frank Lloyd controls are unchanged (out of scope). Mobile/responsive layout for the controls grid.
+
+**Remaining gaps**:
+- Learn strip sim cell reads `sim_stats_today` fill count — no per-session P&L summary in the strip yet
+- Session notice stale threshold is hardcoded; could be driven from warden_policy
+
+**Next recommended block**: FRANK-LLOYD-UI-01 — add Frank Lloyd house presence to the neighborhood (status dot, work queue visibility, operator controls).
+
+---
+
+## 2026-04-12 BELFORT-UI-TRUTHFUL-CLEANUP-01
+**Commit**: unreleased
+
+**What changed**: Corrective block — fixed inflated claims from BELFORT-OPERATING-MODE-CLEANUP-01, then implemented the real missing pieces:
+1. Button label "Paper Trade" → "Paper Trade Live" (in paper mode, JS modeLabel expression)
+2. Button label "Start Learning" → "Review / Learn" (loop toggle, static HTML + JS)
+3. Static HTML trading button initial label: "Paper Trade" → "Observe Live"
+4. Static HTML pause button: "Pause All" → "Pause"
+5. Explain text: lane-specific ("Paper Trade Live: signals sent to…", "Observe Live: Belfort watches…", "Shadow Mode: signals evaluated…") + sim-aware append ("Practice Sim running in parallel")
+6. Learn strip paper cell: shows "X sent, Y gated" (was "X submitted")
+7. Learn strip sim cell: shows fills count + last trade action+price from belfort_latest_sim_trade
+8. Learn strip cell labels: "PAPER TODAY", "SIM TODAY" (were "PAPER", "SIM")
+9. Learn strip block reason label: "Block reason:" (was "Main block:")
+10. verdict_note substring limit: 90 chars (was 80)
+
+**What was already there from prior block (truthful)**: lane header with dot indicator, session notice bar, paper/sim conditional blocks, learn strip 4-cell grid, belfortPauseAll() with Promise.all, read_learn_strip() bridge, _belfort_state() enrichment. These were implemented — the prior report was correct about their presence but inflated the description of the button controls.
+
+**Files added**:
+- `tests/test_belfort_ui_truthful_cleanup.py` — 28 tests, exact DOM/JS/label assertions
+
+**Files edited**:
+- `app/routes/neighborhood.py` — 5 targeted edits: modeLabel expression, loop button label, explain text, static HTML button labels, learn strip cell construction
+- `tests/test_belfort_operating_mode_cleanup.py` — 2 tests updated to match new button labels (Paper Trade → Observe Live, Start Learning → Review / Learn)
+
+**Reuses**: Existing `updateBelfortStats()` function — only the label strings and cell content changed.
+
+**Left out**: Shadow Mode as a distinct button (it's handled by the existing dynamic trading toggle). Mode advance/regress controls (those belong in a separate mode-management block, not here).
+
+**Remaining gaps**:
+- Loop toggle is labeled "Review / Learn" but clicking it starts a research campaign — there's no separate "review" mode, the label is aspirational
+- Shadow Mode is not listed in the spec controls but exists in the toggle — either add it or explicitly remove it
+
+---
+
+## 2026-04-12 BELFORT-CONTROL-MODE-INTEGRITY-01
+**Commit**: unreleased
+
+**What changed**: Made Belfort's visible controls map truthfully to backend behavior. Added mode-advance button (first-class UI control for observation→shadow→paper transitions). Renamed "Shadow Mode" → "Shadow Live" everywhere. Improved explain text to state exactly what each lane does. Updated Peter mode descriptions to use operator-facing labels.
+
+**Files added**:
+- `tests/test_belfort_control_mode_integrity.py` — 40 tests covering endpoint, HTML, JS function, Shadow Live label, explain text truthfulness, Peter mode descriptions
+
+**Files edited**:
+- `app/routes/monitor.py` — added `POST /belfort/mode/advance` endpoint (gate-checked, LIVE blocked from UI, delegates to `set_mode()`)
+- `app/routes/neighborhood.py` — (1) CSS: `.bmode-advance-btn`, `.bmode-note`; (2) HTML: `#belfort-mode-advance-section`, `#btn-mode-advance`, `#belfort-mode-note` (secondary, below controls grid); (3) JS: `belfortModeAdvance()` function (fetches `/monitor/belfort/mode/advance`, shows error in note, refreshes state after 400ms); `updateBelfortStats()` — mode-advance section show/hide + label logic; "Shadow Mode" → "Shadow Live" in modeLabel; explain text per-mode with exact behavioral description; sim append updated
+- `peter/handlers.py` — `_mode_desc` map now uses "Observe Live / Shadow Live / Paper Trade Live / Live" labels; signal summary now uses `_mode_ui` lookup for "Shadow Live" / "Paper Trade Live" instead of raw mode string
+- `tests/test_belfort_ui_truthful_cleanup.py` — 3 assertions updated to match text changes from this block
+
+**Reuses**: Existing `set_mode()` / `can_advance_to()` gate logic reused in endpoint. Existing `fetchState()`/`applyState()` cycle for post-advance refresh.
+
+**Left out**: Mode regress button (one-way advancement only from UI, per existing mode contract). LIVE mode unlock via UI (requires sign-off file — intentionally not exposed). Mode advance via Peter command (already working, unchanged).
+
+**Remaining gaps**:
+- "Review / Learn" starts research campaigns (not a persistent mode) — wording is truthful enough but could be "Start Research" for maximum clarity; left as-is per spec label
+- Shadow Live is not currently tracked in readiness scorecard (that still says "SHADOW_COMPLETE" not "Shadow Live complete")
+
+---
+
+## [2026-04-12] BELFORT-PAPER-SIM-REGIME-LEARNING-01
+
+**Commit**: unreleased
+**What changed**: Regime-separated learning for Belfort — market_regime field tagged in paper_exec and sim logs, auto-snapshot every 20 ticks, per-regime metrics (regular/closed_sim), regime indicator chip in UI, strategy profile row, Peter regime-aware summary. Extended-hours paper trading honestly labeled "not supported" in UI and Peter.
+**Why**: Belfort needed to track where learning data comes from (regular-hours paper vs any-hours sim) and surface that to the operator.
+**Files**:
+- `app/belfort_regime_learning.py` (new) — compute_regime_metrics, current_strategy_profile, maybe_record_regime_snapshot
+- `app/belfort_paper_exec.py` — market_regime field added to exec records
+- `app/belfort_sim.py` — market_regime: "closed_sim" added to all sim records
+- `app/trading_loop.py` — _run_regime_snapshot() called every 20 ticks
+- `observability/belfort_summary.py` — read_regime_metrics(), read_strategy_profile() transport-safe wrappers
+- `app/routes/neighborhood.py` — regime chip CSS/HTML/JS, strategy profile element, _belfort_state() extended
+- `peter/handlers.py` — regime-aware line appended to belfort_status summary
+- `tests/test_belfort_regime_learning.py` (new) — 64 tests
+**Reuses**: paper_exec_log.jsonl, sim_log.jsonl, learning_history.jsonl, observability bridge transport pattern, _belfort_state() extension pattern
+**Left out**: Regime-specific portfolio reset (still resets both). Extended-hours paper trading (blocked at 3 layers — not faked). Per-regime win rate computation (needs more data schema work). Regime-aware supervisor (research campaigns not wired to regime).
+**Remaining gaps**: Learning history auto-snapshot only fires from the paper trading loop (not from sim — sim runs independently). Regime metrics visible in UI but not yet surfaced as a trend (no multi-day view).
+
+---
+
+## [2026-04-12] BELFORT-OVERNIGHT-READINESS-01
+
+**Commit**: unreleased
+**What changed**: Wired sim loop to generate regime-learning snapshots independently every 20 ticks. Added sim performance tracking (realized P&L, win rate, fills) to the observability bridge. Added paper availability indicator (market open/closed/extended), sim performance row, recent activity strip (paper/sim/learning events) to the neighborhood UI. Updated Peter to report paper availability, sim performance, and latest learning snapshot separately. All paper vs sim data is clearly labeled and never blended.
+**Why**: Operator needs to run Belfort overnight and wake up with clear paper-vs-sim separation — what happened in paper, what happened in sim, what Belfort learned, and what regime was active.
+**Files**:
+- `app/belfort_sim.py` — `_run_sim_regime_snapshot()` + called every 20 sim ticks in `_loop_body()`
+- `observability/belfort_summary.py` — `read_sim_performance()`, `read_latest_regime_snapshot()` added
+- `app/routes/neighborhood.py` — CSS (bpaper-avail, bsim-perf-row, bactivity-strip/tag/paper/sim/learn), HTML (#belfort-paper-avail, #belfort-paper-stats-row, #belfort-sim-perf-row, #belfort-activity-strip), Python (_belfort_state: belfort_sim_performance, belfort_recent_activity, belfort_paper_available, belfort_paper_unavailable_reason), JS (paperAvailEl, paperStatsRowEl, simPerfRowEl, activityStripEl)
+- `peter/handlers.py` — `sim_perf_line`, `paper_avail_line`, `snapshot_line` added to belfort_status summary; imports extended
+- `tests/test_belfort_overnight_readiness.py` (new) — 77 tests
+**Reuses**: belfort_regime_learning.maybe_record_regime_snapshot(), existing sim _ticks counter, observability bridge transport pattern, existing learn_strip paper_today for paper stats row
+**Left out**: Sim win rate computed from session sells only (needs round-trip fills; requires buy/sell pairing for true P&L tracking). Paper Alpaca account balance via API (not queried — mock portfolio shown). Overnight auto-restart if sim crashes. Multi-day trend view.
+**Remaining gaps**:
+- Sim win rate is only meaningful when sim actually completes sell fills (MeanReversionV1 sells when position held)
+- Paper P&L shown is mock portfolio, not Alpaca paper account balance
+- No automated "morning report" format yet
+
+---
+
+## [2026-04-12] BELFORT-OVERNIGHT-SAFETY-AND-LIVE-GATE-01
+
+**Commit**: unreleased
+**What changed**: "Review / Learn" renamed to "Research Campaigns" throughout (button, JS, error fallback) — demoted from primary action to manual research trigger. "Pause" renamed to "Stop All" and restyled as emergency safety control (`bctrl-emergency`). New Live Readiness Gate module (`app/belfort_live_gate.py`) evaluates paper trading track record against live-promotion thresholds (10 sell trades, 5 paper orders, win_rate ≥ 0.40, expectancy > 0); verdicts: not_enough_data / not_ready / candidate. Live gate surfaced in UI (`#belfort-live-gate`) with verdict + metrics. New cost lanes panel (`#belfort-cost-lanes`) shows which lanes (paper/sim/research) are active. Peter reports live readiness verdict and auto-learning independence note. All existing tests updated for renamed labels.
+**Why**: Operator needs a clear overnight safety posture: auto-learning runs without turning on Research Campaigns; emergency stop is clearly visible; live promotion gate is based on real paper trading data, not manual judgment.
+**Files**:
+- `app/belfort_live_gate.py` (new) — `compute_live_readiness()` with trade count, win rate, expectancy, block rate, verdict
+- `observability/belfort_summary.py` — `read_live_readiness()` transport-safe wrapper added
+- `app/routes/neighborhood.py` — button labels updated, `bctrl-emergency` CSS, live gate CSS/HTML/JS, cost lanes CSS/HTML/JS, `belfort_live_readiness` key in `_belfort_state()`
+- `peter/handlers.py` — `read_live_readiness` import, `live_readiness_line`, `auto_learn_line` added to belfort_status summary
+- `tests/test_belfort_ui_truthful_cleanup.py` — updated for renamed labels (Research Campaigns, Stop All)
+- `tests/test_belfort_operating_mode_cleanup.py` — updated for renamed labels
+- `tests/test_belfort_overnight_safety.py` (new) — 88 tests
+**Reuses**: Observability bridge transport pattern, `_belfort_state()` extension pattern, existing loop/sim/trading active flags for cost lanes, `paper_exec_log.jsonl` and `signal_log.jsonl` for gate metrics
+**Left out**: Live gate enforcement (verdict is informational only — no automatic block on mode advance). Research Campaigns auto-suggest (not wired to gate verdict). Alpaca paper account balance vs. mock portfolio reconciliation. Multi-day gate trending.
+**Remaining gaps**:
+- Live gate verdict shown in UI and Peter but does not block mode-advance (human must decide)
+- Research Campaigns vs auto-learning are separate but UI does not yet show auto-snapshot count since last manual session
+
+---
+
+## [2026-04-12] FRANK-HARD-STOP-AND-PURGE-01
+
+**Commit**: unreleased
+**What changed**: Frank Lloyd operator emergency controls — hard stop, purge-all, disable/enable intake. Active background builds can be signaled to halt between pipeline steps (cooperative stop flag). All non-terminal builds can be abandoned in bulk. Frank intake can be disabled so new build requests are rejected until re-enabled. Peter commands: "stop frank", "clear frank", "disable frank", "enable frank". HTTP endpoints: POST /frank-lloyd/hard-stop, /purge-all, /disable, /enable; GET /frank-lloyd/control-state. Neighborhood UI: disabled banner, stop/purge/toggle-intake buttons with JS functions. Peter's `handle_build_intent` checks intake gate before queueing. Transport isolation fix: `from app.market_time import session_type` moved from deferred inline import in `peter/handlers.py` to `read_market_session()` wrapper in observability bridge.
+**Why**: Frank Lloyd could not be stopped mid-run. Operator had no way to abort a runaway build, purge the queue, or gate new intake without killing the process. Cooperative stop flag is the correct mechanism because background LM calls cannot be interrupted mid-call.
+**Files**:
+- `frank_lloyd/auto_runner.py` — `_stop_requested`, `_active_build_id` module flags; `request_stop()`, `get_runner_state()`, `_set_active()`, `_clear_stop()` public helpers; 5 `_stopped()` checks in `run_full_auto()` between pipeline steps
+- `frank_lloyd/abandoner.py` — `abandon_all()` function: scans entire build log for all build IDs (no source filter), abandons non-terminal builds
+- `frank_lloyd/control.py` (new) — `read_control()`, `is_enabled()`, `disable()`, `enable()` with `data/frank_lloyd/control.json` backing file; enabled=True by default
+- `peter/handlers.py` — intake gate in `handle_build_intent` (checks `is_enabled()` before queueing); `handle_fl_hard_stop`, `handle_fl_clear_all`, `handle_fl_disable`, `handle_fl_enable` handlers; `read_market_session` import (via bridge)
+- `peter/commands.py` — `FL_HARD_STOP`, `FL_CLEAR_ALL`, `FL_DISABLE`, `FL_ENABLE` command types; parsing rules inserted before generic "stop" rule
+- `peter/router.py` — imports + dispatch wiring for 4 new handlers
+- `app/routes/frank_lloyd_actions.py` — 5 new endpoints (hard-stop, purge-all, disable, enable, control-state)
+- `app/routes/neighborhood.py` — `fl_enabled`, `fl_runner_state` in `_frank_lloyd_state()`; disabled banner HTML; stop/purge/toggle-intake buttons; `flHardStop()`, `flPurgeAll()`, `flToggleIntake()`, `_updateFlControlBlock()` JS functions
+- `observability/belfort_summary.py` — `read_market_session()` transport-safe wrapper added
+- `tests/test_frank_hard_stop_and_purge.py` (new) — 101 tests covering stop flag, abandon_all, control.py, Peter handlers, command parsing, HTTP endpoints, neighborhood state, router wiring
+- `tests/test_belfort_signal_eval.py` — assertion updated for `auto_learn_line` change (signal-decision check vs. learning-snapshot check)
+**Reuses**: Observability bridge transport pattern, `_frank_lloyd_state()` extension pattern, existing `abandon_build()` for single-build abandonment, existing Frank build log JSONL format
+**Left out**: Force-kill of background threads (LM calls cannot be interrupted mid-call; stop is inter-step only). UI polling to update stop state in real-time (UI refreshes at its normal interval). Reason field surfaced in UI for disable (stored in control.json, not shown). Batch-enable with time window.
+**Remaining gaps**:
+- Stop flag is cooperative: if a build is mid-LM-call (draft generation), it completes before stopping — stop takes effect at next inter-step checkpoint
+- Disabled state shown in neighborhood but reason text not exposed in the toggle button label

@@ -1,0 +1,12 @@
+{
+  "build_id": "BUILD-081",
+  "outcome": "spec_approved",
+  "stage": 1,
+  "decided_at": "2026-04-12T00:33:37.116480+00:00",
+  "decided_by": "operator",
+  "notes": "Auto-approved by safe lane (initiated_by=peter_chat). Risk level: medium.",
+  "deferred_items": null,
+  "stage2_authorized": false,
+  "spec_hash": "sha256:99b9513058d94e9d6eec141327cf6459ee5518fbde60001f072ae1a9c14213f3",
+  "revision_cycle": null
+}

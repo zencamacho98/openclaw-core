@@ -1,0 +1,63 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-088"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-12T00:33:45.958204+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Create API endpoint returns current portfolio"
+description: "Create a new API endpoint that returns the current portfolio snapshot in JSON format."
+success_criteria: "The new endpoint can be accessed and returns a valid JSON response containing the current portfolio snapshot."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: new_service
+risk_level: medium
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "app/routes/portfolio_snapshot.py"
+      purpose: "New API endpoint to return the current portfolio snapshot in JSON format."
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "app/cost_warden.LMHelper"
+      decision: not_needed
+      reason: "No integration with cost warden required for the portfolio snapshot."
+    - capability: "observability/agent_state.py"
+      decision: not_needed
+      reason: "No agent state information is necessary for this endpoint."
+    - capability: "observability/event_log.py"
+      decision: not_needed
+      reason: "Event logging is not required for a simple portfolio snapshot retrieval."
+    - capability: "observability/telemetry.py"
+      decision: not_needed
+      reason: "Telemetry is not required for this specific API endpoint."
+    - capability: "research/approval_policy.py"
+      decision: not_needed
+      reason: "No approval flow is necessary for a simple data retrieval endpoint."
+    - capability: "research/governance.py"
+      decision: not_needed
+      reason: "No governance checks are needed for this new endpoint."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: executive_control
+layer_justification: "The new API endpoint provides data to the executive control layer for portfolio management."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_portfolio_snapshot.py"
+  coverage_note: "The test will ensure the new endpoint returns a valid JSON response with the current portfolio snapshot."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: silent
+  rollback: "If the new service fails, it can be removed without affecting existing functionality."
+  scope: "The scope is limited to the new endpoint and does not affect other services."

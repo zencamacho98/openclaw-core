@@ -376,13 +376,14 @@ def get_active_job() -> dict:
 def auto_run(build_id: str, background_tasks: BackgroundTasks,
              body: dict = Body(default={})) -> dict:
     """
-    Trigger the Frank Lloyd safe-lane pipeline for a queued build (background).
+    Trigger the Frank Lloyd full-auto pipeline for a queued build (background).
 
-    Runs: generate_spec → risk gate → approve (if low-risk) → authorize Stage 2
-          → generate draft.
+    Runs the complete pipeline: generate_spec → approve → authorize Stage 2
+    → generate draft → auto-promote to repo.
 
     Fire-and-forget — returns immediately. The UI polls /frank-lloyd/status and
     /frank-lloyd/active-job at its normal interval to track progress.
+    Peter relay messages report the outcome when complete.
 
     Body: {} — no parameters needed; build_id from path
     Returns: {ok, build_id, message}
@@ -390,7 +391,7 @@ def auto_run(build_id: str, background_tasks: BackgroundTasks,
     import frank_lloyd.auto_runner as _auto_runner
 
     def _run():
-        _auto_runner.run_safe_lane(build_id.upper(), initiated_by="neighborhood_ui")
+        _auto_runner.run_full_auto(build_id.upper(), initiated_by="neighborhood_ui")
 
     background_tasks.add_task(_run)
     return {
@@ -421,10 +422,11 @@ def get_apply_summary(build_id: str, force: int = 0) -> dict:
 @router.post("/frank-lloyd/queue-and-run")
 def queue_and_run(background_tasks: BackgroundTasks, body: dict = Body(default={})) -> dict:
     """
-    Queue a Frank Lloyd build request and immediately fire the safe-lane pipeline.
+    Queue a Frank Lloyd build request and immediately fire the full-auto pipeline.
 
-    Runs frank_lloyd.request_writer.queue_build() then starts auto_runner.run_safe_lane()
+    Runs frank_lloyd.request_writer.queue_build() then starts auto_runner.run_full_auto()
     as a background task. Returns immediately — the UI polls for progress.
+    Peter relay messages report the outcome when complete.
 
     Body: {description: str, success_criterion: str, notes: str}
     Returns: {ok, build_id, title, message, error}
@@ -461,7 +463,7 @@ def queue_and_run(background_tasks: BackgroundTasks, body: dict = Body(default={
     build_id = result["build_id"]
 
     def _run():
-        _auto_runner.run_safe_lane(build_id, initiated_by="queue_and_run")
+        _auto_runner.run_full_auto(build_id, initiated_by="queue_and_run")
 
     background_tasks.add_task(_run)
     return {
@@ -536,7 +538,7 @@ def smart_queue(background_tasks: BackgroundTasks, body: dict = Body(default={})
     build_id = result["build_id"]
 
     def _run():
-        _auto_runner.run_safe_lane(build_id, initiated_by=f"smart_queue_{brief.mode}")
+        _auto_runner.run_full_auto(build_id, initiated_by=f"smart_queue_{brief.mode}")
 
     background_tasks.add_task(_run)
     return {
@@ -607,4 +609,161 @@ def generate_draft(build_id: str, body: dict = Body(default={})) -> dict:
         "outcome": status,
         "message": f"{build_id.upper()} draft generation did not complete as expected. Status: {status}.",
         "error":   result.get("error", ""),
+    }
+
+
+@router.post("/frank-lloyd/hard-stop")
+def fl_hard_stop(body: dict = Body(default={})) -> dict:
+    """
+    Stop the active Frank Lloyd pipeline run.
+
+    Sets the auto_runner stop flag. The pipeline checks between steps and exits
+    cleanly after completing its current step. Does NOT abandon queued builds.
+
+    Returns {ok, stop_requested, active_build_id}.
+    """
+    import frank_lloyd.auto_runner as _ar
+    state = _ar.request_stop()
+    return {
+        "ok":             True,
+        "stop_requested": True,
+        "active_build_id": state.get("active_build_id"),
+        "message": (
+            f"Stop requested. Active job {state['active_build_id']} will halt after current step."
+            if state.get("active_build_id")
+            else "No active pipeline. Stop flag set."
+        ),
+    }
+
+
+@router.post("/frank-lloyd/purge-all")
+def fl_purge_all(body: dict = Body(default={})) -> dict:
+    """
+    Stop the active Frank Lloyd pipeline AND abandon all non-terminal builds.
+
+    Steps:
+      1. Set stop flag on auto_runner (active pipeline halts after current step)
+      2. abandon_all() — every non-terminal build archived as 'abandoned'
+
+    After this call, Frank has no active or queued work. Nothing respawns on refresh.
+
+    Body: {notes: str}  — optional reason for the purge
+    Returns: {ok, active_stopped, abandoned: list[str], skipped: list[str], errors: list[str]}
+    """
+    import frank_lloyd.auto_runner as _ar
+    import frank_lloyd.abandoner as _ab
+
+    notes = (body.get("notes") or "Purged by operator via UI").strip()
+
+    stop_state = _ar.request_stop()
+    active     = stop_state.get("active_build_id")
+    result     = _ab.abandon_all(notes=notes)
+
+    return {
+        "ok":           True,
+        "active_stopped": active,
+        "abandoned":    result.get("abandoned", []),
+        "skipped":      result.get("skipped",   []),
+        "errors":       result.get("errors",    []),
+        "message": (
+            f"Stopped {active} and purged {len(result.get('abandoned', []))} build(s)."
+            if active else
+            f"Purged {len(result.get('abandoned', []))} build(s). No active pipeline."
+        ),
+    }
+
+
+@router.post("/frank-lloyd/disable")
+def fl_disable(body: dict = Body(default={})) -> dict:
+    """
+    Disable Frank Lloyd intake gate.
+
+    New build requests will be rejected until /frank-lloyd/enable is called.
+    In-progress pipelines are not interrupted — call /frank-lloyd/hard-stop for that.
+
+    Body: {reason: str}
+    Returns: {ok, enabled, disabled_at, disabled_reason}
+    """
+    import frank_lloyd.control as _ctrl
+    reason = (body.get("reason") or "Disabled by operator via UI").strip()
+    return _ctrl.disable(reason)
+
+
+@router.post("/frank-lloyd/enable")
+def fl_enable(body: dict = Body(default={})) -> dict:
+    """
+    Re-enable Frank Lloyd intake gate.
+
+    Returns: {ok, enabled, enabled_at}
+    """
+    import frank_lloyd.control as _ctrl
+    return _ctrl.enable()
+
+
+@router.get("/frank-lloyd/control-state")
+def fl_control_state() -> dict:
+    """
+    Read Frank Lloyd control state: enabled/disabled status.
+
+    Returns: {enabled, disabled_at, disabled_reason, enabled_at, runner_state}
+    """
+    import frank_lloyd.control as _ctrl
+    import frank_lloyd.auto_runner as _ar
+    ctrl   = _ctrl.read_control()
+    runner = _ar.get_runner_state()
+    return {**ctrl, "runner_state": runner}
+
+
+@router.post("/frank-lloyd/cleanup-orphans")
+def cleanup_orphan_drafts(body: dict = Body(default={})) -> dict:
+    """
+    Abandon legacy orphan builds stuck at draft_generated with no execution_policy.
+
+    These are builds created before the auto-apply policy was introduced. They sit
+    at draft_generated indefinitely, cluttering the Frank panel. This endpoint
+    abandons them safely.
+
+    Only abandons builds that:
+      - have status draft_generated
+      - have no execution_policy in their request file (true legacy orphans)
+
+    Body: {notes: str}  — optional abandon reason
+    Returns: {ok, abandoned: list[str], skipped: list[str], errors: list[str]}
+    """
+    import json
+    import pathlib
+    from frank_lloyd.job import list_jobs
+    import frank_lloyd.abandoner as _abandoner
+
+    notes    = (body.get("notes") or "Orphan cleanup — legacy draft with no execution_policy").strip()
+    req_dir  = pathlib.Path(__file__).resolve().parent.parent.parent / "data" / "frank_lloyd" / "requests"
+
+    abandoned: list[str] = []
+    skipped:   list[str] = []
+    errors:    list[str] = []
+
+    jobs = list_jobs()
+    for job in jobs:
+        if job.status != "draft_generated":
+            continue
+        # Only abandon if execution_policy is absent (true legacy orphan)
+        if job.execution_policy is not None:
+            skipped.append(job.build_id)
+            continue
+        result = _abandoner.abandon_build(job.build_id, notes=notes)
+        if result.get("ok"):
+            abandoned.append(job.build_id)
+        else:
+            errors.append(job.build_id)
+
+    return {
+        "ok":       True,
+        "abandoned": abandoned,
+        "skipped":   skipped,
+        "errors":    errors,
+        "message":  (
+            f"Cleaned up {len(abandoned)} legacy orphan draft(s). "
+            f"{len(skipped)} skipped (have execution_policy). "
+            f"{len(errors)} errors."
+        ),
     }

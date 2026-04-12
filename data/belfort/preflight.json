@@ -1,0 +1,20 @@
+{
+  "written_at": "2026-04-12T09:53:50.057901+00:00",
+  "mode": "paper",
+  "broker_environment": "not_configured",
+  "paper_credentials": true,
+  "data_lane": "IEX_ONLY",
+  "session_type": "closed",
+  "universe": [
+    "SPY",
+    "QQQ",
+    "AAPL",
+    "MSFT",
+    "TSLA"
+  ],
+  "readiness_level": "OBSERVATION_ONLY",
+  "can_advance_to": null,
+  "advancement_blocked_by": "IEX_ONLY data lane \u2014 SIP required for higher readiness claims",
+  "observation_ticks_today": 1015,
+  "last_tick_at": "2026-04-12T09:53:49.605810+00:00"
+}

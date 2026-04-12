@@ -103,6 +103,7 @@ def _belfort_state() -> dict:
             read_belfort_preflight, read_belfort_freshness_state,
             read_latest_signal_decision, read_belfort_mode,
             read_latest_paper_execution,
+            read_latest_sim_trade, read_sim_stats_today,
         )
         pf = read_belfort_preflight()
         fs = read_belfort_freshness_state()
@@ -114,8 +115,23 @@ def _belfort_state() -> dict:
         base["belfort_can_advance"]     = pf.get("can_advance_to")
         base["belfort_freshness"]       = fs.get("freshness", "no_data")
         base["belfort_freshness_label"] = fs.get("freshness_label", "No observation data")
+        base["belfort_session_type"]    = fs.get("session_type", "unknown")
         base["belfort_latest_signal"]   = read_latest_signal_decision()
         base["belfort_latest_paper_exec"] = read_latest_paper_execution()
+        base["belfort_latest_sim_trade"]  = read_latest_sim_trade()
+        base["belfort_sim_stats_today"]   = read_sim_stats_today()
+        try:
+            from observability.belfort_summary import read_learn_strip
+            base["belfort_learn_strip"] = read_learn_strip()
+        except Exception:
+            base["belfort_learn_strip"] = None
+        try:
+            from observability.belfort_summary import read_regime_metrics, read_strategy_profile
+            base["belfort_regime_metrics"]   = read_regime_metrics()
+            base["belfort_strategy_profile"] = read_strategy_profile()
+        except Exception:
+            base["belfort_regime_metrics"]   = None
+            base["belfort_strategy_profile"] = None
     except Exception:
         base["belfort_mode"]              = "observation"
         base["belfort_readiness"]         = "NOT_READY"
@@ -124,8 +140,65 @@ def _belfort_state() -> dict:
         base["belfort_can_advance"]       = None
         base["belfort_freshness"]         = "no_data"
         base["belfort_freshness_label"]   = "Preflight unavailable"
+        base["belfort_session_type"]      = "unknown"
         base["belfort_latest_signal"]     = None
         base["belfort_latest_paper_exec"] = None
+        base["belfort_latest_sim_trade"]   = None
+        base["belfort_sim_stats_today"]    = None
+        base["belfort_learn_strip"]        = None
+        base["belfort_regime_metrics"]     = None
+        base["belfort_strategy_profile"]   = None
+
+    try:
+        from app.belfort_sim import get_sim_status
+        ss = get_sim_status()
+        base["sim_active"]   = ss.get("running", False)
+        base["sim_position"] = ss.get("sim_position", 0)
+        base["sim_cash"]     = ss.get("sim_cash", 10000.0)
+        base["sim_fills"]    = ss.get("fills", 0)
+    except Exception:
+        base["sim_active"]   = False
+        base["sim_position"] = 0
+        base["sim_cash"]     = 10000.0
+        base["sim_fills"]    = 0
+
+    try:
+        from observability.belfort_summary import read_sim_performance, read_latest_regime_snapshot
+        base["belfort_sim_performance"] = read_sim_performance()
+        base["belfort_recent_activity"] = {
+            "latest_paper_exec": base.get("belfort_latest_paper_exec"),
+            "latest_sim_trade":  base.get("belfort_latest_sim_trade"),
+            "latest_snapshot":   read_latest_regime_snapshot(),
+        }
+    except Exception:
+        base["belfort_sim_performance"] = None
+        base["belfort_recent_activity"] = None
+
+    try:
+        from app.market_time import session_type as _market_st
+        _sess = _market_st()
+        if _sess == "regular":
+            base["belfort_paper_available"]          = True
+            base["belfort_paper_unavailable_reason"] = None
+        else:
+            _unavail_reasons = {
+                "pre_market":  "Pre-market hours \u2014 paper execution requires regular session",
+                "after_hours": "After hours \u2014 paper execution requires regular session",
+                "closed":      "Market closed \u2014 paper execution requires regular session",
+            }
+            base["belfort_paper_available"]          = False
+            base["belfort_paper_unavailable_reason"] = _unavail_reasons.get(
+                _sess, f"Market {_sess} \u2014 paper not available"
+            )
+    except Exception:
+        base["belfort_paper_available"]          = None
+        base["belfort_paper_unavailable_reason"] = None
+
+    try:
+        from observability.belfort_summary import read_live_readiness
+        base["belfort_live_readiness"] = read_live_readiness()
+    except Exception:
+        base["belfort_live_readiness"] = None
 
     return base
 
@@ -301,7 +374,14 @@ def _frank_lloyd_state() -> dict:
         try:
             from frank_lloyd.job import load_active_job as _laj, list_jobs as _lj
             _aj = _laj()
-            active_job = _aj.to_dict() if _aj else None
+            # For workspace card: suppress auto_apply builds that are just running
+            # in background (draft_generating). They'll either auto-complete or pause
+            # with a relay message. Only show them as actionable if they've paused at
+            # draft_generated (auto-promotion blocked) or are legacy/review_required.
+            if _aj and _aj.status == "draft_generating" and _aj.execution_policy == "auto_apply":
+                active_job = None  # running in background — don't show as blocking card
+            else:
+                active_job = _aj.to_dict() if _aj else None
             # Last routing: from active job, or most recent job with routing info
             last_routing = (_aj.routing if _aj else None)
             if last_routing is None:
@@ -324,6 +404,18 @@ def _frank_lloyd_state() -> dict:
         except Exception:
             pass
 
+        # Frank control state (enabled / disabled / runner active)
+        fl_enabled      = True
+        fl_runner_state = {"running": False, "active_build_id": None}
+        try:
+            from frank_lloyd.control import read_control as _read_ctrl
+            from frank_lloyd.auto_runner import get_runner_state as _get_runner
+            _ctrl = _read_ctrl()
+            fl_enabled      = _ctrl.get("enabled", True)
+            fl_runner_state = _get_runner()
+        except Exception:
+            pass
+
         return {
             "pending_count":           summary.get("pending_count",    0),
             "inprogress_count":        summary.get("inprogress_count", 0),
@@ -339,6 +431,8 @@ def _frank_lloyd_state() -> dict:
             "active_job":              active_job,
             "fl_relay":                fl_relay,
             "last_routing":            last_routing,
+            "fl_enabled":              fl_enabled,
+            "fl_runner_state":         fl_runner_state,
         }
     except Exception:
         return {
@@ -356,6 +450,8 @@ def _frank_lloyd_state() -> dict:
             "active_job":              None,
             "fl_relay":                [],
             "last_routing":            None,
+            "fl_enabled":              True,
+            "fl_runner_state":         {"running": False, "active_build_id": None},
         }
 
 
@@ -433,6 +529,10 @@ async def peter_chat(body: dict = Body(default={})) -> dict:
         "When asked about Frank Lloyd, use the frank_lloyd field — report on the active build, "
         "what phase it's in, and what the operator should do next. "
         "When asked about Belfort's readiness or progress, use the 'readiness' field. "
+        "IMPORTANT: If the operator asks to change the color, style, appearance, panel, or any other "
+        "visual/cosmetic aspect of Belfort or any other house, that is a UI build task — not a trading "
+        "question. Tell them: 'That's a UI build — I'll queue it for Frank Lloyd.' Do NOT respond with "
+        "trading mode, observation status, or readiness information for cosmetic requests. "
         "Do not mention you are an AI or reference the JSON context."
     )
     user = f"System state:\n{ctx_str}\n\nOperator: {message}"
@@ -1053,7 +1153,40 @@ body {
 .fl-draft-meta-row { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
 .fl-draft-chip { font-size: 7px; letter-spacing: 1px; padding: 2px 5px; border-radius: 2px; background: #1e2d3d; color: #78909c; border: 1px solid #263238; }
 .fl-field-label { font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 3px; margin-top: 8px; }
+.fl-routing-row { font-size: 9px; color: #546e7a; padding: 6px 0 2px; line-height: 1.5; }
+.fl-routing-lane { color: #78909c; font-weight: bold; }
+.fl-routing-escalated { color: #ff8a65; }
+.fl-routing-absorption { color: #ffd54f; }
 .fl-composer-label { font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 4px; margin-top: 10px; }
+.fl-disabled-banner {
+  margin-top: 6px; padding: 5px 8px; background: #1a0a00;
+  border: 1px solid #ff8f00; border-left: 3px solid #ff8f00;
+  border-radius: 2px; font-size: 8px; color: #ff8f00; letter-spacing: 0.5px;
+}
+.fl-control-row {
+  display: flex; gap: 5px; margin-top: 6px;
+}
+.fl-stop-btn {
+  flex: 1; background: #0d1b2e; border: 1px solid #37474f; color: #546e7a;
+  font-family: 'Courier New', Courier, monospace; font-size: 8px;
+  letter-spacing: 1px; padding: 5px 6px; cursor: pointer; border-radius: 2px;
+}
+.fl-stop-btn:hover:not(:disabled) { border-color: #ef5350; color: #ef5350; background: #1a0000; }
+.fl-stop-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.fl-purge-btn {
+  flex: 1; background: #0d1b2e; border: 1px solid #ef5350; color: #ef5350;
+  font-family: 'Courier New', Courier, monospace; font-size: 8px;
+  letter-spacing: 1px; padding: 5px 6px; cursor: pointer; border-radius: 2px;
+}
+.fl-purge-btn:hover:not(:disabled) { background: #1a0000; border-color: #ff1744; color: #ff1744; }
+.fl-purge-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.fl-toggle-btn {
+  flex: 1; background: #0d1b2e; border: 1px solid #37474f; color: #546e7a;
+  font-family: 'Courier New', Courier, monospace; font-size: 8px;
+  letter-spacing: 1px; padding: 5px 6px; cursor: pointer; border-radius: 2px;
+}
+.fl-toggle-btn:hover:not(:disabled) { border-color: #00e676; color: #00e676; background: #001a0e; }
+.fl-toggle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .fl-prompt-box { width: 100%; box-sizing: border-box; background: #060e1c; border: 1px solid #1e3050; color: #b0bec5; font-family: 'Courier New', Courier, monospace; font-size: 9.5px; letter-spacing: 0.3px; padding: 8px 10px; border-radius: 3px; outline: none; line-height: 1.6; resize: vertical; min-height: 80px; transition: border-color 0.15s; }
 .fl-prompt-box:focus { border-color: #3949ab; }
 .fl-action-feedback { font-size: 9px; letter-spacing: 0.5px; padding: 5px 6px; margin-top: 6px; border-radius: 2px; }
@@ -1289,6 +1422,151 @@ body {
 .bctrl-start:hover:not(:disabled) { border-color: #00e676; color: #00e676; background: #001a0e; }
 .bctrl-stop:hover:not(:disabled)  { border-color: #ef5350; color: #ef5350; background: #1a0000; }
 .bctrl-on { border-color: #00e676; color: #00e676; background: #001a0e; }
+.bctrl-dimmed { border-color: #1e2d45; color: #37474f; }
+.bctrl-dimmed:hover:not(:disabled) { border-color: #37474f; color: #546e7a; }
+.bctrl-emergency { border-color: #37474f; color: #78909c; background: #0d1b2e; }
+.bctrl-emergency:hover:not(:disabled) { border-color: #ef5350; color: #ef5350; background: #1a0000; }
+.bctrl-emergency:disabled { opacity: 0.4; cursor: not-allowed; }
+.blive-gate {
+  margin-top: 5px; padding: 5px 7px; background: #030b14;
+  border: 1px solid #263238; border-left: 2px solid #37474f;
+  border-radius: 2px; font-size: 7.5px; color: #546e7a; letter-spacing: 0.5px;
+}
+.blive-gate-label { font-size: 6.5px; letter-spacing: 2px; color: #263238; margin-bottom: 3px; }
+.blive-gate-not-enough { border-left-color: #37474f; color: #546e7a; }
+.blive-gate-not-ready  { border-left-color: #ff8f00; color: #ff8f00; }
+.blive-gate-candidate  { border-left-color: #00e676; color: #00e676; }
+.blive-gate-metrics { font-size: 7px; color: #37474f; margin-top: 2px; }
+.bcost-lanes {
+  margin-top: 4px; padding: 4px 6px; background: #030b14;
+  border: 1px solid #1e2d45; border-radius: 2px;
+  font-size: 7px; color: #37474f; letter-spacing: 0.5px; line-height: 1.7;
+}
+.bcost-lanes-label { font-size: 6.5px; letter-spacing: 2px; color: #1e2d45; margin-bottom: 2px; }
+.bcost-lane-on  { color: #78909c; }
+.bcost-lane-off { color: #263238; }
+.bmode-advance-btn {
+  background: transparent; border: 1px solid #1565c0; color: #42a5f5;
+  border-radius: 2px; cursor: pointer; font-family: 'Courier New', Courier, monospace;
+  font-size: 8px; letter-spacing: 1px; padding: 5px 8px; margin-top: 5px;
+  width: 100%; text-align: center; transition: all 0.15s;
+}
+.bmode-advance-btn:hover:not(:disabled) { border-color: #42a5f5; color: #90caf9; background: #0d1a2e; }
+.bmode-advance-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.bmode-note { font-size: 7px; color: #37474f; letter-spacing: 0.5px; margin-top: 3px; text-align: center; }
+
+/* ── Active lane header ──────────────────────────────────────────────────── */
+.belfort-lane-header {
+  margin-top: 4px; padding: 6px 8px;
+  background: #040d1a; border: 1px solid #1e2d45; border-radius: 2px;
+  display: flex; align-items: center; gap: 8px;
+}
+.blane-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: #37474f; transition: all 0.3s;
+}
+.blane-dot.active { background: #00e676; box-shadow: 0 0 5px #00e676; }
+.blane-dot.sim    { background: #40c4ff; box-shadow: 0 0 5px #40c4ff; }
+.blane-dot.paused { background: #37474f; }
+.blane-lane-text { flex: 1; min-width: 0; }
+.blane-label { font-size: 9px; font-weight: bold; color: #b0bec5; letter-spacing: 1.5px; }
+.blane-sub   { font-size: 7.5px; color: #37474f; letter-spacing: 0.5px; margin-top: 1px; }
+.blane-mode-chip {
+  font-size: 7px; letter-spacing: 2px; padding: 2px 5px;
+  border-radius: 2px; border: 1px solid #1e2d45; color: #37474f;
+  background: #07101f; flex-shrink: 0;
+}
+.blane-mode-paper       { border-color: #00e676; color: #00e676; background: #001a0e; }
+.blane-mode-shadow      { border-color: #40c4ff; color: #40c4ff; background: #001020; }
+.blane-mode-observation { border-color: #37474f; color: #546e7a; }
+.blane-mode-live        { border-color: #ef5350; color: #ef5350; background: #1a0000; }
+
+/* ── Regime indicator chip ───────────────────────────────────────────────── */
+.bregime-chip {
+  font-size: 6.5px; letter-spacing: 1.5px; padding: 1px 4px;
+  border-radius: 2px; border: 1px solid #1e2d45; color: #37474f;
+  background: #07101f; flex-shrink: 0;
+}
+.bregime-regular      { border-color: #00e676; color: #00e676; background: #001a0e; }
+.bregime-pre_market   { border-color: #ffb300; color: #ffb300; background: #1a1000; }
+.bregime-after_hours  { border-color: #ffb300; color: #ffb300; background: #1a1000; }
+.bregime-closed       { border-color: #37474f; color: #546e7a; }
+
+/* ── Strategy profile row ────────────────────────────────────────────────── */
+.bstrategy-profile {
+  margin-top: 3px; padding: 3px 7px;
+  background: #040d1a; border: 1px solid #1e2d45; border-radius: 2px;
+  font-size: 7.5px; color: #37474f; letter-spacing: 0.3px; line-height: 1.5;
+}
+
+/* ── Paper availability indicator ────────────────────────────────────────── */
+.bpaper-avail {
+  margin-top: 3px; padding: 3px 7px;
+  font-size: 7.5px; letter-spacing: 0.4px; border-radius: 2px;
+  border-left: 2px solid;
+}
+.bpaper-avail-open   { background: #001a0e; border-color: #00e676; color: #00e676; }
+.bpaper-avail-closed { background: #0d1020; border-color: #37474f; color: #546e7a; }
+
+/* ── Paper/sim inline performance rows ───────────────────────────────────── */
+.bpaper-stats-row { margin-top: 3px; font-size: 7.5px; color: #546e7a; letter-spacing: 0.3px; }
+.bsim-perf-row    { margin-top: 3px; font-size: 7.5px; color: #546e7a; letter-spacing: 0.3px; }
+
+/* ── Recent activity strip ───────────────────────────────────────────────── */
+.bactivity-strip {
+  margin-top: 4px; padding: 5px 7px;
+  background: #040d1a; border: 1px solid #1e2d45; border-radius: 2px;
+}
+.bactivity-label { font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 3px; }
+.bactivity-row   { font-size: 7.5px; color: #546e7a; line-height: 1.9; letter-spacing: 0.2px; }
+.bactivity-tag {
+  font-size: 6px; letter-spacing: 1.5px; padding: 1px 3px; border-radius: 1px;
+  margin-right: 4px; display: inline-block; min-width: 34px; text-align: center;
+}
+.bactivity-paper { color: #00e676; border: 1px solid #00e676; }
+.bactivity-sim   { color: #40c4ff; border: 1px solid #40c4ff; }
+.bactivity-learn { color: #b39ddb; border: 1px solid #b39ddb; }
+
+/* ── Session / notice bar ────────────────────────────────────────────────── */
+.bnotice {
+  margin-top: 3px; padding: 4px 7px;
+  font-size: 8px; letter-spacing: 0.5px; line-height: 1.5;
+  border-radius: 2px; border-left: 2px solid;
+}
+.bnotice-closed  { background: #0d1020; border-color: #37474f; color: #546e7a; }
+.bnotice-stale   { background: #1a1200; border-color: #ff8f00; color: #ff8f00; }
+.bnotice-sim     { background: #00111a; border-color: #40c4ff; color: #40c4ff; }
+
+/* ── Lane blocks (paper / sim) ───────────────────────────────────────────── */
+.belfort-lane-block {
+  margin-top: 4px; padding: 4px 6px;
+  background: #040d1a; border: 1px solid #1e2d45; border-radius: 2px;
+}
+.blane-block-label {
+  font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 3px;
+}
+
+/* ── Inline learn strip ──────────────────────────────────────────────────── */
+.belfort-learn-strip {
+  margin-top: 4px; padding: 5px 7px;
+  background: #040d1a; border: 1px solid #1e2d45; border-radius: 2px;
+  font-size: 8px; color: #546e7a; letter-spacing: 0.5px; line-height: 1.6;
+}
+.blearn-label { font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 3px; }
+.blearn-row   { display: flex; gap: 6px; flex-wrap: wrap; }
+.blearn-cell  { flex: 1; min-width: 55px; }
+.blearn-cell-label { font-size: 7px; letter-spacing: 1.5px; color: #37474f; }
+.blearn-cell-value { font-size: 9px; color: #78909c; font-weight: bold; }
+.blearn-cell-value.pos { color: #00e676; }
+.blearn-cell-value.neg { color: #ef5350; }
+.blearn-cell-value.warn { color: #ff8f00; }
+.blearn-note { font-size: 7px; color: #37474f; margin-top: 2px; letter-spacing: 0.3px; }
+
+/* ── Controls explain line ───────────────────────────────────────────────── */
+.bctrl-explain {
+  font-size: 7px; color: #37474f; letter-spacing: 0.5px;
+  margin-top: 2px; text-align: center; line-height: 1.4;
+}
 
 /* LM unavailable notice */
 .peter-chat-notice {
@@ -1668,19 +1946,90 @@ body {
       <!-- Belfort controls (shown only when Belfort panel is open) -->
       <div id="belfort-controls-section" style="display:none">
         <div class="dp-divider"></div>
-        <div class="dp-section-label">TRADING STATS</div>
+
+        <!-- Active lane header — plain-English current state -->
+        <div class="belfort-lane-header" id="belfort-lane-header">
+          <span class="blane-dot paused" id="blane-dot"></span>
+          <div class="blane-lane-text">
+            <div class="blane-label" id="blane-label">PAUSED</div>
+            <div class="blane-sub"   id="blane-sub">No active lane &mdash; start Paper Trade or Practice Sim</div>
+          </div>
+          <div class="blane-mode-chip" id="blane-mode-chip">OBS</div>
+          <span class="bregime-chip" id="belfort-regime-chip">MARKET</span>
+        </div>
+
+        <!-- Session / notice bar (market closed, stale data) -->
+        <div id="belfort-session-notice" class="bnotice" style="display:none"></div>
+
+        <!-- Paper availability indicator (market open / closed for paper execution) -->
+        <div id="belfort-paper-avail" class="bpaper-avail" style="display:none"></div>
+
+        <!-- Paper portfolio stats -->
+        <div class="dp-section-label" style="margin-top:6px">PAPER PORTFOLIO</div>
         <div id="belfort-stats" class="belfort-stats"></div>
-        <div id="belfort-pills" class="belfort-status-pills"></div>
-        <div id="belfort-mode-readiness" class="belfort-mode-readiness"></div>
-        <div id="belfort-signal-row" class="belfort-signal-row" style="display:none"></div>
-        <div id="belfort-paper-exec-row" class="belfort-paper-exec-row" style="display:none"></div>
+
+        <!-- Paper trade lane details (signal + exec) -->
+        <div id="belfort-paper-block" class="belfort-lane-block" style="display:none">
+          <div class="blane-block-label">PAPER TRADE LANE &mdash; ALPACA PAPER ACCOUNT, NO REAL MONEY</div>
+          <div id="belfort-signal-row"     class="belfort-signal-row"     style="display:none"></div>
+          <div id="belfort-paper-exec-row" class="belfort-paper-exec-row" style="display:none"></div>
+          <div id="belfort-paper-stats-row" class="bpaper-stats-row" style="display:none"></div>
+        </div>
+
+        <!-- Practice sim lane details -->
+        <div id="belfort-sim-block" class="belfort-lane-block" style="display:none">
+          <div class="blane-block-label">PRACTICE SIM &mdash; NO BROKER, NO REAL MONEY, WORKS ANY HOUR</div>
+          <div id="belfort-sim-row" class="belfort-sim-row"></div>
+          <div id="belfort-sim-perf-row" class="bsim-perf-row" style="display:none"></div>
+        </div>
+
+        <!-- Inline learn strip (compact learning summary) -->
+        <div id="belfort-learn-strip" class="belfort-learn-strip" style="display:none">
+          <div class="blearn-label">WHAT BELFORT IS LEARNING</div>
+          <div id="blearn-content"></div>
+        </div>
+
+        <!-- Recent activity strip (paper / sim / learning events) -->
+        <div id="belfort-activity-strip" class="bactivity-strip" style="display:none">
+          <div class="bactivity-label">RECENT ACTIVITY</div>
+          <div id="belfort-activity-content" class="bactivity-row"></div>
+        </div>
+
+        <!-- Strategy profile (regime fitness) -->
+        <div id="belfort-strategy-profile" class="bstrategy-profile" style="display:none"></div>
+
+        <!-- Frank Lloyd cross-reference -->
         <div id="fl-belfort-work" class="fl-belfort-work" style="display:none"></div>
+
         <div class="dp-divider"></div>
         <div class="dp-section-label">CONTROLS</div>
         <div class="belfort-controls-grid">
-          <button class="bctrl-btn bctrl-start" id="btn-trading-toggle" onclick="belfortToggle('trading')">&#9654; Start Trading</button>
-          <button class="bctrl-btn bctrl-start" id="btn-loop-toggle"    onclick="belfortToggle('loop')">&#9654; Begin Research</button>
+          <button class="bctrl-btn bctrl-start" id="btn-trading-toggle" onclick="belfortToggle('trading')">&#9654; Observe Live</button>
+          <button class="bctrl-btn bctrl-start" id="btn-sim-toggle"     onclick="belfortToggle('sim')">&#9654; Practice Sim</button>
+          <button class="bctrl-btn bctrl-start" id="btn-loop-toggle"    onclick="belfortToggle('loop')">&#9654; Research Campaigns</button>
+          <button class="bctrl-btn bctrl-emergency" id="btn-pause-all"  onclick="belfortPauseAll()" title="Stop all active lanes immediately">&#9632; Stop All</button>
         </div>
+        <div id="belfort-ctrl-explain" class="bctrl-explain"></div>
+
+        <!-- Live Readiness Gate — paper trading track record vs live threshold -->
+        <div id="belfort-live-gate" class="blive-gate" style="display:none">
+          <div class="blive-gate-label">LIVE READINESS GATE</div>
+          <div id="belfort-live-gate-verdict"></div>
+          <div id="belfort-live-gate-metrics" class="blive-gate-metrics"></div>
+        </div>
+
+        <!-- Cost lanes — which lanes are consuming LM/build/research cost -->
+        <div id="belfort-cost-lanes" class="bcost-lanes" style="display:none">
+          <div class="bcost-lanes-label">ACTIVE COST LANES</div>
+          <div id="belfort-cost-lanes-content"></div>
+        </div>
+
+        <!-- Mode advance (secondary — advances Belfort's operating mode, not loop start/stop) -->
+        <div id="belfort-mode-advance-section" style="display:none">
+          <button id="btn-mode-advance" class="bmode-advance-btn" onclick="belfortModeAdvance()">&#9654; Enter Shadow Live</button>
+          <div id="belfort-mode-note" class="bmode-note"></div>
+        </div>
+
         <div class="belfort-reset-section">
           <button class="dp-action-btn" id="btn-reset-init"
                   onclick="belfortResetInit()"
@@ -1729,10 +2078,10 @@ body {
             <div id="readiness-comparison" class="readiness-comparison"></div>
           </details>
         </div>
-        <!-- Mock trading learning history (loaded from /belfort/learning) -->
+        <!-- Trading learning details (loaded from /belfort/learning) -->
         <div id="belfort-learning-section" style="display:none">
           <div class="dp-divider" style="margin-top:8px"></div>
-          <div class="dp-section-label" style="margin-top:8px">MOCK TRADING LEARNING</div>
+          <div class="dp-section-label" style="margin-top:8px">LEARNING DETAILS</div>
           <div id="learning-verdict-row" class="learning-verdict-row"></div>
           <div id="learning-hurting"        class="learning-item learning-hurting"></div>
           <div id="learning-helping"        class="learning-item learning-helping"></div>
@@ -1740,12 +2089,12 @@ body {
           <div id="learning-history"        class="learning-history"></div>
           <div id="learning-research-goal"  class="learning-research-goal"></div>
           <button id="learning-research-btn" class="learning-research-btn" style="display:none"
-                  onclick="belfortResearchWithGoal()">\u25b6 Begin Research</button>
+                  onclick="belfortResearchWithGoal()">\u25b6 Start Learning</button>
         </div>
-        <!-- Mock trading diagnostics (loaded from /belfort/diagnostics) -->
+        <!-- Diagnostics (loaded from /belfort/diagnostics) -->
         <div id="belfort-diagnostics-section" style="display:none">
           <div class="dp-divider" style="margin-top:8px"></div>
-          <div class="dp-section-label" style="margin-top:8px">MOCK TRADING DIAGNOSTICS</div>
+          <div class="dp-section-label" style="margin-top:8px">DIAGNOSTICS</div>
           <div id="diag-strategy" class="diag-block"></div>
           <div id="diag-pnl"      class="diag-block"></div>
           <div id="diag-triggers" class="diag-block"></div>
@@ -1828,6 +2177,21 @@ body {
             </div>
           </div>
         </div><!-- /fl-job-workspace -->
+
+        <!-- Routing lane indicator: Frank-first doctrine visibility -->
+        <div id="fl-routing-row" class="fl-routing-row" style="display:none"></div>
+
+        <!-- Frank control: stop / purge / enable / disable -->
+        <div id="fl-control-block" style="margin-top:6px">
+          <div id="fl-disabled-banner" class="fl-disabled-banner" style="display:none">
+            Frank Lloyd is disabled &mdash; intake paused. Say &lsquo;enable frank&rsquo; or click below.
+          </div>
+          <div class="fl-control-row">
+            <button class="fl-stop-btn" id="fl-btn-stop" onclick="flHardStop()" title="Halt active pipeline run (queued builds remain)">&#9632; Stop</button>
+            <button class="fl-purge-btn" id="fl-btn-purge" onclick="flPurgeAll()" title="Stop active + clear all queued builds">&#9760; Purge All</button>
+            <button class="fl-toggle-btn" id="fl-btn-toggle-intake" onclick="flToggleIntake()" title="Enable or disable Frank build intake">Enable</button>
+          </div>
+        </div>
 
         <!-- Composer: smart build request box -->
         <div id="fl-composer">
@@ -2078,7 +2442,7 @@ function populatePanel(id, state, _skipClear) {
     const flStatus     = (flJob || {}).status || '';
     const flNeedsReview = ['pending_review', 'draft_generated'].includes(flStatus);
     const flNeedsAttn   = flStatus === 'draft_blocked';
-    const needsAttn    = warns > 0 || custBad || sentBad || flNeedsAttn || flRelay.some(r => ['review_needed','spec_blocked','draft_blocked'].includes(r.event));
+    const needsAttn    = warns > 0 || custBad || sentBad || flNeedsAttn || flRelay.some(r => ['review_needed','spec_blocked','draft_blocked','promote_failed','draft_ready','build_failed'].includes(r.event));
     const cls          = (reviewNeeded || flNeedsReview) ? 'review' : needsAttn ? 'warning' : 'idle';
     const label        = (reviewNeeded || flNeedsReview) ? 'REVIEW NEEDED' : needsAttn ? 'ATTENTION NEEDED' : 'AVAILABLE';
     setBadge(cls, label);
@@ -2100,8 +2464,11 @@ function populatePanel(id, state, _skipClear) {
     // Inject Frank Lloyd relay messages into Peter's chat (relay = Frank Lloyd → Peter)
     if (flRelay.length) {
       flRelay.forEach(r => {
-        const isAlert = ['review_needed','spec_blocked','draft_blocked'].includes(r.event);
-        _peterChat.push({role: 'peter', text: '\uD83D\uDEA7 Frank Lloyd: ' + r.msg, cls: isAlert ? 'warn' : ''});
+        const isAlert   = ['review_needed','spec_blocked','draft_blocked','promote_failed','draft_ready','build_failed'].includes(r.event);
+        const isSuccess = r.event === 'build_complete';
+        const isStart   = r.event === 'pipeline_start';
+        const icon = isSuccess ? '\u2705' : isAlert ? '\u26A0\uFE0F' : isStart ? '\uD83D\uDD28' : '\uD83D\uDD27';
+        _peterChat.push({role: 'peter', text: icon + ' Frank Lloyd: ' + r.msg, cls: isAlert ? 'warn' : ''});
       });
       peterChatRender();
     }
@@ -2252,6 +2619,12 @@ function populatePanel(id, state, _skipClear) {
     if (nxw) nxw.style.display = 'none';
     const fls = document.getElementById('frank-lloyd-section');
     if (fls) fls.style.display = '';
+
+    // Render routing lane indicator (Frank-first doctrine visibility)
+    _flRenderRoutingRow(fl.last_routing || null);
+
+    // Render stop/purge/enable controls
+    _updateFlControlBlock(fl);
 
     // Render builder workspace
     _flRenderWorkspace(job);
@@ -2756,6 +3129,13 @@ function _isFlBuildIntent(msg) {
   // Frank Lloyd explicitly mentioned with action verb
   if (/frank\s*lloyd/.test(lower) &&
       /\b(build|add|make|create|write|implement|fix|refactor|clean|diagnose|improve|monitor|remove|delete|update|change|rework|rewrite)\b/.test(lower))
+    return true;
+  // Cosmetic/visual change to any house/panel (Belfort, etc.) → Frank build task.
+  // "change Belfort's house color to green", "update Belfort panel styling", etc.
+  // Must NOT match trading-state commands like "change stop loss threshold".
+  if (/\b(change|update|modify|set|paint|make|turn|switch)\b/.test(lower) &&
+      /\b(color|colour|style|styling|appearance|tile|panel|house|sprite|icon|theme|background|visual|look)\b/.test(lower) &&
+      !/\b(stop.?loss|take.?profit|threshold|window|parameter|strategy|model|position|trading)\b/.test(lower))
     return true;
   // Strong build directive without FL mention
   const buildVerbs = /\b(build|implement|add|create|write|develop)\s+(a|an|the|new)?\s*\w/;
@@ -3299,27 +3679,128 @@ async function belfortResearchWithGoal() {
     }, 600);
   } catch(e) {
     console.error('belfortResearchWithGoal error:', e.message);
-    if (btn) { btn.disabled = false; btn.textContent = '\u25b6 Begin Research'; }
+    if (btn) { btn.disabled = false; btn.textContent = '\u25b6 Research Campaigns'; }
   }
 }
 
 // ── Belfort stats + controls ──────────────────────────────────────────────
 function updateBelfortStats(belfort, supervisor) {
-  const cash      = belfort.cash          != null ? belfort.cash          : 100000;
-  const rpnl      = belfort.realized_pnl  != null ? belfort.realized_pnl  : 0;
+  const cash      = belfort.cash           != null ? belfort.cash           : 100000;
+  const rpnl      = belfort.realized_pnl   != null ? belfort.realized_pnl   : 0;
   const upnl      = belfort.unrealized_pnl != null ? belfort.unrealized_pnl : 0;
-  const trades    = belfort.trade_count   != null ? belfort.trade_count   : 0;
-  const tradingOn = belfort.trading_active || false;
-  const loopOn    = (supervisor || {}).enabled || false;
+  const trades    = belfort.trade_count    != null ? belfort.trade_count    : 0;
+  const tradingOn    = belfort.trading_active || false;
+  const loopOn       = (supervisor || {}).enabled || false;
+  const simOn        = belfort.sim_active     || false;
+  const mode         = belfort.belfort_mode   || 'observation';
+  const session      = belfort.belfort_session_type || 'unknown';
+  const freshness    = belfort.belfort_freshness    || 'no_data';
+  const marketOpen   = session === 'regular';
+  const stratProfile = belfort.belfort_strategy_profile || {};
+  const curRegime    = stratProfile.current_regime || session || 'unknown';
 
+  // ── Active lane header ───────────────────────────────────────────────────
+  const dotEl      = document.getElementById('blane-dot');
+  const labelEl    = document.getElementById('blane-label');
+  const subEl      = document.getElementById('blane-sub');
+  const modeChipEl = document.getElementById('blane-mode-chip');
+  if (dotEl && labelEl && subEl) {
+    let laneDotCls = 'blane-dot paused';
+    let laneLabel  = 'PAUSED';
+    let laneSub    = 'No active lane \u2014 start Paper Trade or Practice Sim below';
+
+    if (tradingOn && mode === 'paper') {
+      laneDotCls = 'blane-dot active';
+      laneLabel  = marketOpen ? 'PAPER TRADE ACTIVE' : 'OBSERVING (market closed)';
+      laneSub    = marketOpen
+        ? 'Paper orders via Alpaca paper account \u2014 no real money'
+        : 'Market is closed \u2014 observing only until market opens';
+    } else if (tradingOn && mode === 'shadow') {
+      laneDotCls = 'blane-dot active';
+      laneLabel  = 'SHADOW MODE ACTIVE';
+      laneSub    = 'Evaluating signals only \u2014 no orders placed';
+    } else if (tradingOn) {
+      laneDotCls = 'blane-dot active';
+      laneLabel  = 'OBSERVING LIVE';
+      laneSub    = 'Watching market data \u2014 no signals or orders';
+    }
+
+    if (simOn) {
+      if (!tradingOn) {
+        laneDotCls = 'blane-dot sim';
+        laneLabel  = 'PRACTICE SIM ACTIVE';
+        laneSub    = 'Simulated trading \u2014 no broker, no real money, works at any hour';
+      } else {
+        laneSub += ' \u2022 Practice Sim also running';
+      }
+    }
+
+    dotEl.className     = laneDotCls;
+    labelEl.textContent = laneLabel;
+    subEl.textContent   = laneSub;
+
+    if (modeChipEl) {
+      const modeShort = {observation:'OBS', shadow:'SHADOW', paper:'PAPER', live:'LIVE'};
+      modeChipEl.textContent = modeShort[mode] || mode.toUpperCase();
+      modeChipEl.className   = 'blane-mode-chip blane-mode-' + mode;
+    }
+    const regimeChipEl = document.getElementById('belfort-regime-chip');
+    if (regimeChipEl) {
+      const regimeLabels = {regular:'REGULAR', pre_market:'PRE-MKT', after_hours:'AFTER-HRS', closed:'CLOSED'};
+      regimeChipEl.textContent = regimeLabels[curRegime] || curRegime.toUpperCase();
+      regimeChipEl.className   = 'bregime-chip bregime-' + curRegime;
+    }
+  }
+
+  // ── Session / notice bar ─────────────────────────────────────────────────
+  const noticeEl = document.getElementById('belfort-session-notice');
+  if (noticeEl) {
+    let html = '', cls = '';
+    if (tradingOn && mode === 'paper' && !marketOpen) {
+      cls  = 'bnotice bnotice-closed';
+      html = '\u23f0 Market is closed \u2014 paper trade loop is observing. Orders will execute when market opens.';
+    } else if (freshness === 'very_stale' && tradingOn) {
+      cls  = 'bnotice bnotice-stale';
+      html = '\u26a0\uFE0F Data is stale \u2014 loop may be stuck or feed is down.';
+    } else if (simOn && !tradingOn) {
+      cls  = 'bnotice bnotice-sim';
+      html = '\u2139\uFE0F Practice Sim: no real money, no broker. Results are for learning only.';
+    }
+    if (html) {
+      noticeEl.className     = cls;
+      noticeEl.innerHTML     = html;
+      noticeEl.style.display = '';
+    } else {
+      noticeEl.style.display = 'none';
+    }
+  }
+
+  // ── Paper availability indicator ──────────────────────────────────────────
+  const paperAvailEl = document.getElementById('belfort-paper-avail');
+  if (paperAvailEl) {
+    const paperAvail    = belfort.belfort_paper_available;
+    const unavailReason = belfort.belfort_paper_unavailable_reason;
+    if (paperAvail === false && unavailReason) {
+      paperAvailEl.className     = 'bpaper-avail bpaper-avail-closed';
+      paperAvailEl.textContent   = '\u23f0 ' + unavailReason;
+      paperAvailEl.style.display = '';
+    } else if (paperAvail && mode === 'paper') {
+      paperAvailEl.className     = 'bpaper-avail bpaper-avail-open';
+      paperAvailEl.textContent   = '\u25cf Market open \u2014 paper execution available';
+      paperAvailEl.style.display = '';
+    } else {
+      paperAvailEl.style.display = 'none';
+    }
+  }
+
+  // ── Paper portfolio stats ────────────────────────────────────────────────
   const statsEl = document.getElementById('belfort-stats');
   if (statsEl) {
     const pnl     = rpnl + upnl;
-    const cashFmt = '$' + (cash >= 1000 ? (cash/1000).toFixed(1) + 'k' : cash.toFixed(0));
+    const cashFmt = '$' + (cash >= 1000 ? (cash/1000).toFixed(1)+'k' : cash.toFixed(0));
     const pnlAbs  = Math.abs(pnl);
-    const pnlFmt  = (pnl >= 0 ? '+$' : '-$') + (pnlAbs >= 1000 ? (pnlAbs/1000).toFixed(2) + 'k' : pnlAbs.toFixed(2));
+    const pnlFmt  = (pnl >= 0 ? '+$' : '-$') + (pnlAbs >= 1000 ? (pnlAbs/1000).toFixed(2)+'k' : pnlAbs.toFixed(2));
     const pnlCls  = pnl > 0.005 ? 'pos' : pnl < -0.005 ? 'neg' : '';
-    // Win rate from last loaded readiness data (null until readiness loads)
     const wr      = _lastReadiness && _lastReadiness.win_rate != null ? _lastReadiness.win_rate : null;
     const wrFmt   = wr != null ? Math.round(wr * 100) + '%' : '\u2014';
     const wrCls   = wr != null && wr >= 0.5 ? 'pos' : wr != null && wr < 0.4 ? 'neg' : '';
@@ -3329,49 +3810,26 @@ function updateBelfortStats(belfort, supervisor) {
       '<div class="bstat"><div class="bstat-label">TRADES</div><div class="bstat-value">' + trades + '</div></div>' +
       '<div class="bstat"><div class="bstat-label">WIN\u00a0%</div><div class="bstat-value ' + wrCls + '">' + wrFmt + '</div></div>';
   }
-  const pillsEl = document.getElementById('belfort-pills');
-  if (pillsEl) {
-    pillsEl.innerHTML =
-      '<div class="bpill ' + (tradingOn ? 'bpill-active' : '') + '">TRADING\u00a0' + (tradingOn ? 'ON' : 'OFF') + '</div>' +
-      '<div class="bpill ' + (loopOn ? 'bpill-active' : '') + '">RESEARCH\u00a0' + (loopOn ? 'ON' : 'OFF') + '</div>';
-  }
 
-  // Mode / readiness / freshness — always shown as separate labeled fields
-  const mrEl = document.getElementById('belfort-mode-readiness');
-  if (mrEl) {
-    const mode        = (belfort.belfort_mode      || 'observation').toUpperCase();
-    const readiness   = (belfort.belfort_readiness || 'NOT_READY');
-    const freshness   = (belfort.belfort_freshness || 'no_data');
-    const freshLabel  = (belfort.belfort_freshness_label || '\u2014');
-    const freshCls    = freshness === 'fresh'     ? 'bmr-ok'
-                      : freshness === 'stale'     ? 'bmr-stale'
-                      : freshness === 'very_stale'? 'bmr-bad'
-                      :                             'bmr-stale';
-    const rdyCls      = readiness === 'NOT_READY'   ? 'bmr-bad'
-                      : readiness === 'LIVE_ELIGIBLE'? 'bmr-ok'
-                      :                               '';
-    mrEl.innerHTML =
-      '<div class="bmr-cell"><div class="bmr-label">MODE</div><div class="bmr-value">' + _escHtml(mode) + '</div></div>' +
-      '<div class="bmr-cell"><div class="bmr-label">READINESS</div><div class="bmr-value ' + rdyCls + '">' + _escHtml(readiness.replace(/_/g, '\u00a0')) + '</div></div>' +
-      '<div class="bmr-cell" style="flex:2"><div class="bmr-label">DATA\u00a0FRESHNESS</div><div class="bmr-value ' + freshCls + '">' + _escHtml(freshLabel) + '</div></div>';
+  // ── Paper trade lane block ───────────────────────────────────────────────
+  const paperBlockEl = document.getElementById('belfort-paper-block');
+  if (paperBlockEl) {
+    paperBlockEl.style.display = (tradingOn && (mode === 'paper' || mode === 'shadow')) ? '' : 'none';
   }
-
-  // Signal evaluation row — shadow/paper only
   const sigEl = document.getElementById('belfort-signal-row');
   if (sigEl) {
-    const sig  = belfort.belfort_latest_signal;
-    const mode = (belfort.belfort_mode || 'observation');
+    const sig = belfort.belfort_latest_signal;
     if (sig && (mode === 'shadow' || mode === 'paper')) {
       const action    = (sig.signal_action || 'hold').toUpperCase();
       const symbol    = _escHtml(sig.symbol || '?');
       const rationale = _escHtml((sig.signal_rationale || '').substring(0, 80));
       const riskOk    = sig.risk_can_proceed !== false;
-      const riskLbl   = riskOk ? 'allowed' : _escHtml(('blocked: ' + (sig.risk_block_reason || '')).substring(0, 60));
+      const riskLbl   = riskOk ? 'allowed' : _escHtml(('blocked: ' + (sig.risk_block_reason || '')).substring(0, 55));
       const actionCls = action === 'BUY' ? 'bsig-action-buy' : action === 'SELL' ? 'bsig-action-sell' : 'bsig-action-hold';
       const riskCls   = riskOk ? 'bsig-risk-allowed' : 'bsig-risk-blocked';
       sigEl.style.display = '';
       sigEl.innerHTML =
-        '<div class="bsig-label">LATEST\u00a0SIGNAL\u00a0(\u2014\u00a0NO\u00a0ORDER\u00a0PLACED)</div>' +
+        '<div class="bsig-label">LATEST SIGNAL \u2014 NO ORDER PLACED</div>' +
         '<span class="' + actionCls + '">' + action + '\u00a0' + symbol + '</span>' +
         '\u00a0\u2014\u00a0' + rationale +
         '\u00a0[\u00a0risk:\u00a0<span class="' + riskCls + '">' + riskLbl + '</span>\u00a0]';
@@ -3379,42 +3837,294 @@ function updateBelfortStats(belfort, supervisor) {
       sigEl.style.display = 'none';
     }
   }
-
-  // Paper execution row — paper mode only, clearly labeled as paper
   const pexEl = document.getElementById('belfort-paper-exec-row');
   if (pexEl) {
-    const pex  = belfort.belfort_latest_paper_exec;
-    const mode = (belfort.belfort_mode || 'observation');
+    const pex = belfort.belfort_latest_paper_exec;
     if (pex && mode === 'paper') {
       const status  = pex.execution_status || '';
       const summary = _escHtml((pex.exec_summary || '').substring(0, 120));
-      let cls = 'bpex-gated', label = 'PAPER\u00a0ORDER\u00a0(\u2014\u00a0NO\u00a0REAL\u00a0MONEY)';
-      if (status === 'submitted') {
-        cls = 'bpex-submitted';
-        label = 'PAPER\u00a0ORDER\u00a0SUBMITTED\u00a0(\u2014\u00a0NO\u00a0REAL\u00a0MONEY)';
-      } else if (status === 'broker_error' || status === 'error') {
-        cls = 'bpex-error';
-        label = 'PAPER\u00a0ORDER\u00a0FAILED';
-      }
+      let cls = 'bpex-gated', label = 'PAPER ORDER \u2014 NO REAL MONEY';
+      if (status === 'submitted') { cls = 'bpex-submitted'; label = 'PAPER ORDER SUBMITTED \u2014 NO REAL MONEY'; }
+      else if (status === 'broker_error' || status === 'error') { cls = 'bpex-error'; label = 'PAPER ORDER FAILED'; }
       pexEl.style.display = '';
-      pexEl.innerHTML =
-        '<div class="bpex-label">' + label + '</div>' +
-        '<span class="' + cls + '">' + summary + '</span>';
+      pexEl.innerHTML = '<div class="bpex-label">' + label + '</div><span class="' + cls + '">' + summary + '</span>';
     } else {
       pexEl.style.display = 'none';
     }
   }
+  const paperStatsRowEl = document.getElementById('belfort-paper-stats-row');
+  if (paperStatsRowEl) {
+    const ls = belfort.belfort_learn_strip || {};
+    const pt = ls.paper_today || {};
+    const pSub  = pt.submitted || 0;
+    const pGate = pt.gated     || 0;
+    const pErr  = pt.errored   || 0;
+    if ((pSub > 0 || pGate > 0) && mode === 'paper' && tradingOn) {
+      paperStatsRowEl.textContent   = 'Today: ' + pSub + '\u00a0submitted, ' + pGate + '\u00a0gated' + (pErr > 0 ? ', ' + pErr + '\u00a0errored' : '');
+      paperStatsRowEl.style.display = '';
+    } else {
+      paperStatsRowEl.style.display = 'none';
+    }
+  }
 
-  // Update toggle button labels based on current state
+  // ── Practice sim lane block ──────────────────────────────────────────────
+  const simBlockEl = document.getElementById('belfort-sim-block');
+  const simRowEl   = document.getElementById('belfort-sim-row');
+  const simStats   = belfort.belfort_sim_stats_today || {};
+  const hasSim     = simOn || (simStats.ticks || 0) > 0;
+  if (simBlockEl) simBlockEl.style.display = hasSim ? '' : 'none';
+  if (simRowEl && hasSim) {
+    const simTrade   = belfort.belfort_latest_sim_trade;
+    const simPos     = belfort.sim_position != null ? belfort.sim_position : 0;
+    const simCash    = belfort.sim_cash     != null ? belfort.sim_cash     : 10000;
+    const simCashFmt = '$' + (simCash >= 1000 ? (simCash/1000).toFixed(1)+'k' : simCash.toFixed(0));
+    let lastFill = '';
+    if (simTrade) {
+      const act    = (simTrade.action || 'hold').toUpperCase();
+      const fp     = simTrade.fill_price != null ? ' @ $' + simTrade.fill_price.toFixed(2) : '';
+      const spnl   = simTrade.sim_pnl != null ? (simTrade.sim_pnl >= 0 ? ' P&L +$' : ' P&L -$') + Math.abs(simTrade.sim_pnl).toFixed(2) : '';
+      const actCls = act === 'BUY' ? 'bsig-action-buy' : act === 'SELL' ? 'bsig-action-sell' : 'bsig-action-hold';
+      lastFill = ' \u00b7 Last: <span class="' + actCls + '">' + _escHtml(act + fp) + '</span>' + _escHtml(spnl);
+    }
+    simRowEl.innerHTML =
+      '<span class="bsim-stats">' +
+      (simStats.fills || 0) + ' fills \u00b7 pos\u00a0' + simPos + ' \u00b7 cash\u00a0' + simCashFmt +
+      lastFill +
+      '</span>';
+  }
+  const simPerfRowEl = document.getElementById('belfort-sim-perf-row');
+  if (simPerfRowEl) {
+    const simPerf = belfort.belfort_sim_performance || {};
+    if ((simPerf.sells || 0) > 0) {
+      const sPnl    = simPerf.realized_pnl != null ? simPerf.realized_pnl : 0;
+      const sPnlFmt = (sPnl >= 0 ? '+$' : '-$') + Math.abs(sPnl).toFixed(2);
+      const sPnlCls = sPnl > 0.005 ? 'pos' : sPnl < -0.005 ? 'neg' : '';
+      let wrPart = '';
+      if (simPerf.win_rate != null) {
+        const wrPct  = Math.round(simPerf.win_rate * 100);
+        const wrNote = simPerf.win_rate_valid ? '' : '\u00a0(few\u00a0trades)';
+        const wrCls  = simPerf.win_rate >= 0.5 ? 'pos' : simPerf.win_rate < 0.4 ? 'neg' : '';
+        wrPart = ' \u00b7 win\u00a0rate: <span class="' + wrCls + '">' + wrPct + '%' + wrNote + '</span>';
+      }
+      simPerfRowEl.innerHTML     = 'Realized P&amp;L: <span class="' + sPnlCls + '">' + sPnlFmt + '</span>' + wrPart + ' \u00b7 ' + (simPerf.sells || 0) + '\u00a0completed';
+      simPerfRowEl.style.display = '';
+    } else {
+      simPerfRowEl.style.display = 'none';
+    }
+  }
+
+  // ── Inline learn strip ───────────────────────────────────────────────────
+  const learnStripEl = document.getElementById('belfort-learn-strip');
+  const learnContent = document.getElementById('blearn-content');
+  if (learnStripEl && learnContent) {
+    const ls = belfort.belfort_learn_strip;
+    if (ls) {
+      learnStripEl.style.display = '';
+      const verdict    = ls.verdict;
+      const vCls       = verdict === 'continue' ? 'blearn-cell-value pos'
+                       : verdict === 'monitor'   ? 'blearn-cell-value warn'
+                       : verdict === 'tune'      ? 'blearn-cell-value warn'
+                       : verdict === 'research'  ? 'blearn-cell-value neg'
+                       :                           'blearn-cell-value';
+      const paperToday = ls.paper_today || {};
+      const paperSub   = paperToday.submitted || 0;
+      const paperGated = paperToday.gated      || 0;
+      const paperStr   = paperSub + '\u00a0sent' + (paperGated > 0 ? ', ' + paperGated + '\u00a0gated' : '');
+      const blocked    = ls.signal_blocked_today != null ? ls.signal_blocked_today : 0;
+      const simStats   = belfort.belfort_sim_stats_today || {};
+      const simFills   = simStats.fills || 0;
+      const simTrade   = belfort.belfort_latest_sim_trade;
+      let simStr = simFills + '\u00a0fills';
+      if (simTrade) {
+        const sAct = (simTrade.action || 'hold').toUpperCase();
+        const sFp  = simTrade.fill_price != null ? ' @\u00a0$' + simTrade.fill_price.toFixed(2) : '';
+        simStr += ' \u00b7 last\u00a0' + _escHtml(sAct + sFp);
+      }
+      learnContent.innerHTML =
+        '<div class="blearn-row">' +
+        '<div class="blearn-cell"><div class="blearn-cell-label">VERDICT</div><div class="' + vCls + '">' +
+          (verdict ? verdict.toUpperCase() : 'NO\u00a0DATA') + '</div></div>' +
+        '<div class="blearn-cell"><div class="blearn-cell-label">PAPER TODAY</div><div class="blearn-cell-value">' +
+          paperStr + '</div></div>' +
+        '<div class="blearn-cell"><div class="blearn-cell-label">BLOCKED</div><div class="blearn-cell-value' +
+          (blocked > 5 ? ' neg' : '') + '">' + blocked + '\u00a0signals</div></div>' +
+        '<div class="blearn-cell"><div class="blearn-cell-label">SIM TODAY</div><div class="blearn-cell-value">' +
+          simStr + '</div></div>' +
+        '</div>' +
+        (ls.main_blocker ? '<div class="blearn-note">Block reason: ' + _escHtml(ls.main_blocker.substring(0, 60)) + '</div>' : '') +
+        '<div class="blearn-note">' + _escHtml((ls.verdict_note || '').substring(0, 90)) + '</div>';
+    } else {
+      learnStripEl.style.display = 'none';
+    }
+  }
+
+  // ── Recent activity strip ─────────────────────────────────────────────────
+  const activityStripEl   = document.getElementById('belfort-activity-strip');
+  const activityContentEl = document.getElementById('belfort-activity-content');
+  if (activityStripEl && activityContentEl) {
+    const ra     = belfort.belfort_recent_activity || {};
+    const raExec = ra.latest_paper_exec;
+    const raSim  = ra.latest_sim_trade;
+    const raSnap = ra.latest_snapshot;
+    const lines  = [];
+
+    // Paper event line
+    if (raExec) {
+      const execStatus  = raExec.execution_status || '';
+      const execSummary = _escHtml((raExec.exec_summary || '').substring(0, 72));
+      const execCls     = execStatus === 'submitted' ? 'pos' : '';
+      lines.push('<span class="bactivity-tag bactivity-paper">PAPER</span><span class="' + execCls + '">' + execSummary + '</span>');
+    } else {
+      lines.push('<span class="bactivity-tag bactivity-paper">PAPER</span>No paper activity today');
+    }
+
+    // Sim event line
+    if (raSim && raSim.action !== 'hold') {
+      const simAct = (raSim.action || 'hold').toUpperCase();
+      const simFp  = raSim.fill_price != null ? ' @ $' + raSim.fill_price.toFixed(2) : '';
+      const simPnl = raSim.sim_pnl != null
+        ? ' \u00b7 P&amp;L ' + (raSim.sim_pnl >= 0 ? '+' : '') + '$' + Math.abs(raSim.sim_pnl).toFixed(2)
+        : '';
+      const simCls = raSim.sim_pnl > 0 ? 'pos' : raSim.sim_pnl < 0 ? 'neg' : '';
+      lines.push('<span class="bactivity-tag bactivity-sim">SIM</span><span class="' + simCls + '">' + _escHtml(simAct + simFp) + simPnl + '</span>');
+    } else {
+      lines.push('<span class="bactivity-tag bactivity-sim">SIM</span>No sim fills today');
+    }
+
+    // Learning event line
+    if (raSnap) {
+      const snapTime    = (raSnap.written_at || '').substring(11, 16) + '\u00a0UTC';
+      const snapVerdict = raSnap.verdict || 'unknown';
+      const snapRegime  = raSnap.market_regime || raSnap.regime || '';
+      const vCls        = snapVerdict === 'continue' ? 'pos' : snapVerdict === 'research' ? 'neg' : '';
+      lines.push('<span class="bactivity-tag bactivity-learn">LEARN</span>Snapshot ' + snapTime + ' \u2014 <span class="' + vCls + '">' + snapVerdict + '</span>' + (snapRegime ? ' [' + _escHtml(snapRegime) + ']' : ''));
+    } else {
+      lines.push('<span class="bactivity-tag bactivity-learn">LEARN</span>No snapshots yet \u2014 trade 20 ticks to generate');
+    }
+
+    activityStripEl.style.display = '';
+    activityContentEl.innerHTML   = lines.join('<br>');
+  }
+
+  // ── Strategy profile (regime fitness) ────────────────────────────────────
+  const stratEl = document.getElementById('belfort-strategy-profile');
+  if (stratEl) {
+    const fitReg = stratProfile.fitness_regular;
+    const fitSim = stratProfile.fitness_sim;
+    if (fitReg || fitSim) {
+      stratEl.style.display = '';
+      const regLabel = {regular:'REGULAR', pre_market:'PRE-MKT', after_hours:'AFTER-HRS', closed:'CLOSED'}[curRegime] || curRegime.toUpperCase();
+      let txt = 'Paper [' + regLabel + ']: ' + (fitReg || '\u2014') + ' \u00b7 Sim [any-hour]: ' + (fitSim || '\u2014');
+      if (curRegime !== 'regular') txt += ' \u00b7 Extended hours: paper not supported.';
+      stratEl.textContent = txt;
+    } else {
+      stratEl.style.display = 'none';
+    }
+  }
+
+  // ── Control button labels ────────────────────────────────────────────────
   const tradBtn = document.getElementById('btn-trading-toggle');
   if (tradBtn && !tradBtn.disabled) {
-    tradBtn.textContent = tradingOn ? '\u25a0 Stop Trading' : '\u25b6 Start Trading';
+    const modeLabel = mode === 'paper' ? 'Paper Trade Live' : mode === 'shadow' ? 'Shadow Live' : 'Observe Live';
+    tradBtn.textContent = tradingOn ? '\u25a0 Stop ' + modeLabel : '\u25b6 ' + modeLabel;
     tradBtn.className   = 'bctrl-btn ' + (tradingOn ? 'bctrl-on bctrl-stop' : 'bctrl-start');
   }
   const loopBtn = document.getElementById('btn-loop-toggle');
   if (loopBtn && !loopBtn.disabled) {
-    loopBtn.textContent = loopOn ? '\u25a0 Stop Research' : '\u25b6 Begin Research';
+    loopBtn.textContent = loopOn ? '\u25a0 Stop Research' : '\u25b6 Research Campaigns';
     loopBtn.className   = 'bctrl-btn ' + (loopOn ? 'bctrl-on bctrl-stop' : 'bctrl-start');
+  }
+  const simBtn = document.getElementById('btn-sim-toggle');
+  if (simBtn && !simBtn.disabled) {
+    simBtn.textContent = simOn ? '\u25a0 Stop Sim' : '\u25b6 Practice Sim';
+    simBtn.className   = 'bctrl-btn ' + (simOn ? 'bctrl-on bctrl-stop' : 'bctrl-start');
+  }
+  const pauseBtn = document.getElementById('btn-pause-all');
+  if (pauseBtn) {
+    const anyActive = tradingOn || loopOn || simOn;
+    pauseBtn.className = 'bctrl-btn bctrl-emergency';
+    pauseBtn.disabled  = !anyActive;
+  }
+  const explainEl = document.getElementById('belfort-ctrl-explain');
+  if (explainEl) {
+    let explainText =
+      mode === 'paper'
+        ? 'Paper Trade Live: evaluates signals and submits to Alpaca paper account \u2014 no real money'
+        : mode === 'shadow'
+        ? 'Shadow Live: evaluates signals, logs decisions, no orders sent \u2014 safe to run any time'
+        : 'Observe Live: watches market data only \u2014 no signal eval, no orders';
+    if (simOn) explainText += ' \u00b7 Practice Sim: parallel mock fills, no broker, any hour';
+    explainEl.textContent = explainText;
+  }
+
+  // ── Mode advance section (secondary — advances Belfort's mode, not loop toggle) ──
+  const modeAdvanceSec = document.getElementById('belfort-mode-advance-section');
+  const modeAdvanceBtn = document.getElementById('btn-mode-advance');
+  const modeNoteEl     = document.getElementById('belfort-mode-note');
+  if (modeAdvanceSec && modeAdvanceBtn) {
+    const _modeOrder = ['observation', 'shadow', 'paper'];
+    const curIdx     = _modeOrder.indexOf(mode);
+    const nextMode   = _modeOrder[curIdx + 1];
+    if (nextMode && nextMode !== 'live') {
+      modeAdvanceSec.style.display = '';
+      const nextLabel = nextMode === 'shadow' ? 'Shadow Live' : nextMode === 'paper' ? 'Paper Trade Live' : nextMode;
+      modeAdvanceBtn.textContent   = '\u25b6 Enter ' + nextLabel;
+      if (modeNoteEl) {
+        modeNoteEl.textContent = 'Advancing mode is one-way. Current mode: ' + (mode === 'observation' ? 'Observe Live' : mode === 'shadow' ? 'Shadow Live' : 'Paper Trade Live') + '.';
+      }
+    } else {
+      modeAdvanceSec.style.display = 'none';
+    }
+  }
+
+  // ── Live Readiness Gate ───────────────────────────────────────────────────
+  const liveGateEl = document.getElementById('belfort-live-gate');
+  const liveVerdEl = document.getElementById('belfort-live-gate-verdict');
+  const liveMetEl  = document.getElementById('belfort-live-gate-metrics');
+  if (liveGateEl && liveVerdEl && liveMetEl) {
+    const lr = belfort.belfort_live_readiness;
+    if (lr) {
+      liveGateEl.style.display = '';
+      const verdictCls = {
+        'not_enough_data': 'blive-gate-not-enough',
+        'not_ready':       'blive-gate-not-ready',
+        'candidate':       'blive-gate-candidate',
+      }[lr.verdict] || 'blive-gate-not-enough';
+      liveGateEl.className = 'blive-gate ' + verdictCls;
+      const verdictLabel = {
+        'not_enough_data': 'NOT ENOUGH DATA',
+        'not_ready':       'NOT READY',
+        'candidate':       'CANDIDATE',
+      }[lr.verdict] || lr.verdict.toUpperCase();
+      liveVerdEl.textContent = verdictLabel + ' \u2014 ' + (lr.note || '');
+      const wrStr  = lr.win_rate != null ? (Math.round(lr.win_rate * 100) + '% win rate') : 'no win rate';
+      const expStr = lr.expectancy != null ? ('$' + lr.expectancy.toFixed(2) + '/trade') : '';
+      const brStr  = lr.block_rate != null ? (Math.round(lr.block_rate * 100) + '% signals blocked') : '';
+      liveMetEl.textContent = [
+        lr.trade_count + ' paper trades',
+        lr.paper_orders + ' paper orders',
+        wrStr,
+        expStr,
+        brStr,
+      ].filter(Boolean).join(' \u00b7 ');
+    } else {
+      liveGateEl.style.display = 'none';
+    }
+  }
+
+  // ── Cost lanes ───────────────────────────────────────────────────────────
+  const costLanesEl = document.getElementById('belfort-cost-lanes');
+  const costContentEl = document.getElementById('belfort-cost-lanes-content');
+  if (costLanesEl && costContentEl) {
+    const lanes = [];
+    if (tradingOn) lanes.push('<span class="bcost-lane-on">Paper lane: ON (live signal eval)</span>');
+    else           lanes.push('<span class="bcost-lane-off">Paper lane: off</span>');
+    if (simOn)     lanes.push('<span class="bcost-lane-on">Sim lane: ON (no broker cost)</span>');
+    else           lanes.push('<span class="bcost-lane-off">Sim lane: off</span>');
+    if (loopOn)    lanes.push('<span class="bcost-lane-on">Research: ON (manual \u2014 LM active)</span>');
+    else           lanes.push('<span class="bcost-lane-off">Research: off \u2014 auto-learning continues from trading/sim ticks</span>');
+    costContentEl.innerHTML = lanes.join('<br>');
+    costLanesEl.style.display = (tradingOn || simOn || loopOn) ? '' : 'none';
   }
 }
 
@@ -3423,6 +4133,8 @@ const _BELFORT_ENDPOINTS = {
   trading_stop:  '/monitor/trading/stop',
   loop_enable:   '/supervisor/enable',
   loop_disable:  '/supervisor/disable',
+  sim_start:     '/monitor/trading/sim/start',
+  sim_stop:      '/monitor/trading/sim/stop',
 };
 const _BELFORT_BTN_IDS = {
   trading_start: 'btn-trading-start',
@@ -3447,6 +4159,10 @@ async function belfortToggle(what) {
     const on = _lastState && _lastState.supervisor && _lastState.supervisor.enabled;
     action = on ? 'loop_disable' : 'loop_enable';
     btnId  = 'btn-loop-toggle';
+  } else if (what === 'sim') {
+    const on = _lastState && _lastState.belfort && _lastState.belfort.sim_active;
+    action = on ? 'sim_stop' : 'sim_start';
+    btnId  = 'btn-sim-toggle';
   }
   if (!action) return;
   const url = _BELFORT_ENDPOINTS[action];
@@ -3466,6 +4182,53 @@ async function belfortToggle(what) {
   } catch(e) {
     console.error('belfortToggle error:', what, e.message);
     if (btn) { btn.disabled = false; btn.textContent = what === 'trading' ? '\u25b6 Start Trading' : '\u25b6 Begin Research'; }
+  }
+}
+
+async function belfortPauseAll() {
+  const btn = document.getElementById('btn-pause-all');
+  if (btn) { btn.disabled = true; btn.textContent = 'Pausing\u2026'; }
+  try {
+    const tradingOn = _lastState && _lastState.belfort && _lastState.belfort.trading_active;
+    const loopOn    = _lastState && _lastState.supervisor && _lastState.supervisor.enabled;
+    const simOn     = _lastState && _lastState.belfort && _lastState.belfort.sim_active;
+    const calls = [];
+    if (tradingOn) calls.push(fetch('/monitor/trading/stop',         {method:'POST', headers:{'Content-Type':'application/json'}}));
+    if (loopOn)    calls.push(fetch('/supervisor/disable',           {method:'POST', headers:{'Content-Type':'application/json'}}));
+    if (simOn)     calls.push(fetch('/monitor/trading/sim/stop',     {method:'POST', headers:{'Content-Type':'application/json'}}));
+    if (calls.length === 0) { if (btn) btn.disabled = false; return; }
+    await Promise.all(calls);
+    setTimeout(async () => {
+      if (btn) btn.disabled = false;
+      const s = await fetchState();
+      if (s) applyState(s);
+    }, 600);
+  } catch(e) {
+    console.error('belfortPauseAll error:', e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '\u25a0 Stop All'; }
+  }
+}
+
+async function belfortModeAdvance() {
+  const btn    = document.getElementById('btn-mode-advance');
+  const noteEl = document.getElementById('belfort-mode-note');
+  if (btn) { btn.disabled = true; btn.textContent = 'Advancing\u2026'; }
+  if (noteEl) noteEl.textContent = '';
+  try {
+    const r    = await fetch('/monitor/belfort/mode/advance', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+    const data = await r.json();
+    if (!data.ok && noteEl) {
+      noteEl.textContent = data.error || 'Advance not allowed.';
+    }
+    setTimeout(async () => {
+      if (btn) btn.disabled = false;
+      const s = await fetchState();
+      if (s) applyState(s);
+    }, 400);
+  } catch(e) {
+    console.error('belfortModeAdvance error:', e.message);
+    if (btn) btn.disabled = false;
+    if (noteEl) noteEl.textContent = 'Network error — try again.';
   }
 }
 
@@ -3635,6 +4398,35 @@ function _flRenderStream(job) {
     (e.detail ? '<span class="fl-se-detail">\u00a0' + _escHtml(e.detail) + '</span>' : '') +
     '</div>'
   ).join('');
+}
+
+function _flRenderRoutingRow(routing) {
+  const el = document.getElementById('fl-routing-row');
+  if (!el) return;
+  if (!routing) {
+    el.textContent = 'Builder: unknown';
+    el.style.display = '';
+    return;
+  }
+  const lane   = routing.builder_lane        || 'unknown';
+  const tier   = routing.cost_tier           || '';
+  const reason = routing.escalation_reason   || '';
+  const absorb = routing.absorption_candidate || false;
+
+  let html = '';
+  if (lane === 'frank') {
+    html += '<span class="fl-routing-lane">Builder: Frank Lloyd</span>';
+  } else if (lane === 'claude') {
+    html += '<span class="fl-routing-lane fl-routing-escalated">Builder: Claude escalation</span>';
+  } else {
+    html += '<span class="fl-routing-lane">Builder: ' + _escHtml(lane) + '</span>';
+  }
+  if (tier) html += ' \u00b7 Cost: ' + _escHtml(tier);
+  if (reason) html += ' \u00b7 <span class="fl-routing-escalated">Reason: ' + _escHtml(reason) + '</span>';
+  if (absorb) html += ' \u00b7 <span class="fl-routing-absorption">Absorption candidate</span>';
+
+  el.innerHTML = html;
+  el.style.display = '';
 }
 
 function _flRenderWorkspace(job) {
@@ -4161,6 +4953,72 @@ async function flLoadDraft(buildId) {
   }
 }
 
+// ── Frank Lloyd hard-stop and purge controls ──────────────────────────────────
+
+async function flHardStop() {
+  const btn = document.getElementById('fl-btn-stop');
+  if (btn) { btn.disabled = true; btn.textContent = 'Stopping\u2026'; }
+  try {
+    const r = await fetch('/frank-lloyd/hard-stop', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+    const data = await r.json();
+    if (btn) { btn.disabled = false; btn.textContent = '\u25a0 Stop'; }
+    setTimeout(tick, 600);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '\u25a0 Stop'; }
+    console.error('flHardStop error:', e.message);
+  }
+}
+
+async function flPurgeAll() {
+  if (!confirm('Stop active Frank Lloyd job and purge all queued builds? This cannot be undone.')) return;
+  const btn = document.getElementById('fl-btn-purge');
+  if (btn) { btn.disabled = true; btn.textContent = 'Purging\u2026'; }
+  try {
+    const r = await fetch('/frank-lloyd/purge-all', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({notes: 'Purged by operator via UI'}),
+    });
+    const data = await r.json();
+    if (btn) { btn.disabled = false; btn.textContent = '\u9760 Purge All'; }
+    setTimeout(tick, 600);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '\u9760 Purge All'; }
+    console.error('flPurgeAll error:', e.message);
+  }
+}
+
+async function flToggleIntake() {
+  const btn = document.getElementById('fl-btn-toggle-intake');
+  const fl  = (_lastState && _lastState.frank_lloyd) ? _lastState.frank_lloyd : {};
+  const currentlyEnabled = fl.fl_enabled !== false;
+  if (btn) { btn.disabled = true; btn.textContent = currentlyEnabled ? 'Disabling\u2026' : 'Enabling\u2026'; }
+  const endpoint = currentlyEnabled ? '/frank-lloyd/disable' : '/frank-lloyd/enable';
+  try {
+    await fetch(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json'}});
+    if (btn) btn.disabled = false;
+    setTimeout(tick, 400);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = currentlyEnabled ? 'Disable' : 'Enable'; }
+    console.error('flToggleIntake error:', e.message);
+  }
+}
+
+function _updateFlControlBlock(fl) {
+  const disabledBanner = document.getElementById('fl-disabled-banner');
+  const toggleBtn      = document.getElementById('fl-btn-toggle-intake');
+  const stopBtn        = document.getElementById('fl-btn-stop');
+  const purgeBtn       = document.getElementById('fl-btn-purge');
+  const flEnabled      = fl.fl_enabled !== false;
+  const anyWork        = (fl.pending_count || 0) + (fl.inprogress_count || 0) > 0;
+  const running        = fl.fl_runner_state && fl.fl_runner_state.running;
+
+  if (disabledBanner) disabledBanner.style.display = flEnabled ? 'none' : '';
+  if (toggleBtn) toggleBtn.textContent = flEnabled ? 'Disable' : 'Enable';
+  if (stopBtn)  stopBtn.disabled  = !running;
+  if (purgeBtn) purgeBtn.disabled = !anyWork;
+}
+
 // ── Frank Lloyd build composer ────────────────────────────────────────────────
 
 async function flQueueBuild() {
@@ -4288,7 +5146,7 @@ function updateSummary(state) {
   const _flSt      = (_flAj || (state.frank_lloyd || {}).active_build || {}).status || '';
   const _flPend    = (state.frank_lloyd || {}).pending_count || 0;
   const _flRelayN  = ((state.frank_lloyd || {}).fl_relay || []).length;
-  const _flRelayAlert = ((state.frank_lloyd || {}).fl_relay || []).some(r => ['review_needed','spec_blocked','draft_blocked'].includes(r.event));
+  const _flRelayAlert = ((state.frank_lloyd || {}).fl_relay || []).some(r => ['review_needed','spec_blocked','draft_blocked','promote_failed','draft_ready','build_failed'].includes(r.event));
   const _flText = _flSt === 'draft_generated'  ? 'Build: draft ready'
                 : _flSt === 'pending_review'    ? 'Build: plan needs review'
                 : _flSt === 'draft_blocked'      ? 'Build: draft blocked'
@@ -4351,7 +5209,7 @@ function applyState(state) {
   const flActive     = fl.active_build   || null;
   const flAStatus    = (flActive || {}).status || '';
   const flRelay      = fl.fl_relay || [];
-  const flHasAlert   = flRelay.some(r => ['review_needed','spec_blocked','draft_blocked'].includes(r.event));
+  const flHasAlert   = flRelay.some(r => ['review_needed','spec_blocked','draft_blocked','promote_failed','build_failed'].includes(r.event));
   const flHasReady   = flRelay.some(r => r.event === 'draft_ready');
   const flCls = flAStatus === 'pending_review' ? 'st-review'
               : flAStatus === 'draft_generated' ? 'st-review'
@@ -4380,8 +5238,8 @@ function applyState(state) {
   // Show relay messages in FL workspace action feedback when FL panel is active
   if (flRelay.length && _currentSelection === 'frank-lloyd') {
     const latest = flRelay[flRelay.length - 1];
-    const isAlert = ['review_needed','spec_blocked','draft_blocked'].includes(latest.event);
-    _flFeedback(latest.msg, isAlert ? 'error' : latest.event === 'draft_ready' ? 'ok' : 'pending');
+    const isAlert = ['review_needed','spec_blocked','draft_blocked','promote_failed','build_failed'].includes(latest.event);
+    _flFeedback(latest.msg, isAlert ? 'error' : latest.event === 'build_complete' ? 'ok' : latest.event === 'draft_ready' ? 'ok' : 'pending');
   }
 
   // Belfort

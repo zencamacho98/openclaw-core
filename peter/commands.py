@@ -273,6 +273,11 @@ class CommandType(str, Enum):
     KILL_TRADING       = "kill_trading"        # engage kill switch (paper / live)
     # ── Frank Lloyd bulk maintenance ──────────────────────────────────────────────
     FL_BULK_ABANDON      = "fl_bulk_abandon"       # abandon all non-terminal builds by source
+    # ── Frank Lloyd hard-stop and purge ──────────────────────────────────────────
+    FL_HARD_STOP         = "fl_hard_stop"          # stop active pipeline run immediately
+    FL_CLEAR_ALL         = "fl_clear_all"          # stop active + purge all non-terminal builds
+    FL_DISABLE           = "fl_disable"            # disable Frank intake gate
+    FL_ENABLE            = "fl_enable"             # re-enable Frank intake gate
     # ── Belfort mode/preflight commands ──────────────────────────────────────────
     BELFORT_STATUS       = "belfort_status"        # current mode + readiness claim
     BELFORT_MODE_CONTROL = "belfort_mode_control"  # advance / regress / set mode
@@ -602,6 +607,36 @@ def parse_command(
     # start auto research
     if lower.startswith("start") or lower in ("go",):
         return _cmd(CommandType.START_AUTO)
+
+    # Frank Lloyd hard-stop — MUST precede generic "stop" rule
+    if lower in (
+        "stop frank", "stop frank lloyd", "frank stop", "frank lloyd stop",
+        "halt frank", "halt frank lloyd",
+    ) or lower.startswith("stop frank ") or lower.startswith("stop frank lloyd "):
+        return _cmd(CommandType.FL_HARD_STOP)
+
+    # Frank Lloyd clear/purge all — MUST precede generic "stop"/"clear" rules
+    if lower in (
+        "clear frank", "purge frank", "frank clear", "frank lloyd clear",
+        "clear frank lloyd", "purge frank lloyd", "frank purge",
+        "stop and clear frank", "stop and clear frank lloyd",
+        "clear and stop frank", "clear all frank builds",
+        "frank lloyd purge", "frank lloyd clear all",
+        "frank clear all", "clear all frank",
+    ) or lower.startswith("clear frank ") or lower.startswith("purge frank "):
+        return _cmd(CommandType.FL_CLEAR_ALL)
+
+    # Frank Lloyd disable/enable
+    if lower in (
+        "disable frank", "frank disable", "frank lloyd disable", "disable frank lloyd",
+        "frank off", "frank lloyd off",
+    ):
+        return _cmd(CommandType.FL_DISABLE, {"reason": ""})
+    if lower in (
+        "enable frank", "frank enable", "frank lloyd enable", "enable frank lloyd",
+        "frank on", "frank lloyd on",
+    ):
+        return _cmd(CommandType.FL_ENABLE)
 
     # stop after current session
     if lower.startswith("stop") or lower in ("halt",):

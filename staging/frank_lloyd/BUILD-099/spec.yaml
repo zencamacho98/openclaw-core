@@ -1,0 +1,48 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-099"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-12T03:13:18.038235+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Create endpoint provides current portfolio snapshot"
+description: "Create a new endpoint that provides the current portfolio snapshot in JSON format."
+success_criteria: "The new endpoint returns a valid JSON response containing the current portfolio snapshot when accessed."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: new_service
+risk_level: medium
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "app/routes/portfolio_snapshot.py"
+      purpose: "New endpoint to provide current portfolio snapshot in JSON format."
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "app/portfolio.py"
+      decision: used
+      reason: "To retrieve the current portfolio data for the snapshot."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: experience
+layer_justification: "The new endpoint will serve the frontend with portfolio data in JSON format."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_portfolio_snapshot.py"
+  coverage_note: "The test will cover the new endpoint and validate the JSON response."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: loud
+  rollback: "Rollback will involve removing the new endpoint and its associated test file."
+  scope: "The change is isolated to the new endpoint without affecting existing services."

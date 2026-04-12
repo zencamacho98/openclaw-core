@@ -1,0 +1,63 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-090"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-12T00:33:48.199934+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Create health endpoint checks status of"
+description: "Create a health endpoint that checks the status of the database and returns the result."
+success_criteria: "The health endpoint returns a 200 status code when the database is accessible and a 500 status code when it is not."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: new_service
+risk_level: medium
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "app/routes/health_check.py"
+      purpose: "New health check endpoint for database status"
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "app/cost_warden.LMHelper"
+      decision: not_needed
+      reason: "No integration with cost warden required for health check"
+    - capability: "observability/agent_state.py"
+      decision: not_needed
+      reason: "Agent state not relevant for health check"
+    - capability: "observability/event_log.py"
+      decision: not_needed
+      reason: "No event logging required for health check"
+    - capability: "observability/telemetry.py"
+      decision: not_needed
+      reason: "Telemetry not required for health check"
+    - capability: "research/approval_policy.py"
+      decision: not_needed
+      reason: "No approval flow needed for health check"
+    - capability: "research/governance.py"
+      decision: not_needed
+      reason: "Governance not applicable for health check"
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: operating_services
+layer_justification: "The health check service monitors the operational status of the database."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_health_check.py"
+  coverage_note: "Test file will cover the health check endpoint functionality."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: loud
+  rollback: "Rollback involves removing the health check endpoint if it fails."
+  scope: "The scope is limited to the new health check endpoint and its tests."

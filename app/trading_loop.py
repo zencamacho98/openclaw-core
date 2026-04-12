@@ -114,6 +114,19 @@ def _run_signal_evaluation() -> dict | None:
         return None
 
 
+def _run_regime_snapshot() -> None:
+    """
+    Periodic regime-separated learning snapshot — called every 20 ticks.
+    Writes to data/learning_history.jsonl only when the tick interval is met.
+    Never places orders. Failure is silently swallowed.
+    """
+    try:
+        from app.belfort_regime_learning import maybe_record_regime_snapshot
+        maybe_record_regime_snapshot(_ticks)
+    except Exception:
+        pass
+
+
 def _run_paper_execution(signal_record: dict | None) -> None:
     """
     Paper-only order placement — fires only when mode=paper and the signal is
@@ -146,6 +159,9 @@ def _loop_body(interval: int) -> None:
         manager.assign(AGENT_NAME, TASK_NAME)
         run_once(max_tasks=1)
         _ticks += 1
+        # Regime snapshot every 20 ticks
+        if _ticks % 20 == 0:
+            _run_regime_snapshot()
         # Graceful-stop check: if stop was requested and the position is now
         # closed, transition to fully stopped.
         if _stop_requested and not _has_open_position():

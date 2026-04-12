@@ -33,6 +33,7 @@ _OBS_LOG         = _ROOT / "data" / "belfort" / "observation_log.jsonl"
 _MODE_FILE       = _ROOT / "data" / "agent_state" / "belfort_mode.json"
 _SIGNAL_LOG      = _ROOT / "data" / "belfort" / "signal_log.jsonl"
 _PAPER_EXEC_LOG  = _ROOT / "data" / "belfort" / "paper_exec_log.jsonl"
+_SIM_LOG         = _ROOT / "data" / "belfort" / "sim_log.jsonl"
 
 # ── Mode ordering (mirrors app/belfort_mode._ORDER) ──────────────────────────
 # Duplicated here so Peter handlers never import from app/.
@@ -340,6 +341,388 @@ def read_paper_exec_stats_today() -> dict:
         pass
 
     return stats
+
+
+# ── Sim log bridge ───────────────────────────────────────────────────────────
+
+def read_latest_sim_trade() -> Optional[dict]:
+    """
+    Return the most recent sim log record where action was buy or sell
+    (i.e. an actual fill, not a hold tick).
+    Returns None if no fills have been recorded.
+    """
+    if not _SIM_LOG.exists():
+        return None
+    try:
+        lines = [
+            ln.strip()
+            for ln in _SIM_LOG.read_text(encoding="utf-8").splitlines()
+            if ln.strip()
+        ]
+        for line in reversed(lines):
+            try:
+                rec = json.loads(line)
+                if rec.get("action") in ("buy", "sell"):
+                    return rec
+            except (json.JSONDecodeError, ValueError):
+                continue
+    except Exception:
+        pass
+    return None
+
+
+def read_learn_strip() -> Optional[dict]:
+    """
+    Compact learning summary for the inline neighborhood learn strip.
+
+    Returns:
+        verdict:              str | None — "continue" | "monitor" | "tune" | "research"
+        verdict_note:         str        — short human note from the last learning run
+        paper_today:          dict       — {submitted, gated, errored} counts for today
+        signal_blocked_today: int        — risk-blocked signals today
+        main_blocker:         str | None — most common block reason today
+    """
+    from datetime import date as _date
+    today = _date.today().isoformat()
+
+    # ── Verdict from learning history ──────────────────────────────────────
+    verdict: Optional[str] = None
+    verdict_note: str = "No learning data yet — run a research session to get feedback."
+    _LEARNING_HISTORY = _ROOT / "data" / "learning_history.jsonl"
+    if _LEARNING_HISTORY.exists():
+        try:
+            lines = [
+                ln.strip()
+                for ln in _LEARNING_HISTORY.read_text(encoding="utf-8").splitlines()
+                if ln.strip()
+            ]
+            for line in reversed(lines):
+                try:
+                    rec = json.loads(line)
+                    verdict = rec.get("verdict")
+                    if verdict:
+                        # Map verdict to a short note
+                        _verdict_notes = {
+                            "continue": "Strategy is performing — keep running.",
+                            "monitor":  "Performance is mixed — watch closely.",
+                            "tune":     "Edge exists but needs parameter adjustment.",
+                            "research": "Strategy not working — research recommended.",
+                        }
+                        verdict_note = _verdict_notes.get(verdict, verdict)
+                        break
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        except Exception:
+            pass
+
+    # ── Signal stats (blocked count + main blocker) ────────────────────────
+    signal_blocked_today = 0
+    main_blocker: Optional[str] = None
+    block_reason_counts: dict = {}
+    if _SIGNAL_LOG.exists():
+        try:
+            for line in _SIGNAL_LOG.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if rec.get("skipped"):
+                    continue
+                if not rec.get("written_at", "").startswith(today):
+                    continue
+                if not rec.get("risk_can_proceed", True):
+                    signal_blocked_today += 1
+                    reason = rec.get("risk_block_reason", "")
+                    if reason:
+                        # Shorten to first clause
+                        short = reason.split(":")[0].strip()[:50]
+                        block_reason_counts[short] = block_reason_counts.get(short, 0) + 1
+            if block_reason_counts:
+                main_blocker = max(block_reason_counts, key=block_reason_counts.get)
+        except Exception:
+            pass
+
+    # ── Paper stats today ──────────────────────────────────────────────────
+    paper_today = {"submitted": 0, "gated": 0, "errored": 0}
+    if _PAPER_EXEC_LOG.exists():
+        try:
+            for line in _PAPER_EXEC_LOG.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if not rec.get("written_at", "").startswith(today):
+                    continue
+                status = rec.get("execution_status", "")
+                if status == "submitted":
+                    paper_today["submitted"] += 1
+                elif status == "gated":
+                    paper_today["gated"] += 1
+                elif status in ("broker_error", "error"):
+                    paper_today["errored"] += 1
+        except Exception:
+            pass
+
+    return {
+        "verdict":              verdict,
+        "verdict_note":         verdict_note,
+        "paper_today":          paper_today,
+        "signal_blocked_today": signal_blocked_today,
+        "main_blocker":         main_blocker,
+    }
+
+
+def read_sim_running_status() -> dict:
+    """
+    Return the current sim lane runtime status from app.belfort_sim.
+    Wraps the app-layer import so peter/handlers.py stays transport-isolated.
+    Returns a safe default dict if the module is unavailable.
+    """
+    try:
+        from app.belfort_sim import get_sim_status
+        return get_sim_status()
+    except Exception:
+        return {
+            "running":      False,
+            "interval":     5,
+            "ticks":        0,
+            "fills":        0,
+            "started_at":   None,
+            "sim_cash":     10_000.0,
+            "sim_position": 0,
+        }
+
+
+def read_sim_stats_today() -> dict:
+    """
+    Aggregate today's sim log records.
+
+    Returns:
+        ticks:  int — total ticks recorded today
+        fills:  int — buy or sell fills today
+        buys:   int — buy fills today
+        sells:  int — sell fills today
+        holds:  int — hold ticks today
+    """
+    from datetime import date as _date
+    today = _date.today().isoformat()
+
+    stats: dict = {"ticks": 0, "fills": 0, "buys": 0, "sells": 0, "holds": 0}
+    if not _SIM_LOG.exists():
+        return stats
+
+    try:
+        for line in _SIM_LOG.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if not rec.get("written_at", "").startswith(today):
+                continue
+            stats["ticks"] += 1
+            action = rec.get("action", "hold")
+            if action == "buy":
+                stats["buys"]  += 1
+                stats["fills"] += 1
+            elif action == "sell":
+                stats["sells"] += 1
+                stats["fills"] += 1
+            else:
+                stats["holds"] += 1
+    except Exception:
+        pass
+
+    return stats
+
+
+# ── Sim performance bridge ───────────────────────────────────────────────────
+
+def read_sim_performance(today_only: bool = True) -> dict:
+    """
+    Compute sim performance from sim_log.jsonl sell records.
+
+    Win rate is computed only from sell fills (completed round-trips).
+    win_rate_valid = True when sells >= 5 (statistically meaningful).
+
+    Returns:
+        fills:          int
+        buys:           int
+        sells:          int
+        realized_pnl:   float — sum of sim_pnl from sell records today
+        wins:           int   — sells with sim_pnl > 0
+        losses:         int   — sells with sim_pnl <= 0
+        win_rate:       float | None — wins/sells; None if sells == 0
+        win_rate_valid: bool  — True when sells >= 5
+    """
+    from datetime import date as _date
+    today = _date.today().isoformat() if today_only else None
+
+    stats: dict = {
+        "fills": 0, "buys": 0, "sells": 0,
+        "realized_pnl": 0.0, "wins": 0, "losses": 0,
+        "win_rate": None, "win_rate_valid": False,
+    }
+    if not _SIM_LOG.exists():
+        return stats
+    try:
+        for line in _SIM_LOG.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if today and not rec.get("written_at", "").startswith(today):
+                continue
+            action = rec.get("action", "hold")
+            if action == "buy":
+                stats["buys"]  += 1
+                stats["fills"] += 1
+            elif action == "sell":
+                stats["sells"] += 1
+                stats["fills"] += 1
+                pnl = rec.get("sim_pnl")
+                if pnl is not None:
+                    stats["realized_pnl"] += pnl
+                    if pnl > 0:
+                        stats["wins"] += 1
+                    else:
+                        stats["losses"] += 1
+        if stats["sells"] > 0:
+            stats["win_rate"]       = round(stats["wins"] / stats["sells"], 3)
+            stats["win_rate_valid"] = stats["sells"] >= 5
+    except Exception:
+        pass
+    stats["realized_pnl"] = round(stats["realized_pnl"], 2)
+    return stats
+
+
+def read_latest_regime_snapshot() -> Optional[dict]:
+    """
+    Return the most recent auto_regime snapshot from learning_history.jsonl.
+    Returns None if no auto_regime snapshots exist or the file is absent.
+    """
+    _LEARNING_HISTORY = _ROOT / "data" / "learning_history.jsonl"
+    if not _LEARNING_HISTORY.exists():
+        return None
+    try:
+        lines = [
+            ln.strip()
+            for ln in _LEARNING_HISTORY.read_text(encoding="utf-8").splitlines()
+            if ln.strip()
+        ]
+        for line in reversed(lines):
+            try:
+                rec = json.loads(line)
+                if rec.get("snapshot_type") == "auto_regime":
+                    return rec
+            except (json.JSONDecodeError, ValueError):
+                continue
+    except Exception:
+        pass
+    return None
+
+
+# ── Regime learning bridge ───────────────────────────────────────────────────
+
+def read_regime_metrics() -> dict:
+    """
+    Per-regime learning metrics (transport-safe wrapper).
+
+    Returns:
+        regular:    dict — {submitted, gated, errored, total}
+        closed_sim: dict — {fills, buys, sells, holds, ticks}
+        extended:   str  — "not_supported"
+    """
+    try:
+        from app.belfort_regime_learning import compute_regime_metrics
+        return compute_regime_metrics()
+    except Exception:
+        return {
+            "regular":    {"submitted": 0, "gated": 0, "errored": 0, "total": 0},
+            "closed_sim": {"fills": 0, "buys": 0, "sells": 0, "holds": 0, "ticks": 0},
+            "extended":   "not_supported",
+        }
+
+
+def read_live_readiness() -> dict:
+    """
+    Live readiness gate evaluation (transport-safe wrapper).
+
+    Returns:
+        verdict:      "not_enough_data" | "not_ready" | "candidate"
+        trade_count:  int
+        paper_orders: int
+        win_rate:     float | None
+        expectancy:   float | None
+        block_rate:   float | None
+        note:         str
+    """
+    try:
+        from app.belfort_live_gate import compute_live_readiness
+        return compute_live_readiness()
+    except Exception:
+        return {
+            "verdict":      "not_enough_data",
+            "trade_count":  0,
+            "paper_orders": 0,
+            "win_rate":     None,
+            "expectancy":   None,
+            "block_rate":   None,
+            "note":         "Live readiness data unavailable.",
+        }
+
+
+def read_market_session() -> str:
+    """
+    Current market session type (transport-safe wrapper).
+
+    Returns one of: "regular", "pre_market", "after_hours", "closed".
+    Falls back to "closed" on any error.
+    """
+    try:
+        from app.market_time import session_type as _st
+        return _st()
+    except Exception:
+        return "closed"
+
+
+def read_strategy_profile() -> dict:
+    """
+    Current strategy regime fitness summary (transport-safe wrapper).
+
+    Returns:
+        current_regime:  str
+        paper_regime:    "regular"
+        sim_regime:      "closed_sim"
+        regime_metrics:  dict
+        fitness_regular: str
+        fitness_sim:     str
+        extended_hours:  "not_supported"
+    """
+    try:
+        from app.belfort_regime_learning import current_strategy_profile
+        return current_strategy_profile()
+    except Exception:
+        return {
+            "current_regime":  "unknown",
+            "paper_regime":    "regular",
+            "sim_regime":      "closed_sim",
+            "regime_metrics":  {},
+            "fitness_regular": "No data.",
+            "fitness_sim":     "No data.",
+            "extended_hours":  "not_supported",
+        }
 
 
 # ── Mode ordering helpers ─────────────────────────────────────────────────────

@@ -1,0 +1,22 @@
+{
+  "request_id": "BUILD-119",
+  "title": "Create health endpoint checks status of",
+  "description": "Create a health endpoint that checks the status of the database connection and returns a success message if the database is accessible.",
+  "requester": "operator",
+  "requested_at": "2026-04-12T03:22:12.903481+00:00",
+  "success_criteria": "The health endpoint returns a 200 status code and a message indicating the database is healthy when accessed.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": [],
+  "routing": {
+    "builder_lane": "frank",
+    "model_provider": "openrouter",
+    "model_used": "openai/gpt-4o-mini",
+    "cost_tier": "cheap",
+    "escalation_reason": null,
+    "absorption_candidate": false,
+    "absorption_notes": "",
+    "routing_decided_at": "2026-04-12T03:22:12.902810+00:00",
+    "routing_decided_by": "default"
+  }
+}

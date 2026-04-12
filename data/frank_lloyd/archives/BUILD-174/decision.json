@@ -1,0 +1,12 @@
+{
+  "build_id": "BUILD-174",
+  "outcome": "spec_approved",
+  "stage": 1,
+  "decided_at": "2026-04-12T05:40:48.507851+00:00",
+  "decided_by": "operator",
+  "notes": "Auto-approved (initiated_by=smart_queue_refactor, risk_level=high).",
+  "deferred_items": null,
+  "stage2_authorized": false,
+  "spec_hash": "sha256:880423a18e498eafa28f09db1b8fa8f2b268b894b8762d1d53e239eb1645c91b",
+  "revision_cycle": null
+}

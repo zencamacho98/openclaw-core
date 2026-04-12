@@ -144,29 +144,31 @@ class FLJob:
     waiting_on:   str              # "operator" | "system" | "complete"
     requested_at: Optional[str]
     updated_at:   Optional[str]
-    build_type:   Optional[str]         = None
-    risk_level:   Optional[str]         = None
-    mode:         Optional[str]         = None   # brief_shaper mode (build/refactor/…)
-    source:       Optional[str]         = None   # origin channel (peter_chat, peter_chat_smart, neighborhood_ui, …)
-    routing:      Optional[dict]        = None   # Frank-first routing metadata
-    events:       list[dict]            = field(default_factory=list)
+    build_type:       Optional[str]         = None
+    risk_level:       Optional[str]         = None
+    mode:             Optional[str]         = None   # brief_shaper mode (build/refactor/…)
+    source:           Optional[str]         = None   # origin channel (peter_chat, peter_chat_smart, neighborhood_ui, …)
+    routing:          Optional[dict]        = None   # Frank-first routing metadata
+    execution_policy: Optional[str]         = None   # "auto_apply" | "review_required"; None = legacy (treat as review_required)
+    events:           list[dict]            = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
-            "build_id":     self.build_id,
-            "title":        self.title,
-            "status":       self.status,
-            "phase":        self.phase,
-            "next_action":  self.next_action,
-            "waiting_on":   self.waiting_on,
-            "requested_at": self.requested_at,
-            "updated_at":   self.updated_at,
-            "build_type":   self.build_type,
-            "risk_level":   self.risk_level,
-            "mode":         self.mode,
-            "source":       self.source,
-            "routing":      self.routing,
-            "events":       self.events,
+            "build_id":         self.build_id,
+            "title":            self.title,
+            "status":           self.status,
+            "phase":            self.phase,
+            "next_action":      self.next_action,
+            "waiting_on":       self.waiting_on,
+            "requested_at":     self.requested_at,
+            "updated_at":       self.updated_at,
+            "build_type":       self.build_type,
+            "risk_level":       self.risk_level,
+            "mode":             self.mode,
+            "source":           self.source,
+            "routing":          self.routing,
+            "execution_policy": self.execution_policy,
+            "events":           self.events,
         }
 
 
@@ -273,7 +275,9 @@ def load_active_job() -> Optional[FLJob]:
     active_jobs = [
         j for bid in _ordered_build_ids(events)
         for j in [_build_job(bid, events)]
-        if j and j.waiting_on != "complete"
+        if j
+        and j.waiting_on != "complete"
+        and j.execution_policy not in ("notify_only", "hidden_import")
     ]
     if not active_jobs:
         return None
@@ -349,13 +353,15 @@ def _build_job(build_id: str, events: list[dict]) -> Optional[FLJob]:
                 mode = source[len("smart_queue_"):]  # forward-compat
             break
 
-    # Read routing metadata from request file (written at queue time)
-    routing: Optional[dict] = None
+    # Read routing metadata and execution_policy from request file (written at queue time)
+    routing:          Optional[dict] = None
+    execution_policy: Optional[str]  = None
     req_file = _FL_REQUESTS / f"{build_id}_request.json"
     if req_file.exists():
         try:
             req_data = json.loads(req_file.read_text(encoding="utf-8"))
-            routing = req_data.get("routing") or None
+            routing          = req_data.get("routing") or None
+            execution_policy = req_data.get("execution_policy") or None
         except (OSError, ValueError):
             pass
     # Fall back: check the request_queued event extra
@@ -377,12 +383,13 @@ def _build_job(build_id: str, events: list[dict]) -> Optional[FLJob]:
         waiting_on   = _WAITING_ON.get(status, ""),
         requested_at = request_ev.get("timestamp") if request_ev else None,
         updated_at   = latest_event.get("timestamp") if latest_event else None,
-        build_type   = build_type,
-        risk_level   = risk_level,
-        mode         = mode,
-        source       = source,
-        routing      = routing,
-        events       = humanized_events,
+        build_type       = build_type,
+        risk_level       = risk_level,
+        mode             = mode,
+        source           = source,
+        routing          = routing,
+        execution_policy = execution_policy,
+        events           = humanized_events,
     )
 
 

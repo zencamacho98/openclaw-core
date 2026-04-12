@@ -1,0 +1,22 @@
+{
+  "request_id": "BUILD-127",
+  "title": "Create health endpoint verifies connection database",
+  "description": "Create a health endpoint that verifies the connection to the database and returns a success status.",
+  "requester": "operator",
+  "requested_at": "2026-04-12T03:31:14.645275+00:00",
+  "success_criteria": "The health endpoint returns a 200 status code when the database is reachable and a 500 status code if it is not.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": [],
+  "routing": {
+    "builder_lane": "frank",
+    "model_provider": "openrouter",
+    "model_used": "openai/gpt-4o-mini",
+    "cost_tier": "cheap",
+    "escalation_reason": null,
+    "absorption_candidate": false,
+    "absorption_notes": "",
+    "routing_decided_at": "2026-04-12T03:31:14.644417+00:00",
+    "routing_decided_by": "default"
+  }
+}
