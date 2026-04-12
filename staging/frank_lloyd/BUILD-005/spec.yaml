@@ -1,0 +1,54 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-005"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-11T11:38:18.183731+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Create health endpoint checks status of"
+description: "Create a health endpoint that checks the status of the database and returns the result."
+success_criteria: "The health endpoint returns a success status when the database is operational and an error status when it is not."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: new_service
+risk_level: medium
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "app/routes/health_check.py"
+      purpose: "New health check endpoint to verify database status."
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "LM calls"
+      decision: used
+      reason: "The health check will utilize existing LM calls for database status."
+    - capability: "Event/audit logging"
+      decision: used
+      reason: "Health check status will be logged for monitoring purposes."
+    - capability: "Telemetry"
+      decision: used
+      reason: "Telemetry will be used to track health check metrics."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: operating_services
+layer_justification: "The health check service monitors the operational status of the system's components."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_health_check.py"
+  coverage_note: "Test coverage will ensure the health endpoint returns correct statuses based on database state."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: loud
+  rollback: "In case of failure, the health check service can be disabled without affecting other services."
+  scope: "The failure of the health check service will not impact the overall functionality of the system."

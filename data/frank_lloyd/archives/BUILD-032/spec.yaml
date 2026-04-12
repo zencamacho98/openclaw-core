@@ -1,0 +1,63 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-032"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-11T22:40:17.062522+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Add endpoint returns current portfolio snapshot"
+description: "Add a new endpoint that returns the current portfolio snapshot in JSON format."
+success_criteria: "The new endpoint responds with a valid JSON object containing the current portfolio snapshot when accessed."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: new_service
+risk_level: medium
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "app/routes/portfolio_snapshot.py"
+      purpose: "New endpoint to return current portfolio snapshot in JSON format."
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "app/cost_warden.LMHelper"
+      decision: not_needed
+      reason: "No integration with cost warden required for this endpoint."
+    - capability: "observability/agent_state.py"
+      decision: not_needed
+      reason: "Agent state not relevant for portfolio snapshot."
+    - capability: "observability/event_log.py"
+      decision: not_needed
+      reason: "No event logging required for this endpoint."
+    - capability: "observability/telemetry.py"
+      decision: not_needed
+      reason: "No telemetry required for this endpoint."
+    - capability: "research/approval_policy.py"
+      decision: not_needed
+      reason: "No approval flow needed for this simple endpoint."
+    - capability: "research/governance.py"
+      decision: not_needed
+      reason: "No governance checks required for this endpoint."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: experience
+layer_justification: "The new endpoint will provide a user-facing service that returns portfolio data."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_portfolio_snapshot.py"
+  coverage_note: "Test will ensure the endpoint returns valid JSON with portfolio data."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: silent
+  rollback: "Rollback will involve removing the new endpoint file if issues arise."
+  scope: "The scope is limited to the new endpoint and does not affect existing services."

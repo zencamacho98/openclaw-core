@@ -1,9 +1,9 @@
 {
-  "enabled": true,
+  "enabled": false,
   "stop_requested": false,
-  "cycle_count": 1533,
-  "started_at": "2026-04-11T00:12:19.524122+00:00",
-  "last_cycle_at": "2026-04-11T02:02:04.497478+00:00",
+  "cycle_count": 1594,
+  "started_at": "2026-04-11T08:29:34.085386+00:00",
+  "last_cycle_at": "2026-04-11T08:30:24.808404+00:00",
   "consecutive_start_errors": 0,
   "last_error": ""
 }

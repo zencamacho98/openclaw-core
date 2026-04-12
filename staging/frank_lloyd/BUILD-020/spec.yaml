@@ -1,0 +1,48 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-020"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-11T12:34:58.351193+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Add endpoint provides current portfolio snapshot"
+description: "Add a new endpoint that provides the current portfolio snapshot in JSON format."
+success_criteria: "The new endpoint returns a JSON response containing the current portfolio snapshot when accessed."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: new_service
+risk_level: medium
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "app/routes/portfolio_snapshot.py"
+      purpose: "New endpoint to provide current portfolio snapshot in JSON format."
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "portfolio snapshot retrieval"
+      decision: not_needed
+      reason: "New functionality is specific and does not require reuse of existing capabilities."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: experience
+layer_justification: "The new endpoint will serve as a frontend interface for portfolio data access."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_portfolio_snapshot.py"
+  coverage_note: "Test file will ensure the new endpoint returns the expected JSON response."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: loud
+  rollback: "Rollback by removing the new endpoint file if issues arise."
+  scope: "Limited to the new portfolio snapshot service without affecting existing services."

@@ -7,22 +7,27 @@
   "strong_cost_per_1m": "$3.00/$15.00 (in/out)",
   "task_counts": {
     "deterministic": 5,
-    "cheap": 7,
-    "strong": 5
+    "cheap": 9,
+    "strong": 8
   },
   "cheap_tasks": [
     "briefing",
     "candidate_summary",
+    "code_draft_low",
     "event_summary",
     "health_explain",
     "intent_parsing",
+    "spec_draft",
     "test_explain",
     "trade_analysis"
   ],
   "strong_tasks": [
     "architecture",
+    "code_draft_critical",
+    "code_draft_medium",
     "code_review",
     "escalated_build",
+    "review_proof",
     "routing_change",
     "safety_review"
   ],

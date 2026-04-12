@@ -1,0 +1,11 @@
+{
+  "request_id": "BUILD-016",
+  "title": "Create API endpoint retrieves returns current",
+  "description": "Create a new API endpoint that retrieves and returns the current portfolio snapshot in JSON format.",
+  "requester": "operator",
+  "requested_at": "2026-04-11T12:33:08.347158+00:00",
+  "success_criteria": "The new endpoint should return a JSON response containing the current portfolio snapshot when accessed, and it should pass all relevant unit tests.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": []
+}

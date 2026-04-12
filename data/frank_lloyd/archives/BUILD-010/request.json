@@ -1,0 +1,11 @@
+{
+  "request_id": "BUILD-010",
+  "title": "Add health endpoint checks status of",
+  "description": "Add a health endpoint that checks the status of the database connection and returns an appropriate response.",
+  "requester": "operator",
+  "requested_at": "2026-04-11T11:38:47.219851+00:00",
+  "success_criteria": "The health endpoint returns a 200 status code when the database is connected and a 500 status code when it is not.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": []
+}

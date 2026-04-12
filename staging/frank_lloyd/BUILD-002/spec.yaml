@@ -1,0 +1,63 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-002"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-11T11:11:11.324041+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Modify Mr. Belfort's house AI announce"
+description: "Modify Mr. Belfort's house AI to announce its current status instead of the most recent trading action while in idle mode."
+success_criteria: "Verify that the house now announces its current status during idle mode instead of the most recent trading action."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: modification
+risk_level: high
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    []
+  modified:
+    - path: "app/routes/belfort_readiness.py"
+      change: "Modify the idle mode behavior to announce current status instead of the most recent trading action."
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "app/cost_warden.LMHelper"
+      decision: not_needed
+      reason: "No new cost management functionality is required."
+    - capability: "observability/agent_state.py"
+      decision: not_needed
+      reason: "Existing agent state functionality is sufficient for the modification."
+    - capability: "observability/event_log.py"
+      decision: not_needed
+      reason: "No new event logging is required for this change."
+    - capability: "observability/telemetry.py"
+      decision: not_needed
+      reason: "Telemetry is not impacted by the idle mode announcement change."
+    - capability: "research/approval_policy.py"
+      decision: not_needed
+      reason: "No new approval processes are needed for this modification."
+    - capability: "research/governance.py"
+      decision: not_needed
+      reason: "No changes to governance are required for this modification."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: specialist_house
+layer_justification: "The modification pertains to the behavior of Mr. Belfort's trading AI, which is part of the specialist house layer."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_belfort_idle_mode.py"
+  coverage_note: "The test will verify the idle mode announcement functionality."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: silent
+  rollback: "Rollback will involve restoring the previous idle mode behavior."
+  scope: "The modification is limited to the trading AI's idle mode behavior."

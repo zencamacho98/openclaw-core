@@ -36,6 +36,7 @@ def neighborhood_state() -> dict:
     return {
         "backend":      _backend_state(),
         "belfort":      _belfort_state(),
+        "frank_lloyd":  _frank_lloyd_state(),
         "supervisor":   _supervisor_state(),
         "checker":      _checker_state(),
         "custodian":    _custodian_state(),
@@ -90,9 +91,12 @@ def _belfort_state() -> dict:
 
     try:
         from app.trading_loop import get_status
-        base["trading_active"] = get_status().get("running", False)
+        ts = get_status()
+        base["trading_active"]   = ts.get("running", False)
+        base["trading_stopping"] = ts.get("stop_requested", False)
     except Exception:
-        base["trading_active"] = False
+        base["trading_active"]   = False
+        base["trading_stopping"] = False
 
     return base
 
@@ -208,6 +212,111 @@ def _warden_state() -> dict:
         return {"total_calls": 0, "total_cost_usd": 0.0}
 
 
+def _frank_lloyd_state() -> dict:
+    """
+    Frank Lloyd status: pending/inprogress/completed build counts, active build,
+    spec_approved build, stage2_authorized build, and draft build.
+    """
+    try:
+        from app.routes.frank_lloyd_status import frank_lloyd_status
+        result     = frank_lloyd_status()
+        summary    = result.get("summary", {})
+        pending    = result.get("pending_builds",    [])
+        inprogress = result.get("inprogress_builds", [])
+        completed  = result.get("completed_builds",  [])
+
+        # In-progress builds are sorted newest-first; take first match per status.
+        spec_approved_build = next(
+            (b for b in inprogress if b.get("status") == "spec_approved"), None
+        )
+        stage2_authorized_build = next(
+            (b for b in inprogress if b.get("status") == "stage2_authorized"), None
+        )
+        # draft_build: prioritise reviewable output (draft_generated) over blocked.
+        draft_build = next(
+            (b for b in inprogress if b.get("status") == "draft_generated"), None
+        ) or next(
+            (b for b in inprogress
+             if b.get("status") in ("draft_blocked", "draft_generating")), None
+        )
+        promoted_build = next(
+            (b for b in completed if b.get("status") == "draft_promoted"), None
+        )
+
+        # Check if any active build is about Belfort (for Belfort panel cross-reference)
+        belfort_related_build = None
+        active_candidates = (
+            (pending[:1] if pending else [])
+            + [b for b in inprogress if b]
+        )
+        req_dir = _ROOT / "data" / "frank_lloyd" / "requests"
+        for bld in active_candidates:
+            bid = (bld or {}).get("build_id")
+            if not bid:
+                continue
+            req_file = req_dir / f"{bid}_request.json"
+            if req_file.exists():
+                try:
+                    req_data = json.loads(req_file.read_text(encoding="utf-8"))
+                    desc = (req_data.get("description") or "").lower()
+                    if "belfort" in desc:
+                        belfort_related_build = {
+                            "build_id": bid,
+                            "title":    bld.get("title", bid),
+                            "status":   bld.get("status", ""),
+                        }
+                        break
+                except Exception:
+                    pass
+
+        try:
+            from frank_lloyd.job import load_active_job as _laj
+            _aj = _laj()
+            active_job = _aj.to_dict() if _aj else None
+        except Exception:
+            active_job = None
+
+        # Consume unread Peter relay messages from auto_runner
+        fl_relay: list[dict] = []
+        try:
+            from frank_lloyd.relay import consume_unread as _consume
+            fl_relay = _consume(max_messages=5)
+        except Exception:
+            pass
+
+        return {
+            "pending_count":           summary.get("pending_count",    0),
+            "inprogress_count":        summary.get("inprogress_count", 0),
+            "completed_count":         summary.get("completed_count",  0),
+            "approved_count":          summary.get("approved_count",   0),
+            "active_build":            pending[0] if pending else None,
+            "stage":                   result.get("builder_stage", 1),
+            "spec_approved_build":     spec_approved_build,
+            "stage2_authorized_build": stage2_authorized_build,
+            "draft_build":             draft_build,
+            "promoted_build":          promoted_build,
+            "belfort_related_build":   belfort_related_build,
+            "active_job":              active_job,
+            "fl_relay":                fl_relay,
+        }
+    except Exception:
+        return {
+            "pending_count":           0,
+            "inprogress_count":        0,
+            "completed_count":         0,
+            "approved_count":          0,
+            "active_build":            None,
+            "stage":                   1,
+            "spec_approved_build":     None,
+            "stage2_authorized_build": None,
+            "draft_build":             None,
+            "promoted_build":          None,
+            "belfort_related_build":   None,
+            "active_job":              None,
+            "fl_relay":                [],
+        }
+
+
 @router.get("/neighborhood/docs")
 def neighborhood_docs(file: str = "BRD.md") -> dict:
     """Read-only access to project docs. Allowlist: BRD.md, TRD.md, CAPABILITY_REGISTRY.md, CHANGE_JOURNAL.md."""
@@ -234,13 +343,32 @@ def neighborhood_docs(file: str = "BRD.md") -> dict:
 async def peter_chat(body: dict = Body(default={})) -> dict:
     """
     LM-backed Peter chat. Accepts {message: str}, returns {ok: bool, text: str, error: str}.
-    Read-only guidance only — Peter never executes actions via this endpoint.
+    Peter answers questions about all Abode agents including Frank Lloyd.
     """
     from fastapi import HTTPException
     body = body or {}
-    message = str(body.get("message", "")).strip()[:300]
+    message = str(body.get("message", "")).strip()[:400]
     if not message:
         raise HTTPException(status_code=400, detail="message is required")
+
+    # Build context that includes Frank Lloyd's active job
+    fl_state = _frank_lloyd_state()
+    fl_job = fl_state.get("active_job")
+    fl_context: dict = {
+        "pending_count":    fl_state.get("pending_count", 0),
+        "inprogress_count": fl_state.get("inprogress_count", 0),
+        "completed_count":  fl_state.get("completed_count", 0),
+    }
+    if fl_job:
+        fl_context["active_job"] = {
+            "build_id":   fl_job.get("build_id"),
+            "title":      fl_job.get("title"),
+            "status":     fl_job.get("status"),
+            "phase":      fl_job.get("phase"),
+            "next_action": fl_job.get("next_action"),
+            "waiting_on": fl_job.get("waiting_on"),
+            "risk_level": fl_job.get("risk_level"),
+        }
 
     state = {
         "belfort":    _belfort_state(),
@@ -250,23 +378,26 @@ async def peter_chat(body: dict = Body(default={})) -> dict:
         "sentinel":   _sentinel_state(),
         "warden":     _warden_state(),
         "readiness":  _readiness_state(),
+        "frank_lloyd": fl_context,
     }
     ctx_str = json.dumps(state, separators=(",", ":"))
 
     system = (
-        "You are Peter, coordinator agent for an automated AI trading research system called The Abode. "
-        "Mr Belfort is the mock-trading and research agent you monitor. "
+        "You are Peter, the coordinator and front door for The Abode — an AI workforce operating environment. "
+        "You monitor and report on all agents: Mr Belfort (trading/research), Frank Lloyd (builder/operator), "
+        "and the backstage services (Custodian, Sentinel, Checker, Cost Warden). "
         "Answer the operator's question in plain English — 1 to 3 concise sentences. "
         "Be direct and specific. Use the system state context provided. "
-        "When asked about Belfort's readiness or progress, use the 'readiness' field in the context. "
-        "You are read-only guidance: do not claim to execute actions. "
+        "When asked about Frank Lloyd, use the frank_lloyd field — report on the active build, "
+        "what phase it's in, and what the operator should do next. "
+        "When asked about Belfort's readiness or progress, use the 'readiness' field. "
         "Do not mention you are an AI or reference the JSON context."
     )
     user = f"System state:\n{ctx_str}\n\nOperator: {message}"
 
     try:
         from app.cost_warden import LMHelper
-        result = LMHelper("peter", "health_explain", max_tokens=200, temperature=0.4).call(
+        result = LMHelper("peter", "health_explain", max_tokens=250, temperature=0.4).call(
             system=system, user=user,
         )
         if not result.ok:
@@ -274,6 +405,113 @@ async def peter_chat(body: dict = Body(default={})) -> dict:
         return {"ok": True, "text": result.content.strip(), "error": ""}
     except Exception as exc:
         return {"ok": False, "text": "", "error": str(exc)}
+
+
+@router.post("/peter/action")
+def peter_action(body: dict = Body(default={})) -> dict:
+    """
+    Execute a Peter command submitted via the neighborhood UI chat.
+
+    Parses the message using peter.commands.parse_command() and routes through
+    peter.router.route(). Covers all FL lifecycle actions (approve/reject/run/draft/
+    promote/discard/status) as well as Belfort/system queries.
+
+    Body: {message: str}
+    Returns: {ok, summary, command_type, next_action, build_id}
+    """
+    from peter.commands import parse_command
+    from peter.router   import route
+
+    message = (body.get("message") or "").strip()[:500]
+    if not message:
+        return {"ok": False, "summary": "No message provided.", "command_type": "unknown"}
+
+    try:
+        cmd  = parse_command(message, transport="cli", operator_id="neighborhood_ui")
+        resp = route(cmd)
+        return {
+            "ok":           resp.ok,
+            "summary":      resp.summary,
+            "command_type": resp.command_type,
+            "next_action":  resp.next_action or "",
+            "build_id":     (resp.raw or {}).get("build_id", "") or (resp.metrics or {}).get("build_id", ""),
+        }
+    except Exception as exc:
+        return {"ok": False, "summary": f"Action failed: {exc}", "command_type": "error"}
+
+
+@router.post("/peter/queue-build")
+def peter_queue_build(body: dict = Body(default={})) -> dict:
+    """
+    Queue a Frank Lloyd build via Peter's chat. Uses brief_shaper for smart intake.
+
+    Accepts {message: str}. Uses frank_lloyd.brief_shaper to shape the input,
+    then queues via frank_lloyd.request_writer and fires the safe-lane pipeline.
+
+    Returns: {ok, queued, build_id, text, needs_clarification, question}
+    """
+    from fastapi import BackgroundTasks
+    import frank_lloyd.brief_shaper   as _shaper
+    import frank_lloyd.request_writer as _fl_rw
+    import frank_lloyd.auto_runner    as _auto_runner
+
+    message = (body.get("message") or "").strip()[:2000]
+    if not message:
+        return {"ok": False, "queued": False, "text": "No message provided.",
+                "needs_clarification": False}
+
+    brief = _shaper.shape(message)
+
+    if brief.needs_clarification:
+        return {
+            "ok":                  False,
+            "queued":              False,
+            "build_id":            None,
+            "needs_clarification": True,
+            "text":                brief.clarification_question or "Could you be more specific?",
+        }
+
+    missing = _fl_rw.readiness_check(brief.description, brief.success_criterion)
+    if missing:
+        return {
+            "ok":                  False,
+            "queued":              False,
+            "build_id":            None,
+            "needs_clarification": True,
+            "text":                "Could you describe that in a bit more detail?",
+        }
+
+    result = _fl_rw.queue_build(
+        description=brief.description,
+        success_criterion=brief.success_criterion,
+        source="peter_chat_smart",
+    )
+    if not result["ok"]:
+        return {"ok": False, "queued": False, "build_id": None,
+                "text": result["error"], "needs_clarification": False}
+
+    build_id = result["build_id"]
+    title    = result["title"]
+
+    # Fire auto-run in background (non-blocking)
+    import threading
+    def _bg():
+        try:
+            _auto_runner.run_safe_lane(build_id, initiated_by="peter_chat")
+        except Exception:
+            pass
+    threading.Thread(target=_bg, daemon=True).start()
+
+    return {
+        "ok":                  True,
+        "queued":              True,
+        "build_id":            build_id,
+        "needs_clarification": False,
+        "text":                (
+            f"Queued as {build_id} \u2014 \u201c{title}\u201d. "
+            "Frank Lloyd is on it. Check the Frank Lloyd panel for progress."
+        ),
+    }
 
 
 # ── HTML page ─────────────────────────────────────────────────────────────────
@@ -422,8 +660,9 @@ body {
   position: relative;
   z-index: 1;
 }
-.peter   .chimney { background: #9e6a00; }
-.belfort .chimney { background: #006b5a; }
+.peter       .chimney { background: #9e6a00; }
+.belfort     .chimney { background: #006b5a; }
+.frank-lloyd .chimney { background: #1a3565; }
 
 /* Antenna (Belfort only) */
 .antenna {
@@ -448,8 +687,9 @@ body {
   border-right: 82px solid transparent;
   transition: border-bottom-color 0.3s;
 }
-.peter   .roof { border-bottom: 56px solid #c4820d; }
-.belfort .roof { border-bottom: 56px solid #008080; }
+.peter       .roof { border-bottom: 56px solid #c4820d; }
+.belfort     .roof { border-bottom: 56px solid #008080; }
+.frank-lloyd .roof { border-bottom: 56px solid #3949ab; }
 
 /* Body */
 .body {
@@ -463,8 +703,9 @@ body {
   position: relative;
   transition: background 0.3s, box-shadow 0.4s;
 }
-.peter   .body { background: #f6c90e; border-color: #a06b00; }
-.belfort .body { background: #00cec9; border-color: #006b5a; }
+.peter       .body { background: #f6c90e; border-color: #a06b00; }
+.belfort     .body { background: #00cec9; border-color: #006b5a; }
+.frank-lloyd .body { background: #5c6bc0; border-color: #1a237e; }
 
 /* State glows */
 @keyframes glow-active  { 0%,100%{box-shadow:0 0 8px 2px #00e676aa}50%{box-shadow:0 0 22px 6px #00e676dd} }
@@ -490,8 +731,9 @@ body {
   transition: background 0.3s, box-shadow 0.3s;
   flex-shrink: 0;
 }
-.peter   .win { background: #b8e0ff; }
-.belfort .win { background: #b2f0ed; }
+.peter       .win { background: #b8e0ff; }
+.belfort     .win { background: #b2f0ed; }
+.frank-lloyd .win { background: #c5cae9; }
 
 .house.st-active  .win { background: #d0fff0; box-shadow: inset 0 0 8px #00e67666; }
 .house.st-review  .win { background: #fffde0; box-shadow: inset 0 0 8px #ffd60066; }
@@ -508,8 +750,9 @@ body {
   left: 50%;
   transform: translateX(-50%);
 }
-.peter   .door { background: #6d3a00; }
-.belfort .door { background: #004d40; }
+.peter       .door { background: #6d3a00; }
+.belfort     .door { background: #004d40; }
+.frank-lloyd .door { background: #0d1d4a; }
 
 /* Nameplate */
 .nameplate {
@@ -519,8 +762,9 @@ body {
   margin-top: 6px;
   transition: color 0.3s;
 }
-.peter   .nameplate { color: #f6c90e; text-shadow: 0 0 6px #f6c90e66; }
-.belfort .nameplate { color: #00cec9; text-shadow: 0 0 6px #00cec966; }
+.peter      .nameplate { color: #f6c90e; text-shadow: 0 0 6px #f6c90e66; }
+.belfort    .nameplate { color: #00cec9; text-shadow: 0 0 6px #00cec966; }
+.frank-lloyd .nameplate { color: #7986cb; text-shadow: 0 0 6px #7986cb66; }
 
 .subtitle {
   font-size: 9px;
@@ -742,6 +986,68 @@ body {
 
 .dp-detail-text { font-size: 10px; color: #90a4ae; letter-spacing: 0.5px; }
 
+/* ── Frank Lloyd builder workspace ───────────────────────────────────── */
+.fl-job-header { padding: 8px 0 4px; }
+.fl-job-title-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.fl-job-title { font-size: 11px; font-weight: bold; color: #b0bec5; letter-spacing: 0.5px; line-height: 1.3; }
+.fl-phase-chip { display: inline-block; font-size: 7px; letter-spacing: 1.5px; padding: 2px 6px; border-radius: 2px; flex-shrink: 0; border: 1px solid transparent; }
+.fl-phase-queued   { background: #1e2d3d; color: #78909c; border-color: #263238; }
+.fl-phase-review   { background: #332800; color: #ffd600; border-color: #4a3800; }
+.fl-phase-building { background: #102800; color: #76ff03; border-color: #1a3d00; }
+.fl-phase-ready    { background: #0d2318; color: #00e676; border-color: #00e67633; }
+.fl-phase-applied  { background: #0a1a0f; color: #69f0ae; border-color: #00e67644; }
+.fl-phase-blocked  { background: #2a0a0a; color: #ef9a9a; border-color: #ef535033; }
+.fl-job-meta { font-size: 8px; color: #37474f; margin-top: 3px; letter-spacing: 0.5px; }
+.fl-stream { margin: 8px 0 6px; }
+.fl-stream-label { font-size: 7px; letter-spacing: 2px; color: #263238; margin-bottom: 5px; }
+.fl-stream-entry { display: flex; align-items: baseline; gap: 6px; padding: 2px 0; }
+.fl-se-icon { width: 10px; flex-shrink: 0; font-size: 8px; text-align: center; }
+.fl-se-text { font-size: 9px; color: #37474f; letter-spacing: 0.3px; }
+.fl-se-text.se-active  { color: #b0bec5; }
+.fl-se-text.se-review  { color: #ffd600; font-weight: bold; }
+.fl-se-text.se-ok      { color: #455a64; }
+.fl-se-text.se-done    { color: #66bb6a; }
+.fl-se-text.se-blocked { color: #ef9a9a; }
+.fl-se-detail { font-size: 7px; color: #263238; letter-spacing: 0.5px; }
+.fl-review-area { margin-top: 8px; }
+.fl-review-tabs { display: flex; gap: 3px; margin-bottom: 4px; }
+.fl-tab { background: #07101f; border: 1px solid #1e2d45; color: #37474f; font-family: 'Courier New', Courier, monospace; font-size: 8px; letter-spacing: 1px; padding: 3px 10px; cursor: pointer; border-radius: 2px; transition: all 0.15s; }
+.fl-tab:hover { color: #546e7a; border-color: #263238; }
+.fl-tab.fl-tab-active { background: #0d1b2e; border-color: #3949ab; color: #7986cb; }
+.fl-review-pane { display: none; }
+.fl-review-pane.fl-pane-active { display: block; }
+.fl-code-view { font-family: 'Courier New',Courier,monospace; font-size: 8px; color: #cfd8dc; background: #0d1117; padding: 6px 8px; border-radius: 2px; max-height: 180px; overflow-y: auto; overflow-x: auto; white-space: pre; margin: 0; border: 1px solid #1a2332; }
+.fl-draft-notes { font-size: 9px; color: #90a4ae; line-height: 1.5; padding: 5px 6px; background: #0d1b2e; border-radius: 2px; border: 1px solid #1e2d45; margin-bottom: 4px; }
+.fl-draft-meta-row { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
+.fl-draft-chip { font-size: 7px; letter-spacing: 1px; padding: 2px 5px; border-radius: 2px; background: #1e2d3d; color: #78909c; border: 1px solid #263238; }
+.fl-field-label { font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 3px; margin-top: 8px; }
+.fl-composer-label { font-size: 7px; letter-spacing: 2px; color: #37474f; margin-bottom: 4px; margin-top: 10px; }
+.fl-prompt-box { width: 100%; box-sizing: border-box; background: #060e1c; border: 1px solid #1e3050; color: #b0bec5; font-family: 'Courier New', Courier, monospace; font-size: 9.5px; letter-spacing: 0.3px; padding: 8px 10px; border-radius: 3px; outline: none; line-height: 1.6; resize: vertical; min-height: 80px; transition: border-color 0.15s; }
+.fl-prompt-box:focus { border-color: #3949ab; }
+.fl-action-feedback { font-size: 9px; letter-spacing: 0.5px; padding: 5px 6px; margin-top: 6px; border-radius: 2px; }
+.fl-fb-ok      { background: #0d2318; color: #66bb6a; border: 1px solid #1b5e20; }
+.fl-fb-error   { background: #2a0a0a; color: #ef9a9a; border: 1px solid #5f1f1f; }
+.fl-fb-pending { background: #0d1b2e; color: #90a4ae; border: 1px solid #37474f; }
+.fl-text-input {
+  width: 100%; box-sizing: border-box; background: #0d1b2e; border: 1px solid #37474f;
+  color: #b0bec5; font-family: 'Courier New', Courier, monospace; font-size: 10px;
+  letter-spacing: 0.5px; padding: 5px 7px; border-radius: 2px; outline: none; margin-top: 6px;
+}
+.fl-text-input:focus { border-color: #546e7a; }
+.fl-form-btns { display: flex; gap: 6px; margin-top: 6px; }
+.fl-belfort-work { font-size: 9px; color: #546e7a; letter-spacing: 0.3px; padding: 4px 0 2px; border-top: 1px solid #1e2d4530; margin-top: 4px; }
+.fl-belfort-work strong { color: #7986cb; }
+.fl-apply-summary { margin: 8px 0 6px; background: #060e1c; border: 1px solid #1e3050; border-radius: 3px; padding: 8px 10px; }
+.fl-apply-summary-label { font-size: 7px; letter-spacing: 2px; color: #3949ab; margin-bottom: 6px; }
+.fl-apply-row { display: flex; gap: 6px; margin-bottom: 4px; font-size: 9px; line-height: 1.4; }
+.fl-apply-key { color: #37474f; letter-spacing: 0.5px; flex-shrink: 0; width: 70px; }
+.fl-apply-val { color: #b0bec5; }
+.fl-apply-val.risk-low    { color: #66bb6a; }
+.fl-apply-val.risk-medium { color: #ffd600; }
+.fl-apply-val.risk-high   { color: #ef9a9a; }
+.fl-apply-val.risk-critical { color: #ef5350; font-weight: bold; }
+.fl-apply-loading { font-size: 9px; color: #37474f; letter-spacing: 0.5px; }
+
 .dp-items { display: flex; flex-direction: column; gap: 4px; }
 .dp-item {
   font-size: 10px; color: #b0bec5; letter-spacing: 0.5px;
@@ -850,11 +1156,13 @@ body {
 .chat-msg-peter    { color: #7ecbbd; letter-spacing: 0.3px; }
 .chat-msg-operator { color: #c8d8e0; text-align: right; letter-spacing: 0.3px; }
 .chat-loading      { color: #37474f; font-style: italic; }
-.peter-chat-input-row { display: flex; gap: 5px; margin-top: 2px; }
+.peter-chat-input-row { display: flex; gap: 5px; margin-top: 2px; align-items: flex-end; }
 .peter-chat-input {
   flex: 1; background: #040d1a; border: 1px solid #1e2d45; color: #b0bec5;
-  font-family: 'Courier New', Courier, monospace; font-size: 10px;
+  font-family: 'Courier New', Courier, monospace; font-size: 10px; line-height: 1.5;
   padding: 5px 8px; border-radius: 2px; outline: none; transition: border-color 0.15s;
+  resize: none; min-height: 40px; max-height: 160px; overflow-y: auto;
+  box-sizing: border-box;
 }
 .peter-chat-input:focus { border-color: #37474f; }
 .peter-chat-send {
@@ -1119,6 +1427,21 @@ body {
         <div class="speech" id="sp-belfort"></div>
       </div>
 
+      <!-- FRANK LLOYD'S HOUSE -->
+      <div class="house frank-lloyd st-idle" id="h-frank-lloyd" onclick="selectItem('frank-lloyd')" title="Frank Lloyd — Construction House">
+        <div class="chimney"></div>
+        <div class="roof"></div>
+        <div class="body">
+          <div class="win">📐</div>
+          <div class="door"></div>
+          <div class="win">🏗</div>
+        </div>
+        <div class="nameplate">FRANK LLOYD</div>
+        <div class="subtitle">Build &amp; construction</div>
+        <div class="status-badge" id="pb-frank-lloyd">IDLE</div>
+        <div class="speech" id="sp-frank-lloyd"></div>
+      </div>
+
     </div>
   </div>
 
@@ -1127,6 +1450,8 @@ body {
     <span id="nb-attention" class="nb-item">—</span>
     <span class="nb-sep">·</span>
     <span id="nb-belfort" class="nb-item">BELFORT —</span>
+    <span class="nb-sep">·</span>
+    <span id="nb-frank-lloyd" class="nb-item">BUILD —</span>
     <span class="nb-sep">·</span>
     <span id="nb-ops" class="nb-item">OPS —</span>
   </div>
@@ -1201,6 +1526,7 @@ body {
       An automated AI workspace for trading research and strategy development.<br><br>
       <strong>Peter</strong> is your main interface — he coordinates the system, explains what's happening, and guides you through reviews and decisions.<br><br>
       <strong>Mr Belfort</strong> runs the research in the background.<br><br>
+      <strong>Frank Lloyd</strong> is the construction house — queue a build via Peter to get started.<br><br>
       The <strong>Operations</strong> row shows system health at a glance.
     </div>
     <button id="wc-cta" onclick="dismissWelcome(true)">Talk to Peter →</button>
@@ -1245,8 +1571,9 @@ body {
         <div class="dp-section-label">ASK PETER</div>
         <div id="peter-chat-history" class="peter-chat-history"></div>
         <div class="peter-chat-input-row">
-          <input id="peter-chat-input" class="peter-chat-input" type="text"
-                 placeholder="Ask anything…" maxlength="280" autocomplete="off">
+          <textarea id="peter-chat-input" class="peter-chat-input" rows="2"
+                    placeholder="Ask anything… (Shift+Enter for newline)" maxlength="4000"
+                    autocomplete="off"></textarea>
           <button id="peter-chat-send" class="peter-chat-send" onclick="peterChatSend()">SEND</button>
         </div>
         <div class="chat-chips">
@@ -1268,6 +1595,7 @@ body {
         <div class="dp-section-label">TRADING STATS</div>
         <div id="belfort-stats" class="belfort-stats"></div>
         <div id="belfort-pills" class="belfort-status-pills"></div>
+        <div id="fl-belfort-work" class="fl-belfort-work" style="display:none"></div>
         <div class="dp-divider"></div>
         <div class="dp-section-label">CONTROLS</div>
         <div class="belfort-controls-grid">
@@ -1344,6 +1672,95 @@ body {
         </div>
       </div>
 
+      <!-- Frank Lloyd builder workspace (shown only when Frank Lloyd panel is open) -->
+      <div id="frank-lloyd-section" style="display:none">
+
+        <!-- Active job workspace: header + stream + review + actions -->
+        <div id="fl-job-workspace" style="display:none">
+          <div class="dp-divider"></div>
+          <!-- Job header: title + phase chip + meta -->
+          <div class="fl-job-header">
+            <div class="fl-job-title-row">
+              <div class="fl-job-title" id="fl-job-title"></div>
+              <span class="fl-phase-chip" id="fl-phase-chip"></span>
+            </div>
+            <div class="fl-job-meta" id="fl-job-meta"></div>
+          </div>
+          <!-- Work stream: chronological log of what Frank Lloyd is doing -->
+          <div class="fl-stream">
+            <div class="fl-stream-label">WORK STREAM</div>
+            <div id="fl-stream-entries"></div>
+          </div>
+          <!-- Review area: tabbed Plan + Draft Code (toggle-gated) -->
+          <div id="fl-review-area" class="fl-review-area" style="display:none">
+            <div class="fl-review-tabs">
+              <button id="fl-tab-plan" class="fl-tab fl-tab-active" onclick="flTabSwitch('plan')">Plan</button>
+              <button id="fl-tab-code" class="fl-tab" onclick="flTabSwitch('code')" style="display:none">Draft Code</button>
+            </div>
+            <div id="fl-pane-plan" class="fl-review-pane fl-pane-active">
+              <pre id="fl-spec-yaml" class="fl-code-view"></pre>
+              <div id="fl-preflight-view" class="fl-draft-notes" style="display:none"></div>
+            </div>
+            <div id="fl-pane-code" class="fl-review-pane">
+              <div id="fl-draft-meta-row" class="fl-draft-meta-row"></div>
+              <div id="fl-draft-blocked-msg" class="fl-action-feedback fl-fb-error" style="display:none"></div>
+              <div id="fl-draft-notes-view" class="fl-draft-notes" style="display:none"></div>
+              <pre id="fl-draft-code" class="fl-code-view" style="display:none"></pre>
+            </div>
+          </div>
+          <!-- Action area: feedback + inline forms (contextual) -->
+          <div id="fl-action-area">
+            <div id="fl-action-feedback" class="fl-action-feedback" style="display:none"></div>
+            <!-- Reject plan form -->
+            <div id="fl-reject-form" style="display:none">
+              <input id="fl-reject-reason" class="fl-text-input" placeholder="Reason for rejection (required)&hellip;" />
+              <div class="fl-form-btns">
+                <button class="dp-action-btn primary" style="flex:1" onclick="flRejectConfirm()">CONFIRM REJECT</button>
+                <button class="dp-action-btn" onclick="flRejectCancel()">CANCEL</button>
+              </div>
+            </div>
+            <!-- Authorize build form -->
+            <div id="fl-authorize-form" style="display:none">
+              <input id="fl-authorize-notes" class="fl-text-input" placeholder="Authorization notes (optional)&hellip;" />
+              <div class="fl-form-btns">
+                <button class="dp-action-btn primary" style="flex:1" onclick="flAuthorizeConfirm()">CONFIRM &mdash; START BUILDING</button>
+                <button class="dp-action-btn" onclick="flAuthorizeCancel()">CANCEL</button>
+              </div>
+            </div>
+            <!-- Apply summary: plain-English view of what will be applied -->
+            <div id="fl-apply-summary" style="display:none">
+              <div class="fl-apply-summary">
+                <div class="fl-apply-summary-label">WHAT FRANK LLOYD BUILT</div>
+                <div id="fl-apply-summary-content"><span class="fl-apply-loading">Loading summary&hellip;</span></div>
+              </div>
+            </div>
+            <!-- Apply to repo form -->
+            <div id="fl-promote-form" style="display:none">
+              <div class="fl-field-label" id="fl-promote-form-label">TARGET PATH IN REPO</div>
+              <input id="fl-promote-target" type="text" class="fl-text-input" style="margin-top:3px" placeholder="e.g. frank_lloyd/my_module.py" autocomplete="off" spellcheck="false">
+              <div id="fl-promote-hint" style="font-size:8px;color:#546e7a;margin-top:3px">New .py file only &mdash; file must not already exist.</div>
+              <div class="fl-form-btns">
+                <button class="dp-action-btn primary" style="flex:1" id="fl-promote-btn" onclick="flPromoteConfirm()">APPLY TO REPO</button>
+                <button class="dp-action-btn" onclick="flPromoteCancel()">CANCEL</button>
+              </div>
+              <div id="fl-promote-feedback" class="fl-action-feedback" style="display:none"></div>
+            </div>
+          </div>
+        </div><!-- /fl-job-workspace -->
+
+        <!-- Composer: smart build request box -->
+        <div id="fl-composer">
+          <div class="fl-composer-label">WHAT SHOULD FRANK LLOYD DO?</div>
+          <textarea id="fl-compose-prompt" class="fl-prompt-box" rows="4"
+            placeholder="Describe what to build, fix, refactor, or improve. Frank Lloyd will plan it and build it.&#10;&#10;Examples:&#10;&bull; Add a /stats endpoint that shows per-build timing.&#10;&bull; Clean up the work stream so old entries disappear after completion.&#10;&bull; Diagnose why Peter and Frank Lloyd feel disconnected."></textarea>
+          <div class="fl-form-btns" style="margin-top:6px">
+            <button class="dp-action-btn primary" style="flex:1" onclick="flQueueBuild()">BUILD IT</button>
+          </div>
+          <div id="fl-compose-feedback" class="fl-action-feedback" style="display:none"></div>
+        </div>
+
+      </div>
+
       <!-- Docs viewer (shown only when Docs panel is open) -->
       <div id="docs-section" style="display:none">
         <div class="dp-divider"></div>
@@ -1373,6 +1790,9 @@ let _currentSelection        = null;
 let _sentinelPanelAutoRan    = false;
 let _lastReadiness           = null;
 let _lastLearning            = null;
+let _flActionBuildId         = null;  // build_id currently targeted by FL action buttons
+let _flReviewVisible         = false; // true when review area is open
+let _flLastStatus            = null;  // previous job status — for transition detection
 let _belfortReadinessLastLoad    = 0;
 let _belfortLearningLastLoad     = 0;
 let _belfortDiagnosticsLastLoad  = 0;
@@ -1411,13 +1831,16 @@ function belfortLabel(status) {
 }
 
 function belfortSummaryLabel(belfort, supervisor) {
-  const tradingOn = (belfort || {}).trading_active || false;
-  const loopOn    = (supervisor || {}).enabled      || false;
-  const review    = ['waiting_for_review','review_held'].includes((belfort || {}).status || '');
-  if (review)               return 'REVIEW NEEDED';
-  if (tradingOn && loopOn)  return 'TRADING \u00b7 RESEARCH ON';
-  if (tradingOn)            return 'TRADING ON';
-  if (loopOn)               return 'RESEARCH ON';
+  const tradingOn   = (belfort || {}).trading_active  || false;
+  const tradingStop = (belfort || {}).trading_stopping || false;
+  const loopOn      = (supervisor || {}).enabled       || false;
+  const review      = ['waiting_for_review','review_held'].includes((belfort || {}).status || '');
+  if (review)                return 'REVIEW NEEDED';
+  if (tradingStop && loopOn) return 'STOPPING \u00b7 RESEARCH ON';
+  if (tradingStop)           return 'STOPPING\u2026';
+  if (tradingOn && loopOn)   return 'TRADING \u00b7 RESEARCH ON';
+  if (tradingOn)             return 'TRADING ON';
+  if (loopOn)                return 'RESEARCH ON';
   return 'IDLE';
 }
 
@@ -1485,6 +1908,7 @@ function closePanel() {
   document.querySelectorAll('.house.selected, .ops-unit.selected')
     .forEach(el => el.classList.remove('selected'));
   _currentSelection = null;
+  _flReviewVisible            = false;
   _belfortReadinessLastLoad   = 0;
   _belfortLearningLastLoad    = 0;
   _belfortDiagnosticsLastLoad = 0;
@@ -1494,9 +1918,10 @@ function closePanel() {
 
 // ── Panel population ──────────────────────────────────────────────────────
 const _META = {
-  peter:      ['PETER',           'Your main interface · workspace guide'],
-  belfort:    ['MR BELFORT',      'Runs trading research in the background'],
-  custodian:  ['CUSTODIAN',       'Monitors system health and environment'],
+  peter:          ['PETER',           'Your main interface · workspace guide'],
+  belfort:        ['MR BELFORT',      'Runs trading research in the background'],
+  'frank-lloyd':  ['FRANK LLOYD',     'Construction house · Stage 1 build specs'],
+  custodian:      ['CUSTODIAN',       'Monitors system health and environment'],
   checker:    ['LOOP CHECKER',    'Finds issues and flags suspicious patterns'],
   sentinel:   ['TEST SENTINEL',   'Checks that patches are safe before deploy'],
   supervisor: ['LOOP SUPERVISOR', 'Controls the automated research loop'],
@@ -1518,6 +1943,8 @@ function setBasicPanel(id) {
   if (pcs) pcs.style.display = 'none';
   const bcs = document.getElementById('belfort-controls-section');
   if (bcs) bcs.style.display = 'none';
+  const fls = document.getElementById('frank-lloyd-section');
+  if (fls) fls.style.display = 'none';
   const ds = document.getElementById('docs-section');
   if (ds) ds.style.display = 'none';
 }
@@ -1565,19 +1992,38 @@ function populatePanel(id, state, _skipClear) {
     const warns        = checker.open_warnings || 0;
     const custBad      = custodian.overall === 'degraded';
     const sentBad      = ['review','not_ready'].includes(sentinel.verdict || '');
-    const needsAttn    = warns > 0 || custBad || sentBad;
-    const cls          = reviewNeeded ? 'review' : needsAttn ? 'warning' : 'idle';
-    const label        = reviewNeeded ? 'REVIEW NEEDED' : needsAttn ? 'ATTENTION NEEDED' : 'AVAILABLE';
+    const flRelay      = (state.frank_lloyd || {}).fl_relay || [];
+    const flJob        = (state.frank_lloyd || {}).active_job || null;
+    const flStatus     = (flJob || {}).status || '';
+    const flNeedsReview = ['pending_review', 'draft_generated'].includes(flStatus);
+    const flNeedsAttn   = flStatus === 'draft_blocked';
+    const needsAttn    = warns > 0 || custBad || sentBad || flNeedsAttn || flRelay.some(r => ['review_needed','spec_blocked','draft_blocked'].includes(r.event));
+    const cls          = (reviewNeeded || flNeedsReview) ? 'review' : needsAttn ? 'warning' : 'idle';
+    const label        = (reviewNeeded || flNeedsReview) ? 'REVIEW NEEDED' : needsAttn ? 'ATTENTION NEEDED' : 'AVAILABLE';
     setBadge(cls, label);
     document.getElementById('dp-status-detail').textContent = '';
 
     const sit = [];
     if (reviewNeeded)  sit.push({text: 'A research result is ready for your review', cls: 'warn'});
+    if (flNeedsReview && flStatus === 'pending_review')
+      sit.push({text: 'Frank Lloyd plan ready: \u201c' + _escHtml((flJob.title || flJob.build_id) || '') + '\u201d \u2014 review in FL panel', cls: 'warn'});
+    if (flNeedsReview && flStatus === 'draft_generated')
+      sit.push({text: 'Frank Lloyd draft ready: \u201c' + _escHtml((flJob.title || flJob.build_id) || '') + '\u201d \u2014 apply or discard in FL panel', cls: 'warn'});
+    if (flNeedsAttn)   sit.push({text: 'Frank Lloyd draft blocked \u2014 check FL panel', cls: 'warn'});
     if (warns > 0)     sit.push({text: `${warns} issue${warns > 1 ? 's' : ''} flagged by the audit system`, cls: 'warn'});
     if (custBad)       sit.push({text: 'System health needs attention', cls: 'warn'});
     if (sentBad)       sit.push({text: `Patch safety check: ${(sentinel.verdict || '').replace('_',' ')}`, cls: 'warn'});
     if (!sit.length)   sit.push({text: 'No urgent items', cls: 'ok'});
     setItems('dp-situation', sit);
+
+    // Inject Frank Lloyd relay messages into Peter's chat (relay = Frank Lloyd → Peter)
+    if (flRelay.length) {
+      flRelay.forEach(r => {
+        const isAlert = ['review_needed','spec_blocked','draft_blocked'].includes(r.event);
+        _peterChat.push({role: 'peter', text: '\uD83D\uDEA7 Frank Lloyd: ' + r.msg, cls: isAlert ? 'warn' : ''});
+      });
+      peterChatRender();
+    }
 
     // Show chat section instead of NEXT
     const nxw = document.getElementById('dp-next-wrapper');
@@ -1599,41 +2045,56 @@ function populatePanel(id, state, _skipClear) {
     peterChatRender();
     if (cinp && !cinp._enterBound) {
       cinp._enterBound = true;
-      cinp.addEventListener('keydown', function(e) { if (e.key === 'Enter') peterChatSend(); });
+      cinp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); peterChatSend(); }
+      });
+      cinp.addEventListener('input', function() { _peterInputGrow(this); });
     }
     setActions([{text: '\u26a1 Open Peter workspace \u2192', onclick: "openDashTab('peter')", primary: true}]);
   }
 
   else if (id === 'belfort') {
-    const bStatus   = belfort.status || 'unknown';
-    const tradingOn = belfort.trading_active || false;
-    const loopOn    = supervisor.enabled || false;
-    const cls       = belfortStatusClass(bStatus).replace('st-', '') || 'idle';
+    const bStatus      = belfort.status || 'unknown';
+    const tradingOn    = belfort.trading_active || false;
+    const tradingStop  = belfort.trading_stopping || false;
+    const loopOn       = supervisor.enabled || false;
+    const cls          = belfortStatusClass(bStatus).replace('st-', '') || 'idle';
     setBadge(cls === 'st-idle' ? 'idle' : cls, belfortSummaryLabel(belfort, supervisor));
+    const tradingLabel = tradingStop ? 'Trading STOPPING\u2026'
+                       : tradingOn   ? 'Trading ON'
+                       :               'Trading OFF';
     document.getElementById('dp-status-detail').textContent =
-      tradingOn && loopOn ? 'Trading ON \u00b7 Research ON'
-      : tradingOn ? 'Trading ON \u00b7 Research OFF'
-      : loopOn    ? 'Trading OFF \u00b7 Research ON'
-      : 'Trading OFF \u00b7 Research OFF';
+      tradingLabel + (loopOn ? ' \u00b7 Research ON' : ' \u00b7 Research OFF');
 
     // Trading-first situation
-    const openPos = belfort.open_positions || [];
+    const openPos       = belfort.open_positions || [];
+    const reviewPending = ['waiting_for_review','review_held'].includes(bStatus);
+    const idle          = !tradingOn && !loopOn && !reviewPending;
     const sit = [];
-    if (['waiting_for_review','review_held'].includes(bStatus))
+    if (reviewPending)
       sit.push({text: '\u26a1 Research result ready \u2014 approve or reject below', cls: 'warn'});
-    if (openPos.length > 0) {
-      sit.push({text: 'Position: ' + openPos.join(', ') + ' (open)', cls: 'ok'});
+    if (idle) {
+      // Clean idle — no live trading or research active; show historical context only
+      sit.push({text: 'Idle \u2014 trading and research are both off'});
+      const lt = belfort.last_trade;
+      if (lt) {
+        const ltP = lt.pnl != null ? (' (' + (lt.pnl >= 0 ? '+$' : '-$') + Math.abs(lt.pnl).toFixed(2) + ')') : '';
+        sit.push({text: 'Last trade: ' + lt.side + '\u00a0' + (lt.symbol || '?') + ' @ $' + (lt.price != null ? lt.price.toFixed(2) : '?') + ltP + ' (historical)'});
+      }
     } else {
-      sit.push({text: 'Position: FLAT'});
+      // Active or review state — show live position and trade data
+      if (openPos.length > 0) {
+        sit.push({text: 'Position: ' + openPos.join(', ') + ' (open)', cls: 'ok'});
+      } else if (tradingOn) {
+        sit.push({text: 'Position: FLAT \u2014 no open position'});
+      }
+      const lt = belfort.last_trade;
+      if (lt) {
+        const ltP = lt.pnl != null ? (' (' + (lt.pnl >= 0 ? '+$' : '-$') + Math.abs(lt.pnl).toFixed(2) + ')') : '';
+        const ltCls = lt.pnl != null && lt.pnl < 0 ? 'warn' : lt.pnl != null && lt.pnl > 0 ? 'ok' : '';
+        sit.push({text: 'Last trade: ' + lt.side + '\u00a0' + (lt.symbol || '?') + ' @ $' + (lt.price != null ? lt.price.toFixed(2) : '?') + ltP, cls: ltCls});
+      }
     }
-    const lt = belfort.last_trade;
-    if (lt) {
-      const ltP = lt.pnl != null ? (' (' + (lt.pnl >= 0 ? '+$' : '-$') + Math.abs(lt.pnl).toFixed(2) + ')') : '';
-      const ltCls = lt.pnl != null && lt.pnl < 0 ? 'warn' : lt.pnl != null && lt.pnl > 0 ? 'ok' : '';
-      sit.push({text: 'Last trade: ' + lt.side + '\u00a0' + (lt.symbol || '?') + ' @ $' + (lt.price != null ? lt.price.toFixed(2) : '?') + ltP, cls: ltCls});
-    }
-    if (!tradingOn && !loopOn && !['waiting_for_review','review_held'].includes(bStatus))
-      sit.push({text: 'Both trading and research are off \u2014 use controls below to start'});
     setItems('dp-situation', sit);
 
     // Show controls section instead of NEXT
@@ -1649,11 +2110,122 @@ function populatePanel(id, state, _skipClear) {
       const rc = document.getElementById('belfort-review-card');
       if (rc) rc.style.display = 'none';
     }
+    // Frank Lloyd cross-reference — show if an active build is about Belfort
+    const flBelfortWork = document.getElementById('fl-belfort-work');
+    if (flBelfortWork) {
+      const flRel = (state.frank_lloyd || {}).belfort_related_build;
+      if (flRel && flRel.status !== 'draft_promoted') {
+        const statusLabel = (flRel.status || '').replace(/_/g, ' ');
+        flBelfortWork.innerHTML = '<strong>Frank Lloyd working on:</strong> '
+          + _escHtml(flRel.title || flRel.build_id)
+          + ' <span style="color:#37474f">[\u202f' + _escHtml(statusLabel) + '\u202f]</span>';
+        flBelfortWork.style.display = '';
+      } else {
+        flBelfortWork.style.display = 'none';
+      }
+    }
     // Load readiness scorecard, learning pulse, and diagnostics
     loadBelfortReadiness();
     loadBelfortLearning();
     loadBelfortDiagnostics();
     setActions([{text: '\ud83d\udcca Open Belfort workspace \u2192', onclick: "openDashTab('belfort')", primary: true}]);
+  }
+
+  else if (id === 'frank-lloyd') {
+    const fl      = state.frank_lloyd || {};
+    const pending = fl.pending_count    || 0;
+    const inprog  = fl.inprogress_count || 0;
+    const complete= fl.completed_count  || 0;
+    const job     = fl.active_job       || null;
+    const jStatus = (job || {}).status  || '';
+
+    // Status badge — maps to visible builder phase
+    let flCls, flLabel;
+    if      (jStatus === 'draft_promoted')   { flCls = 'ok';      flLabel = 'APPLIED'; }
+    else if (jStatus === 'draft_generated')  { flCls = 'review';  flLabel = 'DRAFT READY'; }
+    else if (jStatus === 'draft_blocked')    { flCls = 'warning'; flLabel = 'BLOCKED'; }
+    else if (['draft_generating','stage2_authorized','spec_approved'].includes(jStatus))
+                                             { flCls = 'active';  flLabel = 'BUILDING'; }
+    else if (jStatus === 'pending_review')   { flCls = 'review';  flLabel = 'NEEDS REVIEW'; }
+    else if (pending > 0)                    { flCls = 'warning'; flLabel = 'QUEUED'; }
+    else                                     { flCls = 'idle';    flLabel = 'IDLE'; }
+    setBadge(flCls, flLabel);
+    document.getElementById('dp-status-detail').textContent =
+      job ? (job.build_id || '') : `${pending} queued \u00b7 ${inprog} active \u00b7 ${complete} done`;
+
+    // Situation
+    const sit = [];
+    if (job && jStatus === 'draft_promoted') {
+      sit.push({text: '\u2713 Applied: ' + _escHtml(job.title || job.build_id), cls: 'ok'});
+    } else if (job) {
+      sit.push({text: job.next_action || 'Building\u2026', cls: 'warn'});
+    } else if (pending > 0) {
+      sit.push({text: `${pending} build${pending > 1 ? 's' : ''} queued \u2014 Frank Lloyd is ready`});
+    } else {
+      sit.push({text: 'No active builds \u2014 describe what to build below'});
+    }
+    setItems('dp-situation', sit);
+
+    // Show Frank Lloyd section, hide NEXT
+    const nxw = document.getElementById('dp-next-wrapper');
+    if (nxw) nxw.style.display = 'none';
+    const fls = document.getElementById('frank-lloyd-section');
+    if (fls) fls.style.display = '';
+
+    // Render builder workspace
+    _flRenderWorkspace(job);
+
+    // Contextual actions — only show what makes sense for the current state.
+    // Safe lane states (pending_spec, spec_approved, stage2_authorized) collapse
+    // into a single "Building…" indicator when auto-run is in progress.
+    const flActions = [];
+    if (job) {
+      switch (jStatus) {
+        case 'pending_spec':
+          // Auto-run usually fires automatically on queue; show a start button as fallback
+          flActions.push({text: '\u25b6 START BUILDING', onclick: 'flAutoRun()', primary: true});
+          break;
+        case 'pending_review':
+          // Plan ready — manual review gate (safe lane paused due to medium/high risk)
+          flActions.push({text: '\u2713 APPROVE PLAN',   onclick: 'flApproveSpec()',    primary: true});
+          flActions.push({text: '\u2715 REJECT PLAN',    onclick: 'flShowRejectForm()', primary: false});
+          flActions.push({text: _flReviewVisible ? '\u25b4 Hide plan' : '\u25be View plan', onclick: 'flToggleReview()', primary: false});
+          break;
+        case 'spec_approved':
+          // After manual approval — authorize Stage 2 to proceed
+          flActions.push({text: '\u26a1 START BUILDING', onclick: 'flShowAuthorizeForm()', primary: true});
+          flActions.push({text: _flReviewVisible ? '\u25b4 Hide plan' : '\u25be View plan', onclick: 'flToggleReview()', primary: false});
+          break;
+        case 'stage2_authorized':
+          // Authorized but not yet building — generate draft
+          flActions.push({text: '\u2699 GENERATE DRAFT', onclick: 'flGenerateDraft()',  primary: true});
+          flActions.push({text: _flReviewVisible ? '\u25b4 Hide plan' : '\u25be View plan', onclick: 'flToggleReview()', primary: false});
+          break;
+        case 'draft_generating':
+          // Frank Lloyd is working — no action buttons; stream shows live progress
+          break;
+        case 'draft_generated':
+          // Apply summary is auto-shown; apply is the primary action
+          flActions.push({text: '\u2713 APPLY TO REPO',  onclick: 'flShowPromoteForm()', primary: true});
+          flActions.push({text: '\u2715 DISCARD',        onclick: 'flDiscardDraft()',    primary: false});
+          flActions.push({text: _flReviewVisible ? '\u25b4 Hide code' : '\u25be View code', onclick: 'flToggleReview()', primary: false});
+          break;
+        case 'draft_blocked':
+          flActions.push({text: '\u21ba DISCARD \u0026 RETRY', onclick: 'flDiscardDraft()', primary: true});
+          flActions.push({text: _flReviewVisible ? '\u25b4 Hide details' : '\u25be View reason', onclick: 'flToggleReview()', primary: false});
+          break;
+        case 'draft_promoted':
+          // Build complete — no actions; just show status
+          break;
+      }
+      // CANCEL available for any active (non-terminal, non-auto-building) state
+      const _terminalStates = ['draft_promoted','spec_rejected','abandoned'];
+      const _autoStates     = ['draft_generating','pending_spec'];  // auto-running; cancel via abandon
+      if (!_terminalStates.includes(jStatus)) {
+        flActions.push({text: '\u2715 CANCEL BUILD', onclick: 'flAbandon()', primary: false});
+      }
+    }
+    setActions(flActions);
   }
 
   else if (id === 'custodian') {
@@ -1885,11 +2457,31 @@ function _peterDeterministicAnswer(msg) {
     if (reviewNeeded) parts.push('A result is waiting for your review.');
     if (openPos.length > 0) {
       parts.push('Open position: ' + openPos.join(', ') + '.');
-    } else if (lt) {
+    } else if (lt && tradingOn) {
       const ltP = lt.pnl != null ? (' (' + (lt.pnl >= 0 ? '+$' : '-$') + Math.abs(lt.pnl).toFixed(2) + ')') : '';
       parts.push('Last trade: ' + lt.side + '\u00a0' + lt.symbol + ltP + '.');
     } else if (trades === 0) {
       parts.push('No trades yet \u2014 portfolio is at baseline.');
+    }
+    // Frank Lloyd status
+    const _fl    = (_lastState || {}).frank_lloyd || {};
+    const _flJob = _fl.active_job || null;
+    if (_flJob) {
+      const _jStatus = _flJob.status || '';
+      const _jTitle  = _flJob.title  || _flJob.build_id || '';
+      const _flShort = {
+        pending_spec:      'Frank Lloyd is planning \u201c' + _jTitle + '\u201d.',
+        pending_review:    'Frank Lloyd plan ready for \u201c' + _jTitle + '\u201d \u2014 needs your review.',
+        spec_approved:     'Frank Lloyd plan approved for \u201c' + _jTitle + '\u201d.',
+        stage2_authorized: 'Frank Lloyd authorized to build \u201c' + _jTitle + '\u201d.',
+        draft_generating:  'Frank Lloyd is generating code for \u201c' + _jTitle + '\u201d.',
+        draft_generated:   'Frank Lloyd draft ready for \u201c' + _jTitle + '\u201d.',
+        draft_blocked:     'Frank Lloyd draft blocked on \u201c' + _jTitle + '\u201d.',
+        draft_promoted:    '\u201c' + _jTitle + '\u201d applied to repo.',
+      };
+      if (_flShort[_jStatus]) parts.push(_flShort[_jStatus]);
+    } else if ((_fl.pending_count || 0) > 0) {
+      parts.push('Frank Lloyd has ' + _fl.pending_count + ' build' + (_fl.pending_count > 1 ? 's' : '') + ' queued.');
     }
     return parts.join(' ');
   }
@@ -2000,12 +2592,42 @@ function _peterDeterministicAnswer(msg) {
     );
   }
 
+  // Frank Lloyd status queries — deterministic, no LM needed
+  if (/frank\s*lloyd|builder|building|fl\b/.test(lower)) {
+    const fl     = (_lastState || {}).frank_lloyd || {};
+    const job    = fl.active_job || null;
+    const pend   = fl.pending_count || 0;
+    if (!job && pend === 0) return 'Frank Lloyd is idle. Describe what to build in the Frank Lloyd panel or here.';
+    if (!job && pend > 0) return pend + ' build' + (pend > 1 ? 's' : '') + ' queued \u2014 Frank Lloyd is picking up work.';
+    const jTitle  = job.title || job.build_id || '';
+    const jStatus = job.status || '';
+    const jMode   = job.mode   ? ' (' + job.mode + ')' : '';
+    const statusText = {
+      pending_spec:      'Planning' + jMode + ': \u201c' + jTitle + '\u201d \u2014 generating spec.',
+      pending_review:    'Plan ready' + jMode + ' for \u201c' + jTitle + '\u201d. Needs your review \u2014 approve or reject in the Frank Lloyd panel.',
+      spec_approved:     '\u201c' + jTitle + '\u201d plan approved. Authorize Stage 2 to start draft generation.',
+      stage2_authorized: '\u201c' + jTitle + '\u201d authorized. Draft generation starting shortly.',
+      draft_generating:  'Frank Lloyd is writing code for \u201c' + jTitle + '\u201d' + jMode + '. Check back in a moment.',
+      draft_generated:   'Draft ready for \u201c' + jTitle + '\u201d. Review the apply summary, then apply or discard.',
+      draft_blocked:     'Draft blocked on \u201c' + jTitle + '\u201d. Discard and retry from the Frank Lloyd panel.',
+      draft_promoted:    '\u201c' + jTitle + '\u201d applied to repo. Build complete.',
+      spec_rejected:     'Plan rejected for \u201c' + jTitle + '\u201d. Queue a new request to try again.',
+      abandoned:         '\u201c' + jTitle + '\u201d was abandoned.',
+    };
+    return statusText[jStatus] || ('Frank Lloyd: \u201c' + jTitle + '\u201d \u2014 ' + jStatus.replace(/_/g, ' ') + '.');
+  }
+
   // Generic fallback for free-form queries
   return 'For full AI guidance, add an OpenRouter API key. Current state: Trading ' + (tradingOn ? 'ON' : 'OFF') + ', Research ' + (loopOn ? 'ON' : 'OFF') + (reviewNeeded ? ', review pending.' : '.');
 }
 
 // ── Peter chat ────────────────────────────────────────────────────────────
 let _peterChat = [];  // [{role:'peter'|'operator', text:str, loading?:true}]
+
+function _peterInputGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
 
 function _escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -2028,8 +2650,105 @@ function peterChatRender() {
 
 function peterChatAsk(text) {
   const inp = document.getElementById('peter-chat-input');
-  if (inp) { inp.value = text; }
+  if (inp) { inp.value = text; _peterInputGrow(inp); }
   peterChatSend();
+}
+
+// ── Peter chat routing ────────────────────────────────────────────────────────
+//
+// Three routing paths:
+//   1. FL build intent  → /frank-lloyd/smart-queue (shape + queue + autorun)
+//   2. FL lifecycle NL  → /peter/action (approve/reject/run/draft/promote/discard)
+//   3. Info/status      → /peter/chat (LM guidance) or deterministic fallback
+//
+// Build detection is intentionally broad — if something looks like a directive
+// to change/add/fix/clean something, route it to smart-queue.
+// Lifecycle detection catches explicit lifecycle verbs without a structured build-id.
+
+function _isFlBuildIntent(msg) {
+  const lower = msg.toLowerCase().trim();
+  // Skip obvious status questions
+  if (/^(what|when|where|why|who|how)\s+(is|are|does|do|can|has|have|did|was)\b/.test(lower)
+      && !/frank\s*lloyd/.test(lower)) return false;
+  if (/^(is |are |does |do |can |has |have |did |was )/.test(lower)
+      && !/frank\s*lloyd/.test(lower)) return false;
+  // Frank Lloyd explicitly mentioned with action verb
+  if (/frank\s*lloyd/.test(lower) &&
+      /\b(build|add|make|create|write|implement|fix|refactor|clean|diagnose|improve|monitor|remove|delete|update|change|rework|rewrite)\b/.test(lower))
+    return true;
+  // Strong build directive without FL mention
+  const buildVerbs = /\b(build|implement|add|create|write|develop)\s+(a|an|the|new)?\s*\w/;
+  const fixVerbs   = /\b(fix|refactor|clean up|diagnose|improve|remove|delete|rework|rewrite)\b/;
+  const artifacts  = /\b(endpoint|route|module|handler|function|command|feature|service|script|api|panel|widget|tab|view|page|button|form|class|test)\b/;
+  if (buildVerbs.test(lower) && artifacts.test(lower)) return true;
+  if (fixVerbs.test(lower) && artifacts.test(lower)) return true;
+  // "Queue a build" / "have FL build" patterns from commands.py
+  if (/\b(have|ask|tell|get)\s+(frank\s*lloyd|fl)\b/.test(lower)) return true;
+  return false;
+}
+
+function _isFlLifecycleIntent(msg) {
+  const lower = msg.toLowerCase();
+  // Status query — handled by /peter/chat (LM), not action
+  if (/what.*frank\s*lloyd|frank\s*lloyd.*status|how.*frank\s*lloyd/.test(lower)) return false;
+  // Lifecycle action verbs
+  return /\b(approve|reject|authorize|run that|run the build|go ahead|auto.?run|discard|scrap|draft|generate draft|promote|ship that|apply that)\b/.test(lower);
+}
+
+async function _peterSmartQueue(msg, inp, btn) {
+  _peterChat.push({role: 'peter', text: '\u2026', loading: true});
+  peterChatRender();
+  try {
+    const r = await fetch('/peter/queue-build', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg}),
+    });
+    const d = await r.json();
+    _peterChat = _peterChat.filter(m => !m.loading);
+    const text = d.text || (d.ok ? 'Queued.' : (d.needs_clarification ? d.text : 'Could not queue.'));
+    _peterChat.push({role: 'peter', text: text});
+    // If queued successfully, auto-poll the FL panel
+    if (d.ok && d.build_id) {
+      setTimeout(tick, 500);
+      setTimeout(tick, 2500);
+    }
+  } catch(e) {
+    _peterChat = _peterChat.filter(m => !m.loading);
+    _peterChat.push({role: 'peter', text: 'Could not reach the queueing service \u2014 try again.'});
+  } finally {
+    inp.disabled = false;
+    btn.disabled = false;
+    btn.textContent = 'SEND';
+    peterChatRender();
+    inp.focus();
+  }
+}
+
+async function _peterFlAction(msg, inp, btn) {
+  _peterChat.push({role: 'peter', text: '\u2026', loading: true});
+  peterChatRender();
+  try {
+    const r = await fetch('/peter/action', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg}),
+    });
+    const d = await r.json();
+    _peterChat = _peterChat.filter(m => !m.loading);
+    _peterChat.push({role: 'peter', text: d.summary || (d.ok ? 'Done.' : 'Action failed.')});
+    // Refresh state after lifecycle action
+    if (d.ok) setTimeout(async () => { const s = await fetchState(); if (s) applyState(s); }, 600);
+  } catch(e) {
+    _peterChat = _peterChat.filter(m => !m.loading);
+    _peterChat.push({role: 'peter', text: 'Action failed \u2014 try again.'});
+  } finally {
+    inp.disabled = false;
+    btn.disabled = false;
+    btn.textContent = 'SEND';
+    peterChatRender();
+    inp.focus();
+  }
 }
 
 async function peterChatSend() {
@@ -2039,15 +2758,28 @@ async function peterChatSend() {
   const msg = inp.value.trim();
   if (!msg) return;
   inp.value = '';
+  inp.style.height = '';
   inp.disabled = true;
   btn.disabled = true;
   btn.textContent = '\u2026';
   _peterChat.push({role: 'operator', text: msg});
 
+  // Route 1: FL build intent → smart intake (shape + queue + autorun)
+  if (_isFlBuildIntent(msg)) {
+    await _peterSmartQueue(msg, inp, btn);
+    return;
+  }
+
+  // Route 2: FL lifecycle action → peter/action (approve/reject/run/draft/etc.)
+  if (_isFlLifecycleIntent(msg)) {
+    await _peterFlAction(msg, inp, btn);
+    return;
+  }
+
+  // Route 3: Info/status → LM guidance or deterministic fallback
   const lmAvail = _lastState && _lastState.lm_available;
 
   if (!lmAvail) {
-    // Deterministic path — instant, no API call
     _peterChat.push({role: 'peter', text: _peterDeterministicAnswer(msg)});
     inp.disabled = false;
     btn.disabled = false;
@@ -2057,7 +2789,6 @@ async function peterChatSend() {
     return;
   }
 
-  // LM path
   _peterChat.push({role: 'peter', text: '\u2026', loading: true});
   peterChatRender();
   try {
@@ -2634,7 +3365,666 @@ async function belfortResetExecute() {
   }
 }
 
-// ── Ops panel refresh ─────────────────────────────────────────────────────
+// ── Frank Lloyd builder workspace ─────────────────────────────────────────────
+
+function _flVisiblePhase(status) {
+  // User-facing phase labels — abstract over internal state machine names
+  const m = {
+    pending_spec:      {label: 'PLANNING',      cls: 'building'},
+    pending_review:    {label: 'PLAN REVIEW',   cls: 'review'},
+    spec_approved:     {label: 'BUILDING',      cls: 'building'},
+    stage2_authorized: {label: 'BUILDING',      cls: 'building'},
+    draft_generating:  {label: 'BUILDING',      cls: 'building'},
+    draft_generated:   {label: 'READY TO APPLY', cls: 'ready'},
+    draft_blocked:     {label: 'BLOCKED',       cls: 'blocked'},
+    draft_promoted:    {label: 'COMPLETE',      cls: 'applied'},
+    spec_rejected:     {label: 'REJECTED',      cls: 'blocked'},
+    abandoned:         {label: 'ABANDONED',     cls: 'blocked'},
+  };
+  return m[status] || {label: 'BUILDING', cls: 'building'};
+}
+
+function _flStatusHasReview(status) {
+  return ['pending_review', 'spec_approved', 'stage2_authorized',
+          'draft_generating', 'draft_generated', 'draft_blocked'].includes(status);
+}
+
+function _flRenderStream(job) {
+  const el = document.getElementById('fl-stream-entries');
+  if (!el) return;
+
+  const iconColors = {
+    'se-ok':     '#455a64',
+    'se-done':   '#66bb6a',
+    'se-review': '#ffd600',
+    'se-active': '#5c6bc0',
+    'se-blocked':'#ef5350',
+  };
+
+  // ── Real event stream from backend ──────────────────────────────────────────
+  // job.events is populated by frank_lloyd/job.py with actual build log events.
+  if (job.events && job.events.length) {
+    const iconFor = cls =>
+      cls === 'ok'      ? '\u2713'  // ✓
+    : cls === 'done'    ? '\u2713'
+    : cls === 'review'  ? '\u25cf'  // ●
+    : cls === 'active'  ? '\u25cc'  // ◌ (spinning-ish)
+    : cls === 'blocked' ? '\u2717'  // ✗
+    : '\u203a';
+
+    // Show last 6 events, oldest first (slice from end)
+    const shown = job.events.length > 6 ? job.events.slice(-6) : job.events;
+    el.innerHTML = shown.map(e => {
+      const cls    = 'se-' + (e.cls || 'ok');
+      const icon   = iconFor(e.cls || 'ok');
+      const color  = iconColors[cls] || '#37474f';
+      const detail = e.detail ? '<span class="fl-se-detail">\u00a0\u00b7\u00a0' + _escHtml(e.detail) + '</span>' : '';
+      const ts     = e.ts_short ? '<span class="fl-se-detail" style="margin-left:auto;opacity:0.5">' + _escHtml(e.ts_short) + '</span>' : '';
+      return '<div class="fl-stream-entry">' +
+        '<span class="fl-se-icon" style="color:' + color + '">' + icon + '</span>' +
+        '<span class="fl-se-text ' + cls + '">' + _escHtml(e.label) + '</span>' +
+        detail + ts +
+        '</div>';
+    }).join('');
+    return;
+  }
+
+  // ── Fallback: synthesize from status only (no real events available) ────────
+  const s       = job.status;
+  const entries = [];
+  const order   = ['pending_spec','pending_review','spec_approved',
+    'stage2_authorized','draft_generating','draft_generated','draft_blocked','draft_promoted'];
+  const idx     = order.indexOf(s);
+
+  entries.push({text: 'Build request queued', cls: 'se-ok', icon: '\u2713', detail: job.build_id});
+
+  if (s === 'pending_spec') {
+    entries.push({text: 'Generating plan\u2026', cls: 'se-active', icon: '\u25cc'});
+  } else if (idx >= order.indexOf('pending_review')) {
+    entries.push({text: s === 'pending_review' ? 'Plan ready \u2014 review needed' : 'Plan generated', cls: s === 'pending_review' ? 'se-review' : 'se-ok', icon: s === 'pending_review' ? '\u25cf' : '\u2713'});
+  }
+  if (idx >= order.indexOf('spec_approved') && s !== 'pending_review') {
+    entries.push({text: s === 'spec_approved' ? 'Plan approved \u2014 authorize to start' : 'Plan approved', cls: s === 'spec_approved' ? 'se-active' : 'se-ok', icon: '\u2713'});
+  }
+  if (idx >= order.indexOf('stage2_authorized') && !['pending_review','spec_approved'].includes(s)) {
+    entries.push({text: s === 'stage2_authorized' ? 'Authorized \u2014 ready to generate code' : 'Authorized', cls: s === 'stage2_authorized' ? 'se-active' : 'se-ok', icon: '\u2713'});
+  }
+  if (idx >= order.indexOf('draft_generating') && !['pending_review','spec_approved','stage2_authorized'].includes(s)) {
+    const dText = s === 'draft_generating' ? 'Generating code\u2026' : s === 'draft_generated' ? 'Draft ready for review' : s === 'draft_blocked' ? 'Draft blocked' : 'Draft generated';
+    const dCls  = s === 'draft_generating' ? 'se-active' : s === 'draft_generated' ? 'se-review' : s === 'draft_blocked' ? 'se-blocked' : 'se-ok';
+    entries.push({text: dText, cls: dCls, icon: s === 'draft_blocked' ? '\u2717' : s === 'draft_generated' ? '\u25cf' : s === 'draft_generating' ? '\u25cc' : '\u2713'});
+  }
+  if (s === 'draft_promoted') {
+    entries.push({text: 'Applied to repository', cls: 'se-done', icon: '\u2713'});
+  }
+
+  el.innerHTML = entries.map(e =>
+    '<div class="fl-stream-entry">' +
+    '<span class="fl-se-icon" style="color:' + (iconColors[e.cls] || '#37474f') + '">' + e.icon + '</span>' +
+    '<span class="fl-se-text ' + e.cls + '">' + _escHtml(e.text) + '</span>' +
+    (e.detail ? '<span class="fl-se-detail">\u00a0' + _escHtml(e.detail) + '</span>' : '') +
+    '</div>'
+  ).join('');
+}
+
+function _flRenderWorkspace(job) {
+  const ws = document.getElementById('fl-job-workspace');
+  if (!job) {
+    if (ws) ws.style.display = 'none';
+    _flActionBuildId = null;
+    return;
+  }
+  if (ws) ws.style.display = '';
+
+  // Track when build_id or status changes so we can reset apply summary / forms
+  const prevBuildId = _flActionBuildId;
+  const prevStatus  = _flLastStatus;
+  _flActionBuildId  = job.build_id;
+  _flLastStatus     = job.status;
+
+  if (prevBuildId && prevBuildId !== job.build_id) {
+    // Switching to a different build — hide stale apply summary / forms
+    _flHideForms();
+    const fb = document.getElementById('fl-action-feedback');
+    if (fb) fb.style.display = 'none';
+    _flReviewVisible = false;
+  }
+
+  // Auto-open plan review when entering pending_review for the first time
+  if (job.status === 'pending_review' && prevStatus !== 'pending_review') {
+    _flReviewVisible = true;
+  }
+
+  // Title + phase chip
+  const titleEl = document.getElementById('fl-job-title');
+  if (titleEl) titleEl.textContent = job.title || job.build_id;
+
+  const chipEl = document.getElementById('fl-phase-chip');
+  if (chipEl) {
+    const ph = _flVisiblePhase(job.status);
+    chipEl.textContent = ph.label;
+    chipEl.className = 'fl-phase-chip fl-phase-' + ph.cls;
+  }
+
+  // Meta line: build_id · mode · build_type · risk
+  const metaEl = document.getElementById('fl-job-meta');
+  if (metaEl) {
+    const parts = [job.build_id];
+    if (job.mode && job.mode !== 'build') {
+      parts.push(job.mode);          // show non-default mode (refactor/diagnose/etc.)
+    }
+    if (job.build_type && job.build_type !== 'unknown') {
+      parts.push(job.build_type.replace(/_/g, ' '));
+    }
+    if (job.risk_level && job.risk_level !== 'unknown') {
+      parts.push(job.risk_level + ' risk');
+    }
+    metaEl.textContent = parts.join(' \u00b7 ');
+  }
+
+  // Work stream
+  _flRenderStream(job);
+
+  // Review area — shown when toggle is on and review content exists
+  const reviewArea = document.getElementById('fl-review-area');
+  const hasReview  = _flStatusHasReview(job.status);
+  if (reviewArea) reviewArea.style.display = (hasReview && _flReviewVisible) ? '' : 'none';
+  if (hasReview && _flReviewVisible) _flLoadReviewContent(job);
+
+  // Auto-show apply summary when draft is ready (no click needed)
+  if (job.status === 'draft_generated') {
+    const summaryWrapper = document.getElementById('fl-apply-summary');
+    // Only auto-load if not already showing (avoid repeated fetches on every poll)
+    if (summaryWrapper && summaryWrapper.style.display === 'none') {
+      flLoadApplySummary(job.build_id);
+    }
+  }
+}
+
+async function _flLoadReviewContent(job) {
+  const s = job.status;
+  const hasDraft = ['draft_generated', 'draft_blocked', 'draft_generating'].includes(s);
+  const hasSpec  = ['pending_review', 'spec_approved', 'stage2_authorized',
+                    'draft_generating', 'draft_generated', 'draft_blocked'].includes(s);
+  const codeTab = document.getElementById('fl-tab-code');
+  if (codeTab) codeTab.style.display = hasDraft ? '' : 'none';
+  // Auto-open code tab for fresh draft_generated; plan tab otherwise
+  if (hasDraft && s === 'draft_generated') flTabSwitch('code');
+  else flTabSwitch('plan');
+  if (hasSpec)  await flLoadSpec(job.build_id);
+  if (hasDraft) await flLoadDraft(job.build_id);
+}
+
+function flTabSwitch(tab) {
+  const planPane = document.getElementById('fl-pane-plan');
+  const codePane = document.getElementById('fl-pane-code');
+  const planTab  = document.getElementById('fl-tab-plan');
+  const codeTab  = document.getElementById('fl-tab-code');
+  if (tab === 'plan') {
+    if (planPane) planPane.classList.add('fl-pane-active');
+    if (codePane) codePane.classList.remove('fl-pane-active');
+    if (planTab)  planTab.classList.add('fl-tab-active');
+    if (codeTab)  codeTab.classList.remove('fl-tab-active');
+  } else {
+    if (codePane) codePane.classList.add('fl-pane-active');
+    if (planPane) planPane.classList.remove('fl-pane-active');
+    if (codeTab)  codeTab.classList.add('fl-tab-active');
+    if (planTab)  planTab.classList.remove('fl-tab-active');
+  }
+}
+
+function flToggleReview() {
+  _flReviewVisible = !_flReviewVisible;
+  if (_lastState && _currentSelection === 'frank-lloyd') {
+    populatePanel('frank-lloyd', _lastState, true);
+  }
+}
+
+// ── Frank Lloyd auto-run ──────────────────────────────────────────────────────
+
+async function flAutoRun(buildIdOverride) {
+  const bid = buildIdOverride || _flActionBuildId;
+  if (!bid) return;
+  _flHideForms();
+  _flFeedback('Frank Lloyd is on it\u2026 planning and building in the background.', 'pending');
+  try {
+    const r = await fetch('/frank-lloyd/' + encodeURIComponent(bid) + '/auto-run', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({}),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      _flFeedback('Could not start: ' + _escHtml(d.error || 'Unknown error.'), 'error');
+    }
+    // Fire-and-forget — backend runs in background; poll picks up progress
+    setTimeout(tick, 800);
+    setTimeout(tick, 3000);
+  } catch(e) {
+    _flFeedback('Network error: ' + _escHtml(e.message), 'error');
+  }
+}
+
+// ── Frank Lloyd action controls ────────────────────────────────────────────────
+
+async function flGenerateSpec() {
+  const bid = _flActionBuildId;
+  if (!bid) return;
+  const fb  = document.getElementById('fl-action-feedback');
+  const btn = document.querySelector('[onclick="flGenerateSpec()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating\u2026'; }
+  if (fb)  { fb.className = 'fl-action-feedback fl-fb-pending'; fb.textContent = 'Generating plan\u2026 this may take a moment.'; fb.style.display = ''; }
+  try {
+    const r = await fetch('/frank-lloyd/' + encodeURIComponent(bid) + '/spec', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+    });
+    const d = await r.json();
+    if (fb) {
+      if (d.ok !== false && !d.error) {
+        fb.className = 'fl-action-feedback fl-fb-ok';
+        fb.textContent = '\u2713 Plan ready for ' + bid + '. Review and approve when ready.';
+      } else {
+        fb.className = 'fl-action-feedback fl-fb-error';
+        fb.textContent = '\u2717 ' + (d.detail || d.error || 'Plan generation failed.');
+      }
+    }
+    setTimeout(tick, 500);
+  } catch(e) {
+    if (fb)  { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = '\u2717 Network error.'; fb.style.display = ''; }
+    if (btn) { btn.disabled = false; btn.textContent = '\u2699 GENERATE PLAN'; }
+  }
+}
+
+async function flGenerateDraft() {
+  const bid = _flActionBuildId;
+  if (!bid) return;
+  const fb  = document.getElementById('fl-action-feedback');
+  const btn = document.querySelector('[onclick="flGenerateDraft()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Building\u2026'; }
+  if (fb)  { fb.className = 'fl-action-feedback fl-fb-pending'; fb.textContent = 'Frank Lloyd is writing code\u2026 this may take a minute.'; fb.style.display = ''; }
+  try {
+    const r = await fetch('/frank-lloyd/' + encodeURIComponent(bid) + '/generate-draft', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({}),
+    });
+    const d = await r.json();
+    if (fb) {
+      if (d.ok) {
+        fb.className = 'fl-action-feedback fl-fb-ok';
+        fb.textContent = '\u2713 Draft ready for ' + bid + '. Review it above.';
+      } else {
+        fb.className = 'fl-action-feedback fl-fb-error';
+        fb.textContent = '\u2717 ' + (d.error || d.message || 'Draft generation failed.');
+      }
+    }
+    setTimeout(tick, 500);
+  } catch(e) {
+    if (fb)  { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = '\u2717 Network error.'; fb.style.display = ''; }
+    if (btn) { btn.disabled = false; btn.textContent = '\u2699 GENERATE DRAFT'; }
+  }
+}
+
+function flApproveSpec() {
+  if (!_flActionBuildId) return;
+  _flHideForms();
+  _flAction('Approving plan\u2026', async () => {
+    const r = await fetch('/frank-lloyd/' + encodeURIComponent(_flActionBuildId) + '/approve-spec', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({notes: ''}),
+    });
+    return r.json();
+  });
+}
+
+function flShowRejectForm() {
+  _flHideForms();
+  document.getElementById('fl-action-feedback').style.display = 'none';
+  const f = document.getElementById('fl-reject-form');
+  if (f) f.style.display = '';
+  const inp = document.getElementById('fl-reject-reason');
+  if (inp) { inp.value = ''; inp.focus(); }
+}
+
+function flRejectCancel() {
+  const f = document.getElementById('fl-reject-form');
+  if (f) f.style.display = 'none';
+}
+
+async function flRejectConfirm() {
+  const reason = ((document.getElementById('fl-reject-reason') || {}).value || '').trim();
+  if (!reason) { _flFeedback('A reason is required to reject.', 'error'); return; }
+  document.getElementById('fl-reject-form').style.display = 'none';
+  _flAction('Rejecting plan\u2026', async () => {
+    const r = await fetch('/frank-lloyd/' + encodeURIComponent(_flActionBuildId) + '/reject-spec', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({reason}),
+    });
+    return r.json();
+  });
+}
+
+function flShowAuthorizeForm() {
+  _flHideForms();
+  document.getElementById('fl-action-feedback').style.display = 'none';
+  const f = document.getElementById('fl-authorize-form');
+  if (f) f.style.display = '';
+  const inp = document.getElementById('fl-authorize-notes');
+  if (inp) { inp.value = ''; inp.focus(); }
+}
+
+function flAuthorizeCancel() {
+  const f = document.getElementById('fl-authorize-form');
+  if (f) f.style.display = 'none';
+}
+
+async function flAuthorizeConfirm() {
+  const notes = ((document.getElementById('fl-authorize-notes') || {}).value || '').trim();
+  document.getElementById('fl-authorize-form').style.display = 'none';
+  _flAction('Authorizing build\u2026', async () => {
+    const r = await fetch('/frank-lloyd/' + encodeURIComponent(_flActionBuildId) + '/authorize-stage2', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({notes}),
+    });
+    return r.json();
+  });
+}
+
+function flShowPromoteForm() {
+  _flHideForms();
+  document.getElementById('fl-action-feedback').style.display = 'none';
+  const pf = document.getElementById('fl-promote-form');
+  if (pf) {
+    pf.style.display = '';
+    const fb  = document.getElementById('fl-promote-feedback');
+    if (fb) fb.style.display = 'none';
+    const inp = document.getElementById('fl-promote-target');
+    if (inp) { inp.disabled = false; if (!inp.value) inp.focus(); }
+
+    // Adapt form labels based on build type (modification vs new-file)
+    const job     = (_lastState && _lastState.frank_lloyd) ? _lastState.frank_lloyd.active_job : null;
+    const bt      = ((job || {}).build_type || '').toLowerCase();
+    const isMod   = bt.includes('modif') || bt.includes('patch');
+    const hintEl  = document.getElementById('fl-promote-hint');
+    const labelEl = document.getElementById('fl-promote-form-label');
+    const btnEl   = document.getElementById('fl-promote-btn');
+    if (isMod) {
+      if (hintEl)  hintEl.textContent  = 'Modification build \u2014 existing file will be replaced. Back up manually if needed.';
+      if (hintEl)  hintEl.style.color  = '#ff9800';
+      if (labelEl) labelEl.textContent = 'TARGET FILE TO REPLACE';
+      if (btnEl)   btnEl.textContent   = 'REPLACE FILE IN REPO';
+      // Pre-fill target path from apply summary target_path if known
+      const summaryEl = document.getElementById('fl-apply-summary-content');
+      // Will be pre-filled by flLoadApplySummary if det_target_path is set
+    } else {
+      if (hintEl)  hintEl.textContent  = 'New .py file only \u2014 file must not already exist.';
+      if (hintEl)  hintEl.style.color  = '';
+      if (labelEl) labelEl.textContent = 'TARGET PATH IN REPO';
+      if (btnEl)   btnEl.textContent   = 'APPLY TO REPO';
+    }
+  }
+  // Load apply summary alongside the form (non-blocking)
+  if (_flActionBuildId) flLoadApplySummary(_flActionBuildId);
+}
+
+function flPromoteCancel() {
+  const pf = document.getElementById('fl-promote-form');
+  if (pf) pf.style.display = 'none';
+  const sumEl = document.getElementById('fl-apply-summary');
+  if (sumEl) sumEl.style.display = 'none';
+}
+
+async function flPromoteConfirm() {
+  const buildId = _flActionBuildId;
+  const fb = document.getElementById('fl-promote-feedback');
+  if (!buildId) return;
+  const inp = document.getElementById('fl-promote-target');
+  const tgt = inp ? inp.value.trim() : '';
+  if (!tgt) {
+    if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = 'Target path is required.'; fb.style.display = ''; }
+    return;
+  }
+  if (fb) { fb.className = 'fl-action-feedback fl-fb-pending'; fb.textContent = 'Applying to repo\u2026'; fb.style.display = ''; }
+  try {
+    const r = await fetch('/frank-lloyd/' + encodeURIComponent(buildId) + '/promote-draft', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({target_path: tgt}),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      if (fb) { fb.className = 'fl-action-feedback fl-fb-ok'; fb.textContent = '\u2713 Applied: ' + _escHtml(data.target_path || tgt); fb.style.display = ''; }
+      const pf = document.getElementById('fl-promote-form');
+      if (pf) pf.querySelectorAll('button, input').forEach(el => el.disabled = true);
+      setTimeout(async () => { const s = await fetchState(); if (s) applyState(s); }, 900);
+    } else {
+      if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = _escHtml(data.error || 'Promotion failed.'); fb.style.display = ''; }
+    }
+  } catch(e) {
+    if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = 'Error: ' + _escHtml(e.message); fb.style.display = ''; }
+  }
+}
+
+async function flDiscardDraft() {
+  const buildId = _flActionBuildId;
+  if (!buildId) return;
+  _flHideForms();
+  _flFeedback('Discarding draft\u2026', 'pending');
+  try {
+    const r = await fetch('/frank-lloyd/' + encodeURIComponent(buildId) + '/discard-draft', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({}),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      _flFeedback('\u2713 Draft discarded. Ready for a new draft attempt.', 'ok');
+      _flReviewVisible = false;
+      setTimeout(async () => { const s = await fetchState(); if (s) applyState(s); }, 900);
+    } else {
+      _flFeedback(data.error || 'Discard failed.', 'error');
+    }
+  } catch(e) {
+    _flFeedback('Error: ' + _escHtml(e.message), 'error');
+  }
+}
+
+async function _flAction(pendingMsg, fetchFn) {
+  _flFeedback(pendingMsg, 'pending');
+  try {
+    const data = await fetchFn();
+    if (data.ok) {
+      _flFeedback(data.message || 'Done.', 'ok');
+      setTimeout(tick, 400);
+    } else {
+      _flFeedback(data.error || 'Action failed.', 'error');
+    }
+  } catch(e) {
+    _flFeedback('Network error: ' + e.message, 'error');
+  }
+}
+
+function _flFeedback(msg, cls) {
+  const el = document.getElementById('fl-action-feedback');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'fl-action-feedback fl-fb-' + cls;
+  el.style.display = '';
+  if (cls === 'ok') setTimeout(() => { if (el) el.style.display = 'none'; }, 5000);
+}
+
+function _flHideForms() {
+  ['fl-reject-form', 'fl-authorize-form', 'fl-promote-form', 'fl-apply-summary'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
+// ── Frank Lloyd apply summary ─────────────────────────────────────────────────
+
+async function flLoadApplySummary(buildId) {
+  const wrapper  = document.getElementById('fl-apply-summary');
+  const content  = document.getElementById('fl-apply-summary-content');
+  if (!wrapper || !content) return;
+  wrapper.style.display = '';
+  content.innerHTML = '<span class="fl-apply-loading">Loading summary\u2026</span>';
+  try {
+    const r    = await fetch('/frank-lloyd/' + encodeURIComponent(buildId) + '/apply-summary');
+    const data = await r.json();
+    if (!data.ok || !data.summary) {
+      content.innerHTML = '<span class="fl-apply-loading">Summary not available \u2014 review draft_module.py directly.</span>';
+      return;
+    }
+    const s = data.summary;
+    const riskCls = s.risk && s.risk.toLowerCase().includes('critical') ? 'risk-critical'
+                  : s.risk && s.risk.toLowerCase().includes('high')     ? 'risk-high'
+                  : s.risk && s.risk.toLowerCase().includes('medium')   ? 'risk-medium'
+                  : 'risk-low';
+    const files = Array.isArray(s.files) ? s.files.join(', ') : (s.files || '');
+    function row(key, val, cls) {
+      const safeVal = _escHtml(val || '\u2014');
+      const valCls  = cls ? ' class="fl-apply-val ' + cls + '"' : ' class="fl-apply-val"';
+      return '<div class="fl-apply-row"><span class="fl-apply-key">' + key + '</span><span' + valCls + '>' + safeVal + '</span></div>';
+    }
+    content.innerHTML =
+      row('WHAT',        s.what_built) +
+      row('PROBLEM',     s.problem) +
+      row('FILES',       files) +
+      row('RISK',        s.risk, riskCls) +
+      row('VALIDATION',  s.validation) +
+      row('ON APPLY',    s.on_apply) +
+      row('UNCERTAINTY', s.uncertainty);
+    // Pre-fill target path if summary has one
+    const tgt = (s.target_path || '').trim();
+    const inp  = document.getElementById('fl-promote-target');
+    if (inp && tgt && !inp.value) inp.value = tgt;
+  } catch(e) {
+    content.innerHTML = '<span class="fl-apply-loading">Summary error: ' + _escHtml(e.message) + '</span>';
+  }
+}
+
+// ── Frank Lloyd spec + draft loaders ─────────────────────────────────────────
+
+async function flLoadSpec(buildId) {
+  const yamlEl = document.getElementById('fl-spec-yaml');
+  const pfEl   = document.getElementById('fl-preflight-view');
+  if (yamlEl) yamlEl.textContent = 'Loading\u2026';
+  if (pfEl)   pfEl.style.display = 'none';
+  try {
+    const r    = await fetch('/frank-lloyd/' + encodeURIComponent(buildId) + '/spec-review');
+    const data = await r.json();
+    if (!data.ok) {
+      if (yamlEl) yamlEl.textContent = data.error || 'Plan not available.';
+      return;
+    }
+    if (data.spec_yaml && yamlEl) yamlEl.textContent = data.spec_yaml.trim();
+    if (data.preflight_md && pfEl) {
+      pfEl.textContent = data.preflight_md.trim();
+      pfEl.style.display = '';
+    }
+  } catch(e) {
+    if (yamlEl) yamlEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function flLoadDraft(buildId) {
+  const metaRow   = document.getElementById('fl-draft-meta-row');
+  const blockedEl = document.getElementById('fl-draft-blocked-msg');
+  const notesEl   = document.getElementById('fl-draft-notes-view');
+  const codeEl    = document.getElementById('fl-draft-code');
+
+  if (metaRow)   metaRow.innerHTML       = '<span style="color:#37474f;font-size:8px">Loading\u2026</span>';
+  if (blockedEl) blockedEl.style.display = 'none';
+  if (notesEl)   notesEl.style.display   = 'none';
+  if (codeEl)    { codeEl.textContent = ''; codeEl.style.display = 'none'; }
+
+  try {
+    const r    = await fetch('/frank-lloyd/' + encodeURIComponent(buildId) + '/draft');
+    const data = await r.json();
+
+    if (!data.ok) {
+      if (metaRow)   metaRow.innerHTML = '';
+      if (blockedEl) { blockedEl.textContent = data.error || 'Draft unavailable.'; blockedEl.style.display = ''; }
+      return;
+    }
+
+    const m = data.manifest || {};
+    const chips = [m.task_class, m.provider_tier ? (m.provider_tier + ' lane') : null, m.model_used].filter(Boolean);
+    if (metaRow) metaRow.innerHTML = chips.map(c => '<span class="fl-draft-chip">' + _escHtml(c) + '</span>').join('');
+
+    if (data.status === 'draft_generated') {
+      if (data.notes_text && notesEl) {
+        notesEl.textContent = data.notes_text.replace(/^#.*\n/, '').trim();
+        notesEl.style.display = '';
+      }
+      if (data.module_code && codeEl) {
+        codeEl.textContent = data.module_code.trim();
+        codeEl.style.display = '';
+      }
+    } else if (data.status === 'draft_blocked') {
+      const reason = m.error || data.error || 'Draft blocked \u2014 see build log.';
+      if (blockedEl) { blockedEl.textContent = reason; blockedEl.style.display = ''; }
+    }
+  } catch(e) {
+    if (metaRow) metaRow.innerHTML = '<span style="color:#ef5350;font-size:8px">Error: ' + _escHtml(e.message) + '</span>';
+  }
+}
+
+// ── Frank Lloyd build composer ────────────────────────────────────────────────
+
+async function flQueueBuild() {
+  const promptEl = document.getElementById('fl-compose-prompt');
+  const fb       = document.getElementById('fl-compose-feedback');
+  const raw      = promptEl ? promptEl.value.trim() : '';
+  if (!raw) {
+    if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = 'Describe what Frank Lloyd should build.'; fb.style.display = ''; }
+    return;
+  }
+  if (fb) { fb.className = 'fl-action-feedback fl-fb-pending'; fb.textContent = 'Frank Lloyd is planning\u2026'; fb.style.display = ''; }
+  try {
+    const r = await fetch('/frank-lloyd/smart-queue', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({raw_input: raw}),
+    });
+    const data = await r.json();
+    if (data.needs_clarification) {
+      if (fb) { fb.className = 'fl-action-feedback fl-fb-pending'; fb.textContent = data.question || 'Could you be more specific?'; fb.style.display = ''; }
+    } else if (data.ok) {
+      if (fb) { fb.className = 'fl-action-feedback fl-fb-ok'; fb.textContent = '\u2713 ' + _escHtml(data.message || 'Queued — Frank Lloyd is on it.'); fb.style.display = ''; }
+      if (promptEl) promptEl.value = '';
+      // Smart-queue fires auto-run server-side; poll quickly to show progress
+      setTimeout(tick, 400);
+      setTimeout(tick, 1800);
+      setTimeout(tick, 4000);
+    } else {
+      if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = _escHtml(data.error || 'Could not queue build.'); fb.style.display = ''; }
+    }
+  } catch(e) {
+    if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = 'Error: ' + _escHtml(e.message); fb.style.display = ''; }
+  }
+}
+
+async function flAbandon() {
+  if (!_flActionBuildId) return;
+  if (!confirm('Abandon ' + _flActionBuildId + '? This cannot be undone.')) return;
+  const fb = document.getElementById('fl-action-feedback');
+  if (fb) { fb.className = 'fl-action-feedback fl-fb-pending'; fb.textContent = 'Abandoning\u2026'; fb.style.display = ''; }
+  try {
+    const r = await fetch('/frank-lloyd/' + _flActionBuildId + '/abandon', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({}),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      if (fb) { fb.className = 'fl-action-feedback fl-fb-ok'; fb.textContent = '\u2713 ' + _flActionBuildId + ' abandoned.'; fb.style.display = ''; }
+      _flLastStatus = null;  // Reset so transition detection works for next build
+      setTimeout(tick, 400);
+    } else {
+      if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = _escHtml(d.error || 'Could not abandon build.'); fb.style.display = ''; }
+    }
+  } catch(e) {
+    if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = 'Error: ' + _escHtml(e.message); fb.style.display = ''; }
+  }
+}
+
 async function refreshOpsPanel(id) {
   const btn = document.getElementById('refresh-btn-' + id);
   if (btn && btn.disabled) return;
@@ -2698,6 +4088,21 @@ function updateSummary(state) {
   belEl.textContent = 'Belfort: ' + (_bTon && _bLon ? 'trading \u00b7 research' : _bTon ? 'trading' : _bLon ? 'research' : reviewNeeded ? 'review needed' : 'idle');
   belEl.className   = 'nb-item' + ((_bTon || _bLon) ? ' ok' : reviewNeeded ? ' attn' : '');
 
+  const flSumEl    = document.getElementById('nb-frank-lloyd');
+  const _flAj      = (state.frank_lloyd || {}).active_job || null;
+  const _flSt      = (_flAj || (state.frank_lloyd || {}).active_build || {}).status || '';
+  const _flPend    = (state.frank_lloyd || {}).pending_count || 0;
+  const _flRelayN  = ((state.frank_lloyd || {}).fl_relay || []).length;
+  const _flRelayAlert = ((state.frank_lloyd || {}).fl_relay || []).some(r => ['review_needed','spec_blocked','draft_blocked'].includes(r.event));
+  const _flText = _flSt === 'draft_generated'  ? 'Build: draft ready'
+                : _flSt === 'pending_review'    ? 'Build: plan needs review'
+                : _flSt === 'draft_blocked'      ? 'Build: draft blocked'
+                : ['draft_generating','stage2_authorized','spec_approved'].includes(_flSt) ? 'Build: building\u2026'
+                : _flPend > 0                   ? 'Build: queued'
+                : 'Build: idle';
+  flSumEl.textContent = _flText;
+  flSumEl.className   = 'nb-item' + (_flSt === 'draft_generated' || _flSt === 'pending_review' ? ' attn' : _flRelayAlert ? ' warn' : _flPend > 0 ? '' : '');
+
   const issues = (warns > 0 ? 1 : 0) + (custBad ? 1 : 0) + (sentBad ? 1 : 0);
   const opsEl  = document.getElementById('nb-ops');
   opsEl.textContent = issues > 0 ? `Ops: ${issues} issue${issues > 1 ? 's' : ''}` : 'Ops: all clear';
@@ -2725,15 +4130,64 @@ function applyState(state) {
   const loopEnabled  = supervisor.enabled;
 
   const peterNeedsAttn = warnings || custDegraded || sentBad;
+
+  // Peter's speech reflects both Belfort review needs AND Frank Lloyd active jobs
+  const _flStateForPeter  = state.frank_lloyd || {};
+  const _flJobForPeter    = _flStateForPeter.active_job || null;
+  const _flStatusForPeter = (_flJobForPeter || {}).status || '';
+  const flNeedsReview = ['pending_review','draft_generated'].includes(_flStatusForPeter);
+  const flBuilding    = ['pending_spec','spec_approved','stage2_authorized','draft_generating'].includes(_flStatusForPeter);
+
   setClass(document.getElementById('h-peter'),
-    reviewNeeded   ? 'st-review' :
-    peterNeedsAttn ? 'st-warning' : 'st-idle');
+    reviewNeeded || flNeedsReview ? 'st-review' :
+    peterNeedsAttn                ? 'st-warning' : 'st-idle');
   const pb = document.getElementById('pb-peter');
-  if (pb) pb.textContent = reviewNeeded ? 'REVIEW' : peterNeedsAttn ? 'ATTENTION' : 'READY';
-  setSpeech('sp-peter',
-    reviewNeeded   ? 'Review needed' :
-    peterNeedsAttn ? 'Needs your attention' : 'No urgent items',
-    true);
+  if (pb) pb.textContent = reviewNeeded || flNeedsReview ? 'REVIEW' : peterNeedsAttn ? 'ATTENTION' : 'READY';
+  const _peterSpeech = reviewNeeded       ? 'Belfort review needed'
+                     : flNeedsReview      ? (_flStatusForPeter === 'draft_generated' ? 'Draft ready for review' : 'Plan ready — your call')
+                     : flBuilding         ? 'Frank Lloyd is building\u2026'
+                     : peterNeedsAttn     ? 'Needs your attention'
+                     : 'No urgent items';
+  setSpeech('sp-peter', _peterSpeech, true);
+
+  // Frank Lloyd
+  const fl           = state.frank_lloyd || {};
+  const flPending    = fl.pending_count  || 0;
+  const flActive     = fl.active_build   || null;
+  const flAStatus    = (flActive || {}).status || '';
+  const flRelay      = fl.fl_relay || [];
+  const flHasAlert   = flRelay.some(r => ['review_needed','spec_blocked','draft_blocked'].includes(r.event));
+  const flHasReady   = flRelay.some(r => r.event === 'draft_ready');
+  const flCls = flAStatus === 'pending_review' ? 'st-review'
+              : flAStatus === 'draft_generated' ? 'st-review'
+              : flHasAlert                       ? 'st-warning'
+              : ['draft_generating','stage2_authorized','spec_approved'].includes(flAStatus) ? 'st-ok'
+              : flPending > 0                   ? 'st-warning'
+              : 'st-idle';
+  setClass(document.getElementById('h-frank-lloyd'), flCls);
+  const flb = document.getElementById('pb-frank-lloyd');
+  if (flb) flb.textContent = flAStatus === 'draft_generated' ? 'DRAFT READY'
+                            : flAStatus === 'pending_review'  ? 'NEEDS REVIEW'
+                            : flAStatus === 'draft_blocked'   ? 'BLOCKED'
+                            : ['draft_generating','stage2_authorized','spec_approved'].includes(flAStatus) ? 'BUILDING'
+                            : flPending > 0                   ? 'QUEUED'
+                            : 'IDLE';
+  const flAj       = fl.active_job || null;
+  const flJobTitle = (flAj || {}).title || (flActive || {}).title || '';
+  const flSpeech   = flAStatus === 'draft_generated'    ? 'Draft ready for review'
+                   : flAStatus === 'pending_review'      ? 'Plan needs review'
+                   : flAStatus === 'draft_blocked'       ? 'Draft blocked'
+                   : ['draft_generating','stage2_authorized','spec_approved'].includes(flAStatus) ? 'Building\u2026'
+                   : flPending > 0                       ? flJobTitle.slice(0, 28)
+                   : '';
+  setSpeech('sp-frank-lloyd', flSpeech, !!flSpeech);
+
+  // Show relay messages in FL workspace action feedback when FL panel is active
+  if (flRelay.length && _currentSelection === 'frank-lloyd') {
+    const latest = flRelay[flRelay.length - 1];
+    const isAlert = ['review_needed','spec_blocked','draft_blocked'].includes(latest.event);
+    _flFeedback(latest.msg, isAlert ? 'error' : latest.event === 'draft_ready' ? 'ok' : 'pending');
+  }
 
   // Belfort
   setClass(document.getElementById('h-belfort'), belfortStatusClass(bStatus));

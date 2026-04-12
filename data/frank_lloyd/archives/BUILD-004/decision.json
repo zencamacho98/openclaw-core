@@ -1,0 +1,12 @@
+{
+  "build_id": "BUILD-004",
+  "outcome": "spec_approved",
+  "stage": 1,
+  "decided_at": "2026-04-11T11:42:22.953421+00:00",
+  "decided_by": "operator",
+  "notes": null,
+  "deferred_items": null,
+  "stage2_authorized": false,
+  "spec_hash": "sha256:84ac8757f3b8ce39f304c5ecec12b1b4fc2893f0d56a277f6b827dba67092df9",
+  "revision_cycle": null
+}

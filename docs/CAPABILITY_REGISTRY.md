@@ -27,47 +27,74 @@ This registry is an inventory of all live capabilities in the system. Capabiliti
 
 ## A.0 Frank Lloyd — Workforce construction house
 
-**Category**: house | **Maturity**: planned | **Autonomy**: supervised (when built) | **Outcome type**: force_multiplier
+**Category**: house | **Maturity**: early (operator loop live) | **Autonomy**: supervised | **Outcome type**: force_multiplier
 
 Frank Lloyd owns the construction, modification, duplication, and evolution of agents and houses inside the Abode. It is the mechanism by which the workforce can grow itself rather than requiring all construction work to happen outside the system.
 
-**Status: PLANNED — Stage 1 infrastructure only. See `docs/frank_lloyd/FRANK_LLOYD_SPEC.md` for the full spec.**
+**Status: OPERATIONAL — Safe-lane CODE_DRAFT_LOW pipeline active. Operator can prompt via neighborhood/Peter, Frank Lloyd plans, builds, and awaits review. Apply (promote) always requires manual approval.**
 
-### A.0.1 Intent elaboration and spec writing
+### A.0.1 Brief shaper (intent classifier)
 | Field | Value |
 |---|---|
-| Status | planned |
-| Business purpose | Accepts high-level operator intent and produces a structured spec: mission, workflows, eligibility assessment, architecture layer placement, approval boundaries |
-| Technical description | LM-backed elaboration (cheap tier) + deterministic eligibility check against HOUSE_ELIGIBILITY criteria. Output: markdown spec in staging area. |
-| Code location | not yet built |
-| Reuse | `LMHelper`, `research/manifest.py` patterns |
+| Status | live |
+| Business purpose | Turns freeform operator intent into a structured build brief with mode, description, and testable success criterion |
+| Technical description | LM-backed (cheap tier via LMHelper) with deterministic regex fallback. Modes: build, refactor, cleanup, diagnose, improve, monitor, docs. Returns `ShapedBrief`; sets `needs_clarification` when input is too vague. |
+| Code location | `frank_lloyd/brief_shaper.py` |
+| Reuse | `app/cost_warden.LMHelper` |
 
-### A.0.2 House eligibility assessment
+### A.0.2 Smart queue intake
 | Field | Value |
 |---|---|
-| Status | planned |
-| Business purpose | For any candidate concept, returns an honest verdict: house / backstage service / not ready. Defaults to skepticism — backstage service unless all five criteria are clearly met. |
-| Technical description | Deterministic check against five criteria from HOUSE_ELIGIBILITY.md. LM-enriched explanation optional. |
-| Code location | not yet built |
-| Reuse | HOUSE_ELIGIBILITY.md criteria as logic rules |
+| Status | live |
+| Business purpose | Accepts freeform operator text, shapes it into a brief, queues the build, and fires the safe lane automatically |
+| Technical description | `POST /frank-lloyd/smart-queue` → brief_shaper.shape() → if needs_clarification return question → queue_build() + BackgroundTask(run_safe_lane). Also available as `POST /frank-lloyd/queue-and-run` for pre-shaped briefs. |
+| Code location | `app/routes/frank_lloyd_actions.py` |
+| Reuse | `frank_lloyd.request_writer.queue_build()`, `frank_lloyd.auto_runner.run_safe_lane()` |
 
-### A.0.3 Build execution (staging)
+### A.0.3 Safe-lane build pipeline
 | Field | Value |
 |---|---|
-| Status | planned |
-| Business purpose | From an approved spec, produces code artifacts in a staging area. Never writes to the live repo. Auto-triggers Sentinel. Produces diff + build manifest for operator review. |
-| Technical description | LM-backed code generation (strong tier). Output to `staging/frank_lloyd/{build_id}/`. Sentinel integration. Build manifest listing all files to be created/modified. |
-| Code location | not yet built |
-| Reuse | `LMHelper`, `observability/event_log.py`, `research/approval_policy.py`, `research/governance.py` |
+| Status | live |
+| Business purpose | Fully automatic plan + draft generation for low-risk (CODE_DRAFT_LOW) builds. Operator reviews draft and chooses to apply or discard. |
+| Technical description | `auto_runner.run_safe_lane()`: spec_gen → spec_approved (auto) → stage2_authorized (auto) → draft_gen. Never auto-promotes. Medium/high risk halts at pending_review. |
+| Code location | `frank_lloyd/auto_runner.py` |
+| Reuse | `frank_lloyd/spec_writer.py`, `frank_lloyd/draft_writer.py`, `frank_lloyd/relay.py` |
 
-### A.0.4 Build log
+### A.0.4 Build log + FLJob view
 | Field | Value |
 |---|---|
-| Status | planned |
-| Business purpose | Append-only record of every build request, artifact, approval, and rejection |
-| Technical description | `data/frank_lloyd/build_log.jsonl` — same pattern as event_log and warden_usage |
-| Code location | not yet built |
+| Status | live |
+| Business purpose | Append-only record of every build lifecycle event; unified job view with humanized event timeline |
+| Technical description | `data/frank_lloyd/build_log.jsonl`; `frank_lloyd/job.py` produces `FLJob` with `events: list[dict]` containing humanized labels, timestamps, cls (ok/review/warn/blocked), auto-approval detection |
+| Code location | `frank_lloyd/job.py`, `data/frank_lloyd/build_log.jsonl` |
 | Reuse | `observability/event_log.py` pattern |
+
+### A.0.5 Apply summary and promotion
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Plain-English summary of what the draft will change before any code is applied; operator-confirmed promotion to live repo |
+| Technical description | `frank_lloyd/apply_summary.py` generates summary with deterministic target-path extraction from spec. `POST /frank-lloyd/promote/{build_id}` applies draft. Workspace auto-loads summary on draft_generated. |
+| Code location | `frank_lloyd/apply_summary.py`, `app/routes/frank_lloyd_actions.py` |
+| Reuse | `frank_lloyd/relay.py` (relay append on promotion) |
+
+### A.0.6 Peter relay queue
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Frank Lloyd → Peter progress messages delivered on each neighborhood poll tick |
+| Technical description | JSONL log + cursor in `data/frank_lloyd/`. `relay.append()` at pipeline moments; `consume_unread()` by `/neighborhood/state` tick; injected into Peter chat panel. |
+| Code location | `frank_lloyd/relay.py` |
+| Reuse | Peter chat panel injection pattern |
+
+### A.0.7 Peter lifecycle command routing
+| Field | Value |
+|---|---|
+| Status | live |
+| Business purpose | Operator types approve/reject/run/discard/promote in Peter chat and Frank Lloyd responds |
+| Technical description | `POST /peter/action` → `peter.commands.parse_command()` → `peter.router.route()` with `transport="cli", operator_id="neighborhood_ui"`. JS `_isFlLifecycleIntent()` detects these before LM chat fallthrough. |
+| Code location | `app/routes/neighborhood.py`, `peter/router.py`, `peter/handlers.py` |
+| Reuse | Full peter router/handler stack; identity.json `transport_id: "*"` wildcard |
 
 ---
 
@@ -337,3 +364,37 @@ These are cross-cutting capabilities built once, usable by all houses and servic
 | Technical description | Append-only JSONL files in `data/telemetry/`. One file per campaign. |
 | Code location | `observability/`, `data/telemetry/` |
 | Reuse | Any house that produces per-run performance data |
+
+---
+
+## B.5 Belfort Foundation Layer (BELFORT-FOUNDATION-01)
+| Field | Value |
+|---|---|
+| Status | live (observation mode only — no execution) |
+| Category | Belfort house |
+| Business purpose | Typed strategy interface, risk guardrails, operating mode state machine, preflight snapshot — the foundation required before any signal execution |
+| Technical description | 5 modules: belfort_mode (OBSERVATION→SHADOW→PAPER→LIVE enum + journal-first state machine), belfort_strategy (BelfortSignal dataclass + MeanReversionV1 rolling-window), belfort_risk (RiskGuardrails — 7 ordered checks, stateless, all blocks logged), belfort_observer (observation tick runner + write_preflight_snapshot()), observability/belfort_summary (disk-read bridge). Peter command: `belfort status`. |
+| Code location | `app/belfort_mode.py`, `app/belfort_strategy.py`, `app/belfort_risk.py`, `app/belfort_observer.py`, `observability/belfort_summary.py` |
+| Data paths | `data/belfort/observation_log.jsonl`, `data/belfort/preflight.json`, `data/agent_state/belfort_mode.json` |
+| Observability bridge | `observability/belfort_summary.py` — disk-read bridge; Peter never imports from app/ |
+| Peter commands | `belfort status`, `belfort mode`, `belfort preflight`, `observation status` |
+| SIP cap rule | `data_lane == "IEX_ONLY"` → readiness_level capped at OBSERVATION_ONLY in all surfaces |
+| UI contract | `docs/UI_REFLECTIONS/BELFORT_FOUNDATION_01.md` — mode and readiness always presented separately |
+| Reuse | Observability bridge pattern (market_summary), event_log.append_event, agent_state file pattern, Peter command/router/handler pattern |
+| Tests | 65 new tests across 5 test files: test_belfort_mode, test_belfort_strategy, test_belfort_risk, test_belfort_observer, test_belfort_preflight |
+
+---
+
+## B.4 Belfort Market-Connection Stack
+| Field | Value |
+|---|---|
+| Status | live (paper sim / observation mode) |
+| Category | Belfort house |
+| Business purpose | Connects Belfort to real market data and paper trading infrastructure; gates live readiness |
+| Technical description | 11 modules: market_time (NYSE session), cost_engine (SEC31/TAF/spread), order_ledger (append-only JSONL), kill_switch (disk signal), market_data_feed (Alpaca L1/sim), spread_monitor (observation JSONL), execution_overlay (pre-trade checks), broker_connector (Alpaca connector), reconciler (position audit), shadow_runner (no-order shadow intents), readiness_scorecard (7-gate, 5 levels). |
+| Code location | `app/market_time.py`, `app/cost_engine.py`, `app/order_ledger.py`, `app/kill_switch.py`, `app/market_data_feed.py`, `app/spread_monitor.py`, `app/execution_overlay.py`, `app/broker_connector.py`, `app/reconciler.py`, `app/shadow_runner.py`, `app/readiness_scorecard.py`, `app/routes/market.py` |
+| Observability bridge | `observability/market_summary.py` — disk-read bridge so Peter handlers never import from app/ |
+| Peter commands | `market status`, `market readiness`, `kill trading` |
+| Kill signal | Written to `data/kill_signal.json`; `trading_loop._poll_kill_signal()` checks on each tick |
+| Readiness levels | NOT_READY → OBSERVATION_ONLY → PAPER_READY → SHADOW_COMPLETE → LIVE_ELIGIBLE |
+| Reuse | Peter command/router/handler pattern; append-only JSONL pattern; observability.agent_state; observability.event_log |

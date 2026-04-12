@@ -1,0 +1,12 @@
+{
+  "build_id": "BUILD-010",
+  "outcome": "spec_rejected",
+  "stage": 1,
+  "decided_at": "2026-04-11T11:43:29.375333+00:00",
+  "decided_by": "operator",
+  "notes": "built in claude",
+  "deferred_items": null,
+  "stage2_authorized": null,
+  "spec_hash": "sha256:9a4b3a9ce7f8810d58d703428cd777de3eb404cac0588b0b45b0a855b5c36562",
+  "revision_cycle": null
+}

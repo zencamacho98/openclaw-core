@@ -32,6 +32,18 @@ from peter.handlers  import (
     handle_custodian_health,
     handle_sentinel_status,
     handle_warden_status,
+    handle_build_intent,
+    handle_approve_build,
+    handle_reject_build,
+    handle_authorize_stage2,
+    handle_draft_stage2,
+    handle_promote_draft,
+    handle_discard_draft,
+    handle_fl_lifecycle_nl,
+    handle_market_status,
+    handle_market_readiness,
+    handle_kill_trading,
+    handle_belfort_status,
 )
 
 _DISPATCH: dict[CommandType, object] = {
@@ -53,6 +65,26 @@ _DISPATCH: dict[CommandType, object] = {
     CommandType.WARDEN_STATUS:      handle_warden_status,
     # Note: START_CONTINUOUS, APPROVE_CANDIDATE, REJECT_CANDIDATE, HOLD_QUEUED
     # are action commands handled locally in ui/peter_command.py — not here.
+    CommandType.BUILD_INTENT:       handle_build_intent,
+    # ── Frank Lloyd Stage 1 terminal gate ──────────────────────────────────────
+    CommandType.APPROVE_BUILD:      handle_approve_build,
+    CommandType.REJECT_BUILD:       handle_reject_build,
+    # ── Frank Lloyd Stage 2 authorization gate ──────────────────────────────────
+    CommandType.AUTHORIZE_STAGE2:   handle_authorize_stage2,
+    # ── Frank Lloyd Stage 2 draft generation ────────────────────────────────────
+    CommandType.DRAFT_STAGE2:       handle_draft_stage2,
+    # ── Frank Lloyd Stage 2 draft promotion ──────────────────────────────────────
+    CommandType.PROMOTE_DRAFT:      handle_promote_draft,
+    # ── Frank Lloyd Stage 2 draft discard ────────────────────────────────────────
+    CommandType.DISCARD_DRAFT:      handle_discard_draft,
+    # ── Frank Lloyd conversational lifecycle ──────────────────────────────────────
+    CommandType.FL_LIFECYCLE_NL:    handle_fl_lifecycle_nl,
+    # ── Market layer ─────────────────────────────────────────────────────────────
+    CommandType.MARKET_STATUS:      handle_market_status,
+    CommandType.MARKET_READINESS:   handle_market_readiness,
+    CommandType.KILL_TRADING:       handle_kill_trading,
+    # ── Belfort mode/preflight ────────────────────────────────────────────────────
+    CommandType.BELFORT_STATUS:     handle_belfort_status,
 }
 
 

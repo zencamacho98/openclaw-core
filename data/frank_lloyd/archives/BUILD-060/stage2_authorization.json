@@ -1,0 +1,21 @@
+{
+  "build_id": "BUILD-060",
+  "stage": 2,
+  "authorized_at": "2026-04-11T23:45:14.677840+00:00",
+  "authorized_by": "operator",
+  "authorization_notes": "Auto-authorized by safe lane (initiated_by=peter_chat). Spec was auto-approved (risk_level=medium).",
+  "stage1_decision_outcome": "spec_approved",
+  "provider_readiness": {
+    "executable_lanes": [
+      "cheap",
+      "strong",
+      "critical_only"
+    ],
+    "config_only_lanes": [
+      "coding"
+    ],
+    "external_supervised_lanes": [
+      "codex_supervised"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "build_id": "BUILD-001",
+  "stage": 2,
+  "authorized_at": "2026-04-11T07:54:13.393173+00:00",
+  "authorized_by": "operator",
+  "authorization_notes": null,
+  "stage1_decision_outcome": "spec_approved",
+  "provider_readiness": {
+    "executable_lanes": [
+      "cheap",
+      "strong",
+      "critical_only"
+    ],
+    "config_only_lanes": [
+      "coding"
+    ],
+    "external_supervised_lanes": [
+      "codex_supervised"
+    ]
+  }
+}

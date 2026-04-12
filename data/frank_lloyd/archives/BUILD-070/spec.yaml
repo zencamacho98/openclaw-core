@@ -1,0 +1,48 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-070"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-11T23:45:33.850462+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Add health endpoint checks status of"
+description: "Add a health endpoint that checks the status of the database connection and returns the health status."
+success_criteria: "The health endpoint returns a successful status response when the database is reachable and operational."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: new_service
+risk_level: medium
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "app/routes/health_check.py"
+      purpose: "New health endpoint to check database connection status."
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "app/cost_warden.LMHelper"
+      decision: not_needed
+      reason: "No existing functionality overlaps with health check requirements."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: operating_services
+layer_justification: "The health check service operates at the level of monitoring and maintaining system health."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_health_check.py"
+  coverage_note: "Test coverage will ensure the health endpoint correctly reports database status."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: silent
+  rollback: "Rollback involves removing the health_check.py file and any associated routes."
+  scope: "The scope is limited to the new health check service and does not affect existing services."

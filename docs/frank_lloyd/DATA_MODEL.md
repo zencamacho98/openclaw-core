@@ -111,14 +111,21 @@ data/frank_lloyd/build_log.jsonl         ← programmatic record of all events
 
 ### Stage 1 valid events
 
-| Event | Written by | When |
-|---|---|---|
-| `request_queued` | Peter | Immediately when request file is created |
-| `spec_ready` | Frank Lloyd | When spec.yaml and preflight.md land in staging |
-| `spec_approved` | Frank Lloyd | After operator gives approval |
-| `spec_rejected` | Frank Lloyd | After operator rejects (within a revision cycle) |
-| `abandoned` | Frank Lloyd | After 3rd rejection cycle with no resolution |
+| Event | Written by | When | Terminal? |
+|---|---|---|---|
+| `request_queued` | Peter | Immediately when request file is created | No |
+| `spec_ready` | Frank Lloyd | When spec.yaml and preflight.md land in staging | No |
+| `spec_approved` | Frank Lloyd | After operator gives approval | Yes |
+| `spec_rejected` | Frank Lloyd | After operator rejects (within a revision cycle) | Yes |
+| `abandoned` | Frank Lloyd | After 3rd rejection cycle with no resolution | Yes |
+| `blocked` | Frank Lloyd | When LM is unavailable and spec cannot be generated | No |
 
+> **`blocked` event semantics:** Non-terminal, non-advancing. The build stays in
+> `pending_spec` state — `blocked` is not in the status derivation table below,
+> so it does not change the derived status. Frank Lloyd writes `blocked.md` to the
+> staging directory alongside this event. The build can be retried once the LM is
+> available; the next spec generation attempt will overwrite the blocked state.
+>
 > **Future events (Stage 2+, not valid at Stage 1):** `build_started`, `staged`, `sentinel_passed`,
 > `sentinel_failed`, `code_approved`, `promoted`. Do not write these at Stage 1.
 

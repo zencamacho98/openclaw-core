@@ -1,0 +1,11 @@
+{
+  "request_id": "BUILD-049",
+  "title": "Create health endpoint checks status of",
+  "description": "Create a health endpoint that checks the status of the database and returns a response indicating whether it is operational.",
+  "requester": "operator",
+  "requested_at": "2026-04-11T23:44:49.546678+00:00",
+  "success_criteria": "The health endpoint returns a 200 status code when the database is operational and a relevant error message when it is not.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": []
+}

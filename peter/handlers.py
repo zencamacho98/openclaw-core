@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+from datetime import datetime, timezone
 from typing import Any
 
 from peter.commands import Command, CommandType, HELP_TEXT
@@ -46,6 +47,41 @@ _CAMPAIGNS    = _ROOT / "data" / "campaigns"
 _REPORTS      = _ROOT / "data" / "research_ledger" / "reports"
 _LEDGER       = _ROOT / "data" / "research_ledger" / "ledger.jsonl"
 _VAL_RUNS     = _ROOT / "data" / "validation_runs"
+
+# ── Frank Lloyd intake paths (patchable for tests) ────────────────────────────
+_FL_REQUESTS  = _ROOT / "data" / "frank_lloyd" / "requests"
+_FL_BUILD_LOG = _ROOT / "data" / "frank_lloyd" / "build_log.jsonl"
+
+# Status derivation map — shared across FL NL handler helpers.
+# Mirrors the individual module maps; kept here so handlers.py stays self-contained.
+_FL_STATUS_MAP: dict[str, str] = {
+    "request_queued":            "pending_spec",
+    "spec_ready":                "pending_review",
+    "spec_approved":             "spec_approved",
+    "spec_rejected":             "spec_rejected",
+    "abandoned":                 "abandoned",
+    "stage2_authorized":         "stage2_authorized",
+    "draft_generation_started":  "draft_generating",
+    "draft_generated":           "draft_generated",
+    "draft_blocked":             "draft_blocked",
+    "draft_promoted":            "draft_promoted",
+    "draft_discarded":           "stage2_authorized",
+}
+
+# Required status per lifecycle action (used by resolver)
+_FL_ACTION_TARGET_STATUSES: dict[str, frozenset[str]] = {
+    "approve":          frozenset({"pending_review"}),
+    "reject":           frozenset({"pending_review"}),
+    "authorize_stage2": frozenset({"spec_approved"}),
+    "draft":            frozenset({"stage2_authorized"}),
+    "promote":          frozenset({"draft_generated"}),
+    "discard":          frozenset({"draft_generated", "draft_blocked"}),
+}
+
+# HANDOFF_SPEC §1 — success-criterion markers Peter recognises
+_SUCCESS_MARKERS = ("success:", "success criterion:", "done when:", "test:", "verify:")
+# Pure-vague terms that signal an underspecified description (when used alone)
+_VAGUE_TERMS = frozenset({"better", "nicer", "cleaner", "faster", "improve", "fix it"})
 
 # Tier rank for sorting (higher = better)
 _TIER_RANK = {"strong": 4, "review_worthy": 3, "noisy": 2, "weak": 1, "rejected": 0}
@@ -941,6 +977,995 @@ def handle_help(command: Command) -> Response:
     )
 
 
+def handle_build_intent(command: Command) -> Response:
+    """
+    Peter intake for Frank Lloyd Stage 1 build requests.
+
+    Applies the HANDOFF_SPEC §1 readiness check before queuing. A request must
+    have a non-trivial description AND an explicit, testable success criterion.
+    If either is missing Peter asks for clarification (up to 2 rounds) rather
+    than queueing an underspecified build.
+
+    When ready:
+      - Assigns next BUILD-NNN id from data/frank_lloyd/requests/
+      - Writes data/frank_lloyd/requests/{build_id}_request.json
+      - Appends request_queued event to data/frank_lloyd/build_log.jsonl
+    """
+    raw      = command.args.get("raw_request", command.raw_text).strip()
+    nl_intake = bool(command.args.get("nl_intake", False))
+
+    # Extract description (strip common intent prefixes if still present)
+    lower = raw.lower()
+    for prefix in ("frank lloyd:", "frank lloyd,", "build ", "create a new ",
+                   "create new ", "create a ", "add a new ", "add a ", "make a "):
+        if lower.startswith(prefix):
+            raw = raw[len(prefix):].strip()
+            lower = raw.lower()
+            break
+
+    # Split out explicit success criteria before readiness check
+    success_criteria = _fl_extract_success_criteria(raw)
+    description = raw
+    if success_criteria:
+        for marker in _SUCCESS_MARKERS:
+            idx = lower.find(marker)
+            if idx != -1:
+                description = raw[:idx].strip().rstrip(".,;")
+                break
+
+    title = _fl_extract_title(description)
+    missing = _fl_readiness_check(description, success_criteria)
+
+    if missing:
+        return _fl_not_ready_response(missing, nl_mode=nl_intake)
+
+    # Request is clear enough — assign ID, persist, and immediately start building
+    build_id = _fl_next_build_id(_FL_REQUESTS)
+    req_path = _fl_write_request(_FL_REQUESTS, build_id, title, description, success_criteria)
+    _fl_append_log_event(_FL_BUILD_LOG, build_id, title)
+
+    # Fire the full auto pipeline in the background — no human gates required.
+    # Frank Lloyd will spec, draft, and promote to the repo autonomously.
+    import threading as _threading
+    def _auto_build():
+        try:
+            import frank_lloyd.auto_runner as _fl_auto
+            _fl_auto.run_full_auto(build_id, initiated_by="peter_build_intent")
+        except Exception:
+            pass
+    _threading.Thread(target=_auto_build, daemon=True).start()
+
+    if nl_intake:
+        summary  = (
+            f"Got it \u2014 Frank Lloyd is building {build_id}: \"{title}\". "
+            "I\u2019ll let you know when it\u2019s done."
+        )
+        next_act = (
+            f"Frank Lloyd is on it. I\u2019ll flag it when the code lands in the repo."
+        )
+    else:
+        summary  = (
+            f"Frank Lloyd building {build_id}: \"{title}\". "
+            "Running full pipeline now \u2014 no review needed."
+        )
+        next_act = (
+            f"Frank Lloyd is working autonomously. "
+            f"Check the build log or Frank Lloyd panel for progress on {build_id}."
+        )
+
+    return Response(
+        command_type        = "build_intent",
+        ok                  = True,
+        summary             = summary,
+        metrics             = {
+            "build_id":         build_id,
+            "title":            title,
+            "success_criteria": success_criteria,
+        },
+        artifacts           = {"request_file": str(req_path)},
+        next_action         = next_act,
+        human_review_needed = False,
+        raw                 = {
+            "build_id":         build_id,
+            "title":            title,
+            "description":      description,
+            "success_criteria": success_criteria,
+        },
+    )
+
+
+# ── Frank Lloyd intake helpers ─────────────────────────────────────────────────
+
+def _fl_extract_success_criteria(text: str) -> str:
+    """Return the text following the first recognised success-criterion marker, or ''."""
+    lower = text.lower()
+    for marker in _SUCCESS_MARKERS:
+        idx = lower.find(marker)
+        if idx != -1:
+            return text[idx + len(marker):].strip()
+    return ""
+
+
+def _fl_extract_title(description: str) -> str:
+    """Derive a short title (≤ 6 meaningful words) from the description."""
+    skip = {"a", "an", "the", "new", "that", "which", "with", "and", "for"}
+    words = description.split()
+    meaningful = [w for w in words[:12] if w.lower().rstrip(".,") not in skip]
+    title = " ".join(meaningful[:6]).rstrip(".,;")
+    return title or description[:40]
+
+
+def _fl_readiness_check(description: str, success_criteria: str) -> list[str]:
+    """
+    Return a list of readiness failures (empty = ready to queue).
+
+    Checks applied (HANDOFF_SPEC §1):
+      description_too_vague  — fewer than 5 words, or pure-vague with no specifics
+      missing_success_criteria — no success marker found in the original text
+      success_criteria_too_vague — success text is under 4 words
+    """
+    missing: list[str] = []
+
+    words = description.split()
+    if len(words) < 5:
+        missing.append("description_too_vague")
+    else:
+        lower_desc = description.lower()
+        if any(term in lower_desc for term in _VAGUE_TERMS) and len(words) < 12:
+            missing.append("description_too_vague")
+
+    if not success_criteria:
+        missing.append("missing_success_criteria")
+    elif len(success_criteria.split()) < 4:
+        missing.append("success_criteria_too_vague")
+
+    return missing
+
+
+def _fl_not_ready_response(missing: list[str], nl_mode: bool = False) -> Response:
+    """Build a clarification Response when the readiness check fails."""
+    questions: list[str] = []
+    if "description_too_vague" in missing:
+        if nl_mode:
+            questions.append(
+                "What exactly should Frank Lloyd build? "
+                "A sentence or two about files, endpoints, or specific behaviours would help."
+            )
+        else:
+            questions.append(
+                "What exactly should be built? Be specific about files, endpoints, or behaviours."
+            )
+    if "missing_success_criteria" in missing:
+        if nl_mode:
+            questions.append(
+                "How would you know it\u2019s done? "
+                "A quick test or check works great \u2014 e.g. \u201csuccess: the new endpoint returns 200\u201d."
+            )
+        else:
+            questions.append(
+                'What does "done" look like? Add a testable criterion, '
+                'e.g.: "success: curl /frank-lloyd/count returns {count: N}".'
+            )
+    if "success_criteria_too_vague" in missing:
+        if nl_mode:
+            questions.append(
+                "Could you make the success check a bit more specific? "
+                "What exact command or result would confirm it\u2019s working?"
+            )
+        else:
+            questions.append(
+                "The success criterion is too short. What exact command or test would verify this works?"
+            )
+    joined = " ".join(questions)
+    if nl_mode:
+        summary     = f"Happy to queue that for Frank Lloyd \u2014 just need a bit more detail. {joined}"
+        next_action = "Once you fill in the missing piece, just say it again and I\u2019ll get it queued."
+    else:
+        summary     = f"Not clear enough for Frank Lloyd yet. {joined}"
+        next_action = "Provide the missing details and try again."
+    return Response(
+        command_type = "build_intent",
+        ok           = False,
+        summary      = summary,
+        next_action  = next_action,
+        raw          = {"missing_fields": missing, "questions": questions},
+    )
+
+
+def _fl_next_build_id(requests_dir: pathlib.Path) -> str:
+    """Return the next zero-padded build ID (BUILD-001, BUILD-002, …)."""
+    existing: list[int] = []
+    if requests_dir.exists():
+        for f in requests_dir.iterdir():
+            stem = f.stem  # e.g. "BUILD-001_request"
+            if stem.upper().startswith("BUILD-"):
+                try:
+                    n = int(stem.split("-", 1)[1].split("_", 1)[0])
+                    existing.append(n)
+                except (IndexError, ValueError):
+                    pass
+    return f"BUILD-{max(existing, default=0) + 1:03d}"
+
+
+def _fl_write_request(
+    requests_dir: pathlib.Path,
+    build_id: str,
+    title: str,
+    description: str,
+    success_criteria: str,
+) -> pathlib.Path:
+    """Write the request JSON file and return the path."""
+    requests_dir.mkdir(parents=True, exist_ok=True)
+    req_path = requests_dir / f"{build_id}_request.json"
+    payload = {
+        "request_id":       build_id,
+        "title":            title,
+        "description":      description,
+        "requester":        "operator",
+        "requested_at":     datetime.now(timezone.utc).isoformat(),
+        "success_criteria": success_criteria,
+        "build_type_hint":  "",
+        "context_refs":     [],
+        "constraints":      [],
+    }
+    req_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return req_path
+
+
+def _fl_append_log_event(build_log: pathlib.Path, build_id: str, title: str) -> None:
+    """Append a request_queued event to data/frank_lloyd/build_log.jsonl."""
+    build_log.parent.mkdir(parents=True, exist_ok=True)
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "build_id":  build_id,
+        "event":     "request_queued",
+        "notes":     f"Request queued by Peter: {title}",
+        "extra":     {"title": title, "build_type_hint": ""},
+    }
+    with build_log.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(event) + "\n")
+
+
+def handle_approve_build(command: Command) -> Response:
+    """
+    Stage 1 terminal gate — approve a pending_review build spec.
+
+    Calls frank_lloyd.spec_approver.approve_build(). Validates state,
+    copies staging artifacts to archive, writes decision.json + manifest.json,
+    appends spec_approved log event.
+    """
+    import frank_lloyd.spec_approver as _fl_approver
+
+    build_id = command.args.get("build_id", "").strip().upper()
+    notes    = command.args.get("notes", "")
+
+    if not build_id:
+        return Response(
+            command_type = "approve_build",
+            ok           = False,
+            summary      = "No build ID provided. Usage: approve BUILD-N [notes]",
+            next_action  = "approve BUILD-001",
+            raw          = {},
+        )
+
+    result = _fl_approver.approve_build(build_id, notes=notes)
+
+    if not result["ok"]:
+        return Response(
+            command_type = "approve_build",
+            ok           = False,
+            summary      = result["error"],
+            next_action  = f"Check build status: GET /frank-lloyd/status",
+            raw          = result,
+        )
+
+    return Response(
+        command_type        = "approve_build",
+        ok                  = True,
+        summary             = (
+            f"{build_id} spec approved. "
+            f"Archive: {result['archive_path']}. "
+            f"Stage 1 complete. Stage 2 not yet authorized."
+        ),
+        metrics             = {"build_id": build_id, "stage": 1},
+        artifacts           = {"archive_path": result["archive_path"]},
+        next_action         = (
+            f"Stage 2 authorization is a separate step. "
+            f"Review decision: {result['archive_path']}/decision.json"
+        ),
+        human_review_needed = False,
+        raw                 = result,
+    )
+
+
+def handle_reject_build(command: Command) -> Response:
+    """
+    Stage 1 terminal gate — reject a pending_review build spec.
+
+    Calls frank_lloyd.spec_approver.reject_build(). Requires a non-empty reason.
+    Archives Stage 1 artifacts, writes rejection decision.json + manifest.json,
+    appends spec_rejected log event.
+    """
+    import frank_lloyd.spec_approver as _fl_approver
+
+    build_id = command.args.get("build_id", "").strip().upper()
+    reason   = command.args.get("reason", "").strip()
+
+    if not build_id:
+        return Response(
+            command_type = "reject_build",
+            ok           = False,
+            summary      = "No build ID provided. Usage: reject BUILD-N <reason>",
+            next_action  = "reject BUILD-001 reason text here",
+            raw          = {},
+        )
+
+    if not reason:
+        return Response(
+            command_type = "reject_build",
+            ok           = False,
+            summary      = (
+                f"A reason is required to reject {build_id}. "
+                f"Usage: reject {build_id} <reason>"
+            ),
+            next_action  = f"reject {build_id} <reason>",
+            raw          = {"build_id": build_id},
+        )
+
+    result = _fl_approver.reject_build(build_id, reason=reason)
+
+    if not result["ok"]:
+        return Response(
+            command_type = "reject_build",
+            ok           = False,
+            summary      = result["error"],
+            next_action  = f"Check build status: GET /frank-lloyd/status",
+            raw          = result,
+        )
+
+    return Response(
+        command_type        = "reject_build",
+        ok                  = True,
+        summary             = (
+            f"{build_id} spec rejected. Reason: {reason}. "
+            f"Archive: {result['archive_path']}."
+        ),
+        metrics             = {"build_id": build_id, "stage": 1, "reason": reason},
+        artifacts           = {"archive_path": result["archive_path"]},
+        next_action         = (
+            f"Submit a revised build request or abandon {build_id}. "
+            f"Review rejection: {result['archive_path']}/decision.json"
+        ),
+        human_review_needed = False,
+        raw                 = result,
+    )
+
+
+def handle_authorize_stage2(command: Command) -> Response:
+    """
+    Stage 2 authorization gate — authorize a spec_approved build for Stage 2.
+
+    Calls frank_lloyd.stage2_authorizer.authorize_stage2(). Validates state,
+    writes stage2_authorization.json to the archive, appends stage2_authorized
+    log event. Does NOT generate code or initiate any LM call.
+    """
+    import frank_lloyd.stage2_authorizer as _fl_s2auth
+
+    build_id = command.args.get("build_id", "").strip().upper()
+    notes    = command.args.get("notes", "")
+
+    if not build_id:
+        return Response(
+            command_type = "authorize_stage2",
+            ok           = False,
+            summary      = "No build ID provided. Usage: authorize BUILD-N stage2 [notes]",
+            next_action  = "authorize BUILD-001 stage2",
+            raw          = {},
+        )
+
+    result = _fl_s2auth.authorize_stage2(build_id, notes=notes)
+
+    if not result["ok"]:
+        return Response(
+            command_type = "authorize_stage2",
+            ok           = False,
+            summary      = result["error"],
+            next_action  = f"Check build status: GET /frank-lloyd/status",
+            raw          = result,
+        )
+
+    readiness = result.get("raw", {})
+    try:
+        import json as _json
+        import pathlib as _pathlib
+        _auth_text = _pathlib.Path(result["authorization_path"]).read_text(encoding="utf-8")
+        _auth_data = _json.loads(_auth_text)
+        readiness  = _auth_data.get("provider_readiness", {})
+    except Exception:
+        pass
+
+    executable = readiness.get("executable_lanes", [])
+    external   = readiness.get("external_supervised_lanes", [])
+    lane_note  = (
+        f"Executable lanes: {', '.join(executable) or 'none'}. "
+        f"External-supervised lanes: {', '.join(external) or 'none'}."
+    )
+
+    return Response(
+        command_type        = "authorize_stage2",
+        ok                  = True,
+        summary             = (
+            f"{build_id} Stage 2 authorized. "
+            f"Authorization: {result['authorization_path']}. "
+            f"{lane_note}"
+        ),
+        metrics             = {"build_id": build_id, "stage": 2},
+        artifacts           = {
+            "archive_path":       result["archive_path"],
+            "authorization_path": result["authorization_path"],
+        },
+        next_action         = (
+            f"Stage 2 draft generation is now authorized for {build_id}. "
+            f"Note: code generation is not yet implemented — this is authorization only."
+        ),
+        human_review_needed = False,
+        raw                 = result,
+    )
+
+
+def handle_draft_stage2(command: Command) -> Response:
+    """
+    Stage 2 first draft generation — generate draft artifacts for a stage2_authorized build.
+
+    Calls frank_lloyd.stage2_drafter.generate_stage2_draft(). Uses the cheapest
+    executable provider lane (CODE_DRAFT_LOW → cheap OpenRouter). Refuses non-executable
+    lanes with a clear draft_blocked event. Writes to staging only — no live repo writes,
+    no auto-promotion.
+    """
+    import frank_lloyd.stage2_drafter as _fl_drafter
+
+    build_id = command.args.get("build_id", "").strip().upper()
+    notes    = command.args.get("notes", "")
+
+    if not build_id:
+        return Response(
+            command_type = "draft_stage2",
+            ok           = False,
+            summary      = "No build ID provided. Usage: draft BUILD-N [notes]",
+            next_action  = "draft BUILD-001",
+            raw          = {},
+        )
+
+    result = _fl_drafter.generate_stage2_draft(build_id, notes=notes)
+
+    if not result["ok"]:
+        return Response(
+            command_type = "draft_stage2",
+            ok           = False,
+            summary      = result["error"],
+            next_action  = "Check build status: GET /frank-lloyd/status",
+            raw          = result,
+        )
+
+    routing        = result.get("routing") or {}
+    files          = result.get("files_generated") or []
+    staging_path   = result.get("staging_path", "")
+    manifest_path  = result.get("manifest_path", "")
+    task_class     = routing.get("task_class", "?")
+    tier           = routing.get("provider_tier", "?")
+    model          = routing.get("model", "?")
+
+    return Response(
+        command_type        = "draft_stage2",
+        ok                  = True,
+        summary             = (
+            f"{build_id} Stage 2 first draft generated. "
+            f"Lane: {task_class} / {tier} ({model}). "
+            f"{len(files)} file(s) written to staging."
+        ),
+        metrics             = {
+            "build_id":      build_id,
+            "stage":         2,
+            "task_class":    task_class,
+            "provider_tier": tier,
+            "model":         model,
+            "files_count":   len(files),
+        },
+        artifacts           = {
+            "staging_path":  staging_path,
+            "manifest_path": manifest_path,
+            "files":         files,
+        },
+        next_action         = (
+            f"Review the staged draft artifacts at {staging_path}. "
+            f"This is a staged draft only — not written to the live repo. "
+            f"Promotion is a separate manual step."
+        ),
+        human_review_needed = True,
+        raw                 = result,
+    )
+
+
+def handle_promote_draft(command: Command) -> Response:
+    """
+    Stage 2 draft promotion — copies staged draft_module.py to the live repo.
+
+    First-pass: CODE_DRAFT_LOW only. New .py files only. target_path required.
+    Calls frank_lloyd.stage2_promoter.promote_draft(). Validates state, manifest
+    task class, target path safety, and that the destination does not exist.
+    Marks human_review_needed=True — operator should inspect and test the file.
+    """
+    import frank_lloyd.stage2_promoter as _fl_promoter
+
+    build_id    = command.args.get("build_id", "").strip().upper()
+    target_path = command.args.get("target_path", "").strip()
+    notes       = command.args.get("notes", "")
+
+    if not build_id:
+        return Response(
+            command_type = "promote_draft",
+            ok           = False,
+            summary      = "No build ID provided. Usage: promote BUILD-N path/to/file.py",
+            next_action  = "promote BUILD-001 frank_lloyd/my_module.py",
+            raw          = {},
+        )
+
+    if not target_path:
+        return Response(
+            command_type = "promote_draft",
+            ok           = False,
+            summary      = (
+                f"No target path provided for {build_id}. "
+                "Usage: promote BUILD-N path/to/file.py"
+            ),
+            next_action  = f"promote {build_id} frank_lloyd/my_module.py",
+            raw          = {},
+        )
+
+    result = _fl_promoter.promote_draft(build_id, target_path=target_path, notes=notes)
+
+    if not result["ok"]:
+        return Response(
+            command_type = "promote_draft",
+            ok           = False,
+            summary      = result["error"],
+            next_action  = "Check build status: GET /frank-lloyd/status",
+            raw          = result,
+        )
+
+    return Response(
+        command_type        = "promote_draft",
+        ok                  = True,
+        summary             = (
+            f"{build_id} draft promoted to live repo: {result['target_path']}. "
+            "Inspect the file and run tests before importing."
+        ),
+        metrics             = {
+            "build_id":     build_id,
+            "stage":        2,
+            "target_path":  result["target_path"],
+            "promoted_at":  result["promoted_at"],
+        },
+        artifacts           = {
+            "target_path":  result["target_path"],
+            "archive_path": result["archive_path"],
+        },
+        next_action         = (
+            f"Inspect {result['target_path']} and run tests. "
+            "Staging artifacts preserved at staging/frank_lloyd/{build_id}/stage2/"
+        ),
+        human_review_needed = True,
+        raw                 = result,
+    )
+
+
+def handle_fl_lifecycle_nl(command: Command) -> Response:
+    """
+    Conversational Frank Lloyd lifecycle handler.
+
+    Handles natural-language requests for all existing FL lifecycle actions
+    without requiring the operator to use a structured command. Resolves
+    "the current one" / "that one" from live build log state. Asks a brief
+    clarification when required info is missing (e.g. reject reason, promote path).
+
+    Supported actions (args["action"]):
+      status_query   — plain-English summary of what Frank Lloyd is doing
+      run            — run the safe-lane pipeline for a queued build (auto-advance)
+      approve        — approve the pending_review build
+      reject         — reject the pending_review build (requires reason)
+      authorize_stage2 — authorize the spec_approved build for Stage 2
+      draft          — generate a Stage 2 draft for the stage2_authorized build
+      promote        — promote the draft_generated build (requires target_path)
+      discard        — discard the draft_generated/draft_blocked build
+
+    Calls the same internal frank_lloyd.* module functions as the structured
+    handlers. Does NOT create a second workflow path.
+    """
+    action      = command.args.get("action", "")
+    build_id    = command.args.get("build_id", "").strip().upper()
+    notes       = command.args.get("notes", "").strip()
+    reason      = command.args.get("reason", "").strip()
+    target_path = command.args.get("target_path", "").strip()
+
+    # ── Status query ──────────────────────────────────────────────────────────
+    if action == "status_query":
+        return _fl_nl_status_response()
+
+    # ── Resolve build_id if not given ─────────────────────────────────────────
+    if not build_id:
+        build_id = _fl_resolve_actionable_build(action) or ""
+    if not build_id:
+        return _fl_nl_nothing_to_do(action)
+
+    # ── Per-action dispatch — same internal functions as structured handlers ──
+
+    if action == "run":
+        import frank_lloyd.auto_runner as _fl_auto
+        result = _fl_auto.run_full_auto(build_id, initiated_by="peter_nl")
+        if result["ok"]:
+            promoted_to = result.get("promoted_to", "")
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = True,
+                summary      = (
+                    f"Frank Lloyd built {build_id} \u2014 "
+                    f"code written to {promoted_to}."
+                    if promoted_to else
+                    f"Frank Lloyd ran the pipeline for {build_id} \u2014 done."
+                ),
+                next_action  = f"Review {promoted_to} in the repo." if promoted_to else "Check the build log.",
+                raw          = result,
+            )
+        if result.get("paused_reason"):
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = f"{build_id} paused: {result['paused_reason']}",
+                next_action  = "Review the Frank Lloyd panel and take the next manual step.",
+                raw          = result,
+            )
+        return Response(
+            command_type = "fl_lifecycle_nl",
+            ok           = False,
+            summary      = result.get("error") or f"Auto-run for {build_id} failed.",
+            next_action  = "Check the build log or review status.",
+            raw          = result,
+        )
+
+    if action == "approve":
+        import frank_lloyd.spec_approver as _fl_approver
+        result = _fl_approver.approve_build(build_id, notes=notes)
+        if not result["ok"]:
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = result["error"],
+                next_action  = f"Check the build status: 'status'",
+                raw          = result,
+            )
+        return Response(
+            command_type = "fl_lifecycle_nl",
+            ok           = True,
+            summary      = f"Done \u2014 {build_id} spec approved. Stage 2 authorization is the next step when you\u2019re ready.",
+            next_action  = f"Authorize Stage 2 when ready: 'authorize {build_id} stage2'",
+            raw          = result,
+        )
+
+    if action == "reject":
+        if not reason:
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = f"What\u2019s the reason for rejecting {build_id}? I\u2019ll need that on record.",
+                next_action  = f"reject {build_id} <reason>",
+                raw          = {"build_id": build_id, "missing": "reason"},
+            )
+        import frank_lloyd.spec_approver as _fl_approver
+        result = _fl_approver.reject_build(build_id, reason=reason)
+        if not result["ok"]:
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = result["error"],
+                next_action  = f"Check the build status: 'status'",
+                raw          = result,
+            )
+        return Response(
+            command_type = "fl_lifecycle_nl",
+            ok           = True,
+            summary      = f"{build_id} rejected. Reason on record: \u201c{reason}\u201d.",
+            next_action  = "Submit a revised build request or queue a new one.",
+            raw          = result,
+        )
+
+    if action == "authorize_stage2":
+        import frank_lloyd.stage2_authorizer as _fl_s2auth
+        result = _fl_s2auth.authorize_stage2(build_id, notes=notes)
+        if not result["ok"]:
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = result["error"],
+                next_action  = f"Check the build status: 'status'",
+                raw          = result,
+            )
+        return Response(
+            command_type = "fl_lifecycle_nl",
+            ok           = True,
+            summary      = f"{build_id} is now Stage 2 authorized. Frank Lloyd can generate a draft whenever you\u2019re ready.",
+            next_action  = f"Trigger draft generation: 'draft {build_id}'",
+            raw          = result,
+        )
+
+    if action == "draft":
+        import frank_lloyd.stage2_drafter as _fl_drafter
+        result = _fl_drafter.generate_stage2_draft(build_id, notes=notes)
+        if not result["ok"]:
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = result["error"],
+                next_action  = f"Check the build status: 'status'",
+                raw          = result,
+            )
+        status = result.get("status", "")
+        if status == "draft_generated":
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = True,
+                summary      = f"Draft ready for {build_id}. Review it in the Frank Lloyd panel before promoting.",
+                next_action  = f"Review then promote: 'promote {build_id} path/to/file.py'",
+                raw          = result,
+            )
+        return Response(
+            command_type = "fl_lifecycle_nl",
+            ok           = False,
+            summary      = f"Draft generation for {build_id} did not complete as expected. Status: {status}.",
+            next_action  = f"Check staging/frank_lloyd/{build_id}/stage2/ for details.",
+            raw          = result,
+        )
+
+    if action == "promote":
+        if not target_path:
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = f"Where should the {build_id} draft go? Give me a relative .py path, like \u2018frank_lloyd/my_module.py\u2019.",
+                next_action  = f"promote {build_id} frank_lloyd/my_module.py",
+                raw          = {"build_id": build_id, "missing": "target_path"},
+            )
+        import frank_lloyd.stage2_promoter as _fl_promoter
+        result = _fl_promoter.promote_draft(build_id, target_path=target_path, notes=notes)
+        if not result["ok"]:
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = result["error"],
+                next_action  = f"Check the build status: 'status'",
+                raw          = result,
+            )
+        return Response(
+            command_type        = "fl_lifecycle_nl",
+            ok                  = True,
+            summary             = f"{build_id} promoted to {result['target_path']}. Inspect the file and run tests before importing.",
+            next_action         = f"Inspect {result['target_path']} and run tests.",
+            human_review_needed = True,
+            raw                 = result,
+        )
+
+    if action == "discard":
+        import frank_lloyd.stage2_discarder as _fl_discarder
+        result = _fl_discarder.discard_draft(build_id, notes=notes)
+        if not result["ok"]:
+            return Response(
+                command_type = "fl_lifecycle_nl",
+                ok           = False,
+                summary      = result["error"],
+                next_action  = f"Check the build status: 'status'",
+                raw          = result,
+            )
+        return Response(
+            command_type = "fl_lifecycle_nl",
+            ok           = True,
+            summary      = f"Draft for {build_id} discarded. It\u2019s back to stage2_authorized \u2014 ready for a new draft attempt.",
+            next_action  = f"Trigger a new draft: 'draft {build_id}'",
+            raw          = result,
+        )
+
+    # Unknown action — should not happen in normal flow
+    return Response(
+        command_type = "fl_lifecycle_nl",
+        ok           = False,
+        summary      = f"Didn\u2019t recognise the lifecycle action \u2018{action}\u2019. Try \u2018help\u2019 for command reference.",
+        next_action  = "help",
+        raw          = {"action": action},
+    )
+
+
+# ── FL NL lifecycle helpers ───────────────────────────────────────────────────
+
+def _fl_read_build_log() -> list[dict]:
+    """Read data/frank_lloyd/build_log.jsonl and return parsed events."""
+    import json as _json
+    log_path = _FL_BUILD_LOG
+    if not log_path.exists():
+        return []
+    out: list[dict] = []
+    try:
+        for line in log_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(_json.loads(line))
+            except (_json.JSONDecodeError, ValueError):
+                pass
+    except OSError:
+        pass
+    return out
+
+
+def _fl_build_statuses() -> dict[str, str]:
+    """Return {build_id: current_status} for all builds in the log."""
+    events = _fl_read_build_log()
+    # Group events by build_id, preserving order (log is chronological)
+    by_build: dict[str, list[dict]] = {}
+    for ev in events:
+        bid = ev.get("build_id")
+        if bid:
+            by_build.setdefault(bid, []).append(ev)
+
+    statuses: dict[str, str] = {}
+    for bid, evs in by_build.items():
+        latest_event: str | None = None
+        for ev in sorted(evs, key=lambda e: e.get("timestamp", "")):
+            etype = ev.get("event", "")
+            if etype in _FL_STATUS_MAP:
+                latest_event = etype
+        if latest_event:
+            statuses[bid] = _FL_STATUS_MAP[latest_event]
+    return statuses
+
+
+def _fl_resolve_actionable_build(action: str) -> str | None:
+    """
+    Find the most recent build in the correct state for the given action.
+    Returns build_id string or None if no actionable build exists.
+    """
+    target_statuses = _FL_ACTION_TARGET_STATUSES.get(action)
+    if not target_statuses:
+        return None
+    statuses = _fl_build_statuses()
+    # Return the last build_id (most recently queued) that is in a target state
+    for bid in reversed(list(statuses.keys())):
+        if statuses[bid] in target_statuses:
+            return bid
+    return None
+
+
+def _fl_nl_nothing_to_do(action: str) -> Response:
+    """Return a conversational 'nothing to do' response for the given action."""
+    action_phrases = {
+        "approve":          "a build spec ready for approval (status: pending_review)",
+        "reject":           "a build spec ready for rejection (status: pending_review)",
+        "authorize_stage2": "an approved build waiting for Stage 2 authorization (status: spec_approved)",
+        "draft":            "a Stage 2 authorized build waiting for a draft (status: stage2_authorized)",
+        "promote":          "a draft ready to promote (status: draft_generated)",
+        "discard":          "a draft to discard (status: draft_generated or draft_blocked)",
+    }
+    phrase = action_phrases.get(action, f"an actionable build for \u2018{action}\u2019")
+    return Response(
+        command_type = "fl_lifecycle_nl",
+        ok           = False,
+        summary      = f"Nothing to act on right now \u2014 there\u2019s no {phrase}.",
+        next_action  = "Check the queue: 'status'",
+        raw          = {"action": action, "resolved_build_id": None},
+    )
+
+
+def _fl_nl_status_response() -> Response:
+    """Return a plain-English summary of Frank Lloyd\u2019s current state."""
+    statuses = _fl_build_statuses()
+    if not statuses:
+        return Response(
+            command_type = "fl_lifecycle_nl",
+            ok           = True,
+            summary      = "Frank Lloyd has no builds queued yet. Queue one with: \u2018build <description>\u2019.",
+            next_action  = "Queue a build request.",
+            raw          = {"builds": {}},
+        )
+
+    # Describe the most actionable build first, then summarise the rest
+    priority_order = [
+        ("draft_generated",  "has a draft ready for review or promotion"),
+        ("draft_blocked",    "has a blocked draft \u2014 needs a discard and retry"),
+        ("draft_generating", "is generating a draft right now"),
+        ("stage2_authorized","has a Stage 2 authorized build waiting for a draft"),
+        ("spec_approved",    "has an approved spec waiting for Stage 2 authorization"),
+        ("pending_review",   "has a spec ready for your review"),
+        ("pending_spec",     "is writing a spec"),
+    ]
+
+    lines: list[str] = []
+    covered: set[str] = set()
+
+    for status, phrase in priority_order:
+        builds_in_state = [bid for bid, st in statuses.items() if st == status]
+        if builds_in_state:
+            bid = builds_in_state[-1]  # most recent
+            lines.append(f"\u2022 Frank Lloyd {phrase} \u2014 {bid}.")
+            covered.add(bid)
+
+    other_states = {
+        "spec_rejected", "abandoned", "draft_promoted",
+    }
+    for bid, st in statuses.items():
+        if bid not in covered and st not in other_states:
+            lines.append(f"\u2022 {bid}: {st}")
+
+    summary = "\n".join(lines) if lines else "Frank Lloyd has no active builds right now."
+    return Response(
+        command_type = "fl_lifecycle_nl",
+        ok           = True,
+        summary      = summary,
+        next_action  = "Ask Peter about a specific action, or check the Frank Lloyd panel.",
+        raw          = {"statuses": statuses},
+    )
+
+
+def handle_discard_draft(command: Command) -> Response:
+    """
+    Stage 2 draft discard — removes staged draft artifacts and resets the build
+    to stage2_authorized so a new draft attempt can begin.
+
+    Calls frank_lloyd.stage2_discarder.discard_draft(). Allowed only for
+    draft_generated and draft_blocked builds. Preserves Stage 1 artifacts and
+    the Stage 2 authorization record.
+    """
+    import frank_lloyd.stage2_discarder as _fl_discarder
+
+    build_id = command.args.get("build_id", "").strip().upper()
+    notes    = command.args.get("notes", "")
+
+    if not build_id:
+        return Response(
+            command_type = "discard_draft",
+            ok           = False,
+            summary      = "No build ID provided. Usage: discard BUILD-N [notes]",
+            next_action  = "discard BUILD-001",
+            raw          = {},
+        )
+
+    result = _fl_discarder.discard_draft(build_id, notes=notes)
+
+    if not result["ok"]:
+        return Response(
+            command_type = "discard_draft",
+            ok           = False,
+            summary      = result["error"],
+            next_action  = "Check build status: GET /frank-lloyd/status",
+            raw          = result,
+        )
+
+    return Response(
+        command_type = "discard_draft",
+        ok           = True,
+        summary      = (
+            f"{build_id} Stage 2 draft discarded. "
+            "Build is back to stage2_authorized — ready for a new draft attempt."
+        ),
+        metrics      = {
+            "build_id":     build_id,
+            "stage":        2,
+            "discarded_at": result["discarded_at"],
+        },
+        next_action  = (
+            f"Generate a new draft: draft {build_id} [notes]"
+        ),
+        raw          = result,
+    )
+
+
 def handle_unknown(command: Command) -> Response:
     return Response(
         command_type = "unknown",
@@ -1179,3 +2204,294 @@ def _derive_next_action(state: dict) -> str:
             return "Campaign is running — check back with: python scripts/peter.py status"
 
     return 'python scripts/run_campaign.py --goal "your goal here"'
+
+
+# ── Market layer handlers ──────────────────────────────────────────────────────
+
+from observability.market_summary import (
+    read_market_status, read_readiness,
+    read_last_reconciliation, read_today_order_summary,
+    write_kill_signal,
+)
+
+
+def handle_market_status(command: Command) -> Response:
+    """
+    Market status: reads disk artifacts written by the market layer.
+    No live app imports — all data comes from observability bridge.
+    """
+    try:
+        status = read_market_status()
+        orders = read_today_order_summary()
+        recon  = read_last_reconciliation()
+
+        sess_type    = status.get("session_type", "unknown")
+        data_lane    = status.get("data_lane", "UNKNOWN")
+        feed_live    = status.get("feed_live", False)
+        ext_warn     = status.get("extended_hours_warning", "")
+        is_halted_v  = status.get("trading_halted", False)
+        broker_avail = status.get("broker_available", False)
+        broker_env   = status.get("broker_env", "unknown")
+        broker_msg   = status.get("broker_message", "")
+
+        feed_line = f"Feed: {'LIVE' if feed_live else 'SIM'} ({data_lane})."
+
+        summary_parts = [
+            f"Market session: {sess_type}.",
+            feed_line,
+        ]
+        if ext_warn:
+            summary_parts.append(ext_warn)
+        if is_halted_v:
+            summary_parts.append("TRADING HALTED: reconciliation failure. Resolve before placing orders.")
+        if not broker_avail:
+            summary_parts.append("Broker: not configured (paper sim only).")
+        else:
+            summary_parts.append(f"Broker: {broker_msg} ({broker_env} mode).")
+
+        recon_line = "Reconciliation: never run."
+        if recon:
+            recon_passed    = recon.get("passed", False)
+            recon_mismatches = recon.get("mismatches", 0)
+            recon_at        = recon.get("timestamp_utc", "")
+            recon_status    = "PASS" if recon_passed else "FAIL"
+            recon_line = f"Reconciliation: {recon_status} — {recon_mismatches} mismatch(es) at {recon_at}."
+        summary_parts.append(recon_line)
+
+        orders_line = (
+            f"Orders today: {orders.get('orders_placed', 0)} placed, "
+            f"{orders.get('fills', 0)} filled, "
+            f"{orders.get('overlay_warnings', 0)} overlay warning(s)."
+        )
+        summary_parts.append(orders_line)
+
+        return Response(
+            command_type = "market_status",
+            ok           = True,
+            summary      = " ".join(summary_parts),
+            metrics      = {
+                "session":          sess_type,
+                "data_lane":        data_lane,
+                "feed_live":        feed_live,
+                "broker_env":       broker_env,
+                "trading_halted":   is_halted_v,
+                "orders_today":     orders.get("orders_placed", 0),
+                "overlay_warnings": orders.get("overlay_warnings", 0),
+            },
+            next_action  = (
+                "market readiness"
+                if not is_halted_v
+                else "Resolve reconciliation mismatch before resuming."
+            ),
+            raw = {
+                "status": status,
+                "recon":  recon,
+                "orders": orders,
+            },
+        )
+    except Exception as exc:
+        return Response(
+            command_type = "market_status",
+            ok           = False,
+            summary      = f"Market status unavailable: {exc}",
+            next_action  = "Check market layer modules are installed.",
+            raw          = {"error": str(exc)},
+        )
+
+
+def handle_market_readiness(command: Command) -> Response:
+    """
+    Reads the latest readiness scorecard from disk and reports level in plain English.
+    """
+    try:
+        result = read_readiness()
+
+        if not result:
+            return Response(
+                command_type = "market_readiness",
+                ok           = True,
+                summary      = "No readiness scorecard data yet. Run a market readiness evaluation.",
+                metrics      = {"level": "NOT_READY", "all_pass": False, "human_signoff": False},
+                next_action  = "Trigger a readiness evaluation via the market layer.",
+                raw          = {},
+            )
+
+        level      = result.get("level", "NOT_READY")
+        all_pass   = result.get("all_pass", False)
+        signoff    = result.get("human_signoff", False)
+        signoff_by = result.get("signoff_by", "")
+        signoff_at = result.get("signoff_at", "")
+        gates      = result.get("gates", [])
+
+        gate_lines = []
+        for g in gates:
+            icon = {"PASS": "PASS", "FAIL": "FAIL", "INSUFFICIENT_DATA": "??"}.get(
+                g.get("status", ""), "?"
+            )
+            gate_lines.append(f"  [{icon}] {g.get('name', '')}: {g.get('detail', '')}")
+
+        summary = (
+            f"Belfort market readiness: {level}\n"
+            + "\n".join(gate_lines)
+        )
+        if not signoff:
+            summary += "\n  [?] Human sign-off: not yet recorded (required for LIVE_ELIGIBLE)"
+        else:
+            summary += f"\n  [PASS] Human sign-off: {signoff_by} at {signoff_at}"
+
+        next_step = {
+            "NOT_READY":        "Fix FAIL gates before advancing.",
+            "OBSERVATION_ONLY": "Start paper trading to progress to PAPER_READY.",
+            "PAPER_READY":      "Run shadow mode for 5+ days to progress to SHADOW_COMPLETE.",
+            "SHADOW_COMPLETE":  "Provide human sign-off to reach LIVE_ELIGIBLE.",
+            "LIVE_ELIGIBLE":    "All gates pass. Human sign-off recorded. Live mode authorized.",
+        }.get(level, "Evaluate readiness gates.")
+
+        return Response(
+            command_type = "market_readiness",
+            ok           = True,
+            summary      = summary,
+            metrics      = {
+                "level":         level,
+                "all_pass":      all_pass,
+                "human_signoff": signoff,
+            },
+            next_action  = next_step,
+            raw          = result,
+        )
+    except Exception as exc:
+        return Response(
+            command_type = "market_readiness",
+            ok           = False,
+            summary      = f"Readiness scorecard unavailable: {exc}",
+            next_action  = "Check readiness_scorecard module.",
+            raw          = {"error": str(exc)},
+        )
+
+
+def handle_kill_trading(command: Command) -> Response:
+    """
+    Write kill signal to disk. Trading loop picks it up on next tick.
+    No live app imports — uses disk-based signal via observability bridge.
+    """
+    try:
+        environment = command.args.get("environment", "paper")
+        write_kill_signal(reason="peter_command", environment=environment)
+
+        summary = (
+            f"Kill signal written ({environment}). "
+            "Trading loop will stop on next tick and halt all activity."
+        )
+
+        return Response(
+            command_type        = "kill_trading",
+            ok                  = True,
+            summary             = summary,
+            metrics             = {"environment": environment},
+            next_action         = "Investigate reason for kill switch. Resume trading when safe.",
+            human_review_needed = True,
+            human_review_reason = "Kill switch engaged — operator review required before resuming.",
+            raw                 = {"signal_written": True, "environment": environment},
+        )
+    except Exception as exc:
+        return Response(
+            command_type = "kill_trading",
+            ok           = False,
+            summary      = f"Kill switch failed: {exc}",
+            next_action  = "Check kill signal write path.",
+            raw          = {"error": str(exc)},
+        )
+
+
+# ── Belfort mode/preflight handler ────────────────────────────────────────────
+
+from observability.belfort_summary import (
+    read_belfort_preflight, read_belfort_mode,
+)
+
+
+def handle_belfort_status(command: Command) -> Response:
+    """
+    Report Belfort's current operating mode and readiness claim.
+    Reads disk-only via observability bridge. No app.* imports.
+
+    IMPORTANT: mode and readiness_level are always reported separately.
+    They must never be merged into a single status field.
+    """
+    try:
+        pf = read_belfort_preflight()
+
+        mode            = pf.get("mode", "observation")
+        readiness_level = pf.get("readiness_level", "NOT_READY")
+        data_lane       = pf.get("data_lane", "UNKNOWN")
+        session_type    = pf.get("session_type", "unknown")
+        ticks_today     = pf.get("observation_ticks_today", 0)
+        last_tick_at    = pf.get("last_tick_at")
+        can_advance     = pf.get("can_advance_to")
+        blocked_by      = pf.get("advancement_blocked_by")
+        broker_env      = pf.get("broker_environment", "not_configured")
+        paper_creds     = pf.get("paper_credentials", False)
+        written_at      = pf.get("written_at")
+
+        # Mode description
+        _mode_desc = {
+            "observation": "Observation — watching market data, no execution",
+            "shadow":      "Shadow — evaluating signals, no orders placed",
+            "paper":       "Paper — simulated order execution",
+            "live":        "Live — real order execution",
+        }
+        mode_line = _mode_desc.get(mode, f"Mode: {mode}")
+
+        # Readiness description
+        _readiness_desc = {
+            "NOT_READY":        "Not ready — prerequisites missing",
+            "OBSERVATION_ONLY": "Observation only — IEX data, cannot claim higher",
+            "PAPER_READY":      "Paper ready — can run paper strategy evaluation",
+            "SHADOW_COMPLETE":  "Shadow complete — shadow mode verified",
+            "LIVE_ELIGIBLE":    "Live eligible — all gates passed, sign-off on file",
+        }
+        readiness_line = _readiness_desc.get(readiness_level, f"Readiness: {readiness_level}")
+
+        tick_line = (
+            f"Observation ticks today: {ticks_today}"
+            + (f" (last at {last_tick_at})" if last_tick_at else "")
+        )
+
+        advance_line = ""
+        if can_advance:
+            advance_line = f"Next: can advance to {can_advance}."
+        elif blocked_by:
+            advance_line = f"Blocked: {blocked_by}."
+
+        summary = (
+            f"Current mode: {mode_line}. "
+            f"Current readiness claim: {readiness_line}. "
+            f"Data lane: {data_lane}. Session: {session_type}. "
+            f"{tick_line}."
+            + (f" {advance_line}" if advance_line else "")
+        )
+
+        return Response(
+            command_type = "belfort_status",
+            ok           = True,
+            summary      = summary,
+            metrics      = {
+                "mode":             mode,
+                "readiness_level":  readiness_level,
+                "data_lane":        data_lane,
+                "session_type":     session_type,
+                "ticks_today":      ticks_today,
+                "broker_env":       broker_env,
+                "paper_credentials": paper_creds,
+            },
+            next_action  = advance_line or "Run observation tick to refresh preflight.",
+            raw          = pf,
+        )
+    except Exception as exc:
+        return Response(
+            command_type = "belfort_status",
+            ok           = False,
+            summary      = f"Belfort status unavailable: {exc}",
+            next_action  = "Check belfort_observer module.",
+            raw          = {"error": str(exc)},
+        )

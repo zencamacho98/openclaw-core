@@ -1,0 +1,48 @@
+# Frank Lloyd — Stage 1 Spec
+# Review this document before approving.
+# Approval does NOT authorize code generation.
+
+build_id: "BUILD-008"
+stage: 1
+spec_version: "1.0"
+generated_at: "2026-04-11T11:38:47.436796+00:00"
+
+# ── Request ──────────────────────────────────────────────────────────────────
+title: "Create API endpoint returns current portfolio"
+description: "Create a new API endpoint that returns the current portfolio snapshot in JSON format."
+success_criteria: "The new endpoint returns a valid JSON response containing the current portfolio snapshot when accessed."
+
+# ── Build classification ──────────────────────────────────────────────────────
+build_type: new_service
+risk_level: medium
+
+# ── File set ──────────────────────────────────────────────────────────────────
+affected_files:
+  new:
+    - path: "app/routes/portfolio_snapshot.py"
+      purpose: "New API endpoint to return the current portfolio snapshot in JSON format."
+  modified:
+    []
+
+# ── Reuse ─────────────────────────────────────────────────────────────────────
+reuse:
+  capability_registry_checked: true
+  decisions:
+    - capability: "app/routes/portfolio.py"
+      decision: not_needed
+      reason: "The new endpoint is a separate functionality and does not require modification of existing capabilities."
+
+# ── Architecture ─────────────────────────────────────────────────────────────
+architecture_layer: experience
+layer_justification: "The new API endpoint will serve as a frontend experience for users to access portfolio data."
+
+# ── Sentinel scope ────────────────────────────────────────────────────────────
+sentinel_scope:
+  test_file: "tests/test_portfolio_snapshot.py"
+  coverage_note: "Test coverage will ensure the new endpoint correctly returns the portfolio snapshot in JSON format."
+
+# ── Blast radius ──────────────────────────────────────────────────────────────
+blast_radius:
+  failure_mode: silent
+  rollback: "Rollback will involve removing the new endpoint file if issues arise."
+  scope: "The changes are isolated to a new file and do not impact existing functionalities."

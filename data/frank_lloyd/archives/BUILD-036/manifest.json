@@ -1,0 +1,32 @@
+{
+  "build_id": "BUILD-036",
+  "archived_at": "2026-04-11T22:42:14.847482+00:00",
+  "stage": 1,
+  "outcome": "spec_approved",
+  "contents": [
+    {
+      "filename": "request.json",
+      "author": "peter",
+      "written_at": "2026-04-11T22:42:14.847482+00:00",
+      "sha256": null
+    },
+    {
+      "filename": "spec.yaml",
+      "author": "builder",
+      "written_at": "2026-04-11T22:42:14.847482+00:00",
+      "sha256": null
+    },
+    {
+      "filename": "preflight.md",
+      "author": "builder",
+      "written_at": "2026-04-11T22:42:14.847482+00:00",
+      "sha256": null
+    },
+    {
+      "filename": "decision.json",
+      "author": "builder",
+      "written_at": "2026-04-11T22:42:14.847482+00:00",
+      "sha256": null
+    }
+  ]
+}

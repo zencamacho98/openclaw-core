@@ -1,0 +1,483 @@
+{"id": 0, "ts": "2026-04-11T10:59:15.675086+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 1, "ts": "2026-04-11T10:59:15.677265+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 2, "ts": "2026-04-11T10:59:15.682166+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 3, "ts": "2026-04-11T10:59:15.684158+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 4, "ts": "2026-04-11T10:59:15.686199+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 5, "ts": "2026-04-11T10:59:15.693200+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 6, "ts": "2026-04-11T11:11:05.433492+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 7, "ts": "2026-04-11T11:11:11.326577+00:00", "build_id": "BUILD-002", "event": "review_needed", "msg": "BUILD-002 \u2014 Plan ready, but risk level is \u2018high\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 8, "ts": "2026-04-11T11:13:22.275113+00:00", "build_id": "BUILD-001", "event": "promoted", "msg": "BUILD-001 applied to repo: path/to/repo/draft_module.py. Inspect the file and run tests before importing."}
+{"id": 9, "ts": "2026-04-11T11:37:51.617662+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 10, "ts": "2026-04-11T11:37:51.620660+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 11, "ts": "2026-04-11T11:37:51.624068+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 12, "ts": "2026-04-11T11:37:55.640664+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 13, "ts": "2026-04-11T11:37:55.641125+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 14, "ts": "2026-04-11T11:37:55.644234+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 15, "ts": "2026-04-11T11:37:55.648292+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 16, "ts": "2026-04-11T11:37:55.648819+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 17, "ts": "2026-04-11T11:37:55.651685+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 18, "ts": "2026-04-11T11:37:55.652065+00:00", "build_id": "BUILD-002", "event": "review_needed", "msg": "BUILD-002 \u2014 Plan ready, but risk level is \u2018high\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 19, "ts": "2026-04-11T11:37:55.655108+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 20, "ts": "2026-04-11T11:37:55.655477+00:00", "build_id": "BUILD-003", "event": "review_needed", "msg": "BUILD-003 \u2014 Plan ready, but risk level is \u2018medium\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 21, "ts": "2026-04-11T11:37:55.660306+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 22, "ts": "2026-04-11T11:37:55.663785+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 23, "ts": "2026-04-11T11:37:55.667405+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 24, "ts": "2026-04-11T11:37:55.667862+00:00", "build_id": "BUILD-008", "event": "draft_blocked", "msg": "BUILD-008 \u2014 Draft generation failed: LM timeout. Stage 2 is authorized \u2014 retry from the Frank Lloyd workspace."}
+{"id": 25, "ts": "2026-04-11T11:37:55.670289+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 26, "ts": "2026-04-11T11:37:55.670578+00:00", "build_id": "BUILD-004", "event": "spec_blocked", "msg": "BUILD-004 \u2014 Frank Lloyd is blocked on planning: off-limits file. Revise the request or check the workspace."}
+{"id": 27, "ts": "2026-04-11T11:37:55.674138+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 28, "ts": "2026-04-11T11:37:55.674563+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 29, "ts": "2026-04-11T11:38:01.701694+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 30, "ts": "2026-04-11T11:38:01.704749+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 31, "ts": "2026-04-11T11:38:01.708129+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 32, "ts": "2026-04-11T11:38:01.769546+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 33, "ts": "2026-04-11T11:38:01.780804+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 34, "ts": "2026-04-11T11:38:01.790779+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 35, "ts": "2026-04-11T11:38:01.803059+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 36, "ts": "2026-04-11T11:38:01.815002+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 37, "ts": "2026-04-11T11:38:01.825674+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 38, "ts": "2026-04-11T11:38:01.837989+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 39, "ts": "2026-04-11T11:38:05.805521+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 40, "ts": "2026-04-11T11:38:05.808340+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 41, "ts": "2026-04-11T11:38:05.814025+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 42, "ts": "2026-04-11T11:38:05.816263+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 43, "ts": "2026-04-11T11:38:05.818679+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 44, "ts": "2026-04-11T11:38:05.824556+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 45, "ts": "2026-04-11T11:38:39.735151+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 46, "ts": "2026-04-11T11:38:39.736017+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 47, "ts": "2026-04-11T11:38:39.739473+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 48, "ts": "2026-04-11T11:38:39.744905+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 49, "ts": "2026-04-11T11:38:39.745366+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 50, "ts": "2026-04-11T11:38:39.747988+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 51, "ts": "2026-04-11T11:38:39.748382+00:00", "build_id": "BUILD-002", "event": "review_needed", "msg": "BUILD-002 \u2014 Plan ready, but risk level is \u2018high\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 52, "ts": "2026-04-11T11:38:39.751136+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 53, "ts": "2026-04-11T11:38:39.751481+00:00", "build_id": "BUILD-003", "event": "review_needed", "msg": "BUILD-003 \u2014 Plan ready, but risk level is \u2018medium\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 54, "ts": "2026-04-11T11:38:39.754471+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 55, "ts": "2026-04-11T11:38:39.757938+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 56, "ts": "2026-04-11T11:38:39.761565+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 57, "ts": "2026-04-11T11:38:39.762082+00:00", "build_id": "BUILD-008", "event": "draft_blocked", "msg": "BUILD-008 \u2014 Draft generation failed: LM timeout. Stage 2 is authorized \u2014 retry from the Frank Lloyd workspace."}
+{"id": 58, "ts": "2026-04-11T11:38:39.764644+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 59, "ts": "2026-04-11T11:38:39.765032+00:00", "build_id": "BUILD-004", "event": "spec_blocked", "msg": "BUILD-004 \u2014 Frank Lloyd is blocked on planning: off-limits file. Revise the request or check the workspace."}
+{"id": 60, "ts": "2026-04-11T11:38:39.768555+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 61, "ts": "2026-04-11T11:38:39.769045+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 62, "ts": "2026-04-11T11:38:42.720570+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 63, "ts": "2026-04-11T11:38:44.047123+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 64, "ts": "2026-04-11T11:38:45.515498+00:00", "build_id": "BUILD-009", "event": "pipeline_start", "msg": "BUILD-009 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 65, "ts": "2026-04-11T11:38:47.036369+00:00", "build_id": "BUILD-007", "event": "review_needed", "msg": "BUILD-007 \u2014 Plan ready, but risk level is \u2018medium\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 66, "ts": "2026-04-11T11:38:47.221065+00:00", "build_id": "BUILD-010", "event": "pipeline_start", "msg": "BUILD-010 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 67, "ts": "2026-04-11T11:38:47.437530+00:00", "build_id": "BUILD-008", "event": "review_needed", "msg": "BUILD-008 \u2014 Plan ready, but risk level is \u2018medium\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 68, "ts": "2026-04-11T11:38:50.898790+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 69, "ts": "2026-04-11T11:38:51.056265+00:00", "build_id": "BUILD-009", "event": "review_needed", "msg": "BUILD-009 \u2014 Plan ready, but risk level is \u2018medium\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 70, "ts": "2026-04-11T11:38:52.126210+00:00", "build_id": "BUILD-042", "event": "pipeline_start", "msg": "BUILD-042 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 71, "ts": "2026-04-11T11:38:52.990501+00:00", "build_id": "BUILD-010", "event": "review_needed", "msg": "BUILD-010 \u2014 Plan ready, but risk level is \u2018medium\u2019. Frank Lloyd needs your review before proceeding. Check the Frank Lloyd workspace to approve or reject."}
+{"id": 72, "ts": "2026-04-11T11:38:53.559780+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 73, "ts": "2026-04-11T11:38:55.027912+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 74, "ts": "2026-04-11T11:38:56.079954+00:00", "build_id": "BUILD-042", "event": "pipeline_start", "msg": "BUILD-042 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 75, "ts": "2026-04-11T11:39:00.055215+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 76, "ts": "2026-04-11T11:39:01.715932+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 77, "ts": "2026-04-11T11:39:03.441958+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 78, "ts": "2026-04-11T11:39:04.919497+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 79, "ts": "2026-04-11T11:39:22.878664+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 80, "ts": "2026-04-11T11:39:22.881255+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 81, "ts": "2026-04-11T11:39:22.886869+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 82, "ts": "2026-04-11T11:39:22.889647+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 83, "ts": "2026-04-11T11:39:22.892164+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 84, "ts": "2026-04-11T11:39:22.897410+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 85, "ts": "2026-04-11T11:42:27.925218+00:00", "build_id": "BUILD-005", "event": "abandoned", "msg": "BUILD-005 was abandoned (was: spec ready)."}
+{"id": 86, "ts": "2026-04-11T11:42:32.425095+00:00", "build_id": "BUILD-006", "event": "abandoned", "msg": "BUILD-006 was abandoned (was: spec ready)."}
+{"id": 87, "ts": "2026-04-11T11:42:34.688465+00:00", "build_id": "BUILD-007", "event": "abandoned", "msg": "BUILD-007 was abandoned (was: spec ready)."}
+{"id": 88, "ts": "2026-04-11T11:43:45.409057+00:00", "build_id": "BUILD-003", "event": "abandoned", "msg": "BUILD-003 was abandoned (was: spec approved)."}
+{"id": 89, "ts": "2026-04-11T11:43:48.386534+00:00", "build_id": "BUILD-004", "event": "abandoned", "msg": "BUILD-004 was abandoned (was: spec approved)."}
+{"id": 90, "ts": "2026-04-11T11:43:54.243663+00:00", "build_id": "BUILD-002", "event": "abandoned", "msg": "BUILD-002 was abandoned (was: draft discarded)."}
+{"id": 91, "ts": "2026-04-11T12:23:29.066571+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 92, "ts": "2026-04-11T12:23:29.069799+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 93, "ts": "2026-04-11T12:23:29.073858+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 94, "ts": "2026-04-11T12:23:29.139574+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 95, "ts": "2026-04-11T12:23:29.150428+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 96, "ts": "2026-04-11T12:23:29.160911+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 97, "ts": "2026-04-11T12:23:29.172544+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 98, "ts": "2026-04-11T12:23:29.185734+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 99, "ts": "2026-04-11T12:23:29.195401+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 100, "ts": "2026-04-11T12:23:29.206443+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 101, "ts": "2026-04-11T12:23:32.872456+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 102, "ts": "2026-04-11T12:23:32.874602+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 103, "ts": "2026-04-11T12:23:32.880051+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 104, "ts": "2026-04-11T12:23:32.882018+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 105, "ts": "2026-04-11T12:23:32.884188+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 106, "ts": "2026-04-11T12:23:32.889727+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 107, "ts": "2026-04-11T12:25:14.411176+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 108, "ts": "2026-04-11T12:25:14.412137+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 109, "ts": "2026-04-11T12:32:51.342503+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 110, "ts": "2026-04-11T12:32:51.346205+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 111, "ts": "2026-04-11T12:32:51.349853+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 112, "ts": "2026-04-11T12:32:57.218893+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 113, "ts": "2026-04-11T12:32:57.222329+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 114, "ts": "2026-04-11T12:32:57.225788+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 115, "ts": "2026-04-11T12:32:57.230194+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 116, "ts": "2026-04-11T12:32:57.233971+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 117, "ts": "2026-04-11T12:32:57.238722+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 118, "ts": "2026-04-11T12:32:57.242516+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 119, "ts": "2026-04-11T12:32:57.248352+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 120, "ts": "2026-04-11T12:32:57.252075+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 121, "ts": "2026-04-11T12:32:57.255906+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 122, "ts": "2026-04-11T12:33:00.662388+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 123, "ts": "2026-04-11T12:33:00.664499+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 124, "ts": "2026-04-11T12:33:00.670149+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 125, "ts": "2026-04-11T12:33:00.672062+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 126, "ts": "2026-04-11T12:33:00.674262+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 127, "ts": "2026-04-11T12:33:00.680311+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 128, "ts": "2026-04-11T12:34:42.820738+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 129, "ts": "2026-04-11T12:34:42.823892+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 130, "ts": "2026-04-11T12:34:42.827586+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 131, "ts": "2026-04-11T12:34:42.831436+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 132, "ts": "2026-04-11T12:34:42.835064+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 133, "ts": "2026-04-11T12:34:42.840104+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 134, "ts": "2026-04-11T12:34:42.845557+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 135, "ts": "2026-04-11T12:34:42.851546+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 136, "ts": "2026-04-11T12:34:42.856766+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 137, "ts": "2026-04-11T12:34:42.863026+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 138, "ts": "2026-04-11T12:34:46.315439+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 139, "ts": "2026-04-11T12:34:46.317702+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 140, "ts": "2026-04-11T12:34:46.325180+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 141, "ts": "2026-04-11T12:34:46.328335+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 142, "ts": "2026-04-11T12:34:46.331014+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 143, "ts": "2026-04-11T12:34:46.336909+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 144, "ts": "2026-04-11T22:25:11.708749+00:00", "build_id": "BUILD-011", "event": "abandoned", "msg": "BUILD-011 was abandoned (was: spec ready)."}
+{"id": 145, "ts": "2026-04-11T22:25:16.623302+00:00", "build_id": "BUILD-012", "event": "abandoned", "msg": "BUILD-012 was abandoned (was: spec ready)."}
+{"id": 146, "ts": "2026-04-11T22:25:26.793181+00:00", "build_id": "BUILD-013", "event": "abandoned", "msg": "BUILD-013 was abandoned (was: spec ready)."}
+{"id": 147, "ts": "2026-04-11T22:26:24.796042+00:00", "build_id": "BUILD-014", "event": "abandoned", "msg": "BUILD-014 was abandoned (was: spec ready)."}
+{"id": 148, "ts": "2026-04-11T22:37:04.591755+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 149, "ts": "2026-04-11T22:37:04.592382+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 150, "ts": "2026-04-11T22:37:04.595084+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 151, "ts": "2026-04-11T22:37:04.598579+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 152, "ts": "2026-04-11T22:37:04.599167+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 153, "ts": "2026-04-11T22:37:04.602030+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 154, "ts": "2026-04-11T22:37:04.632961+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 155, "ts": "2026-04-11T22:37:04.638490+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 156, "ts": "2026-04-11T22:37:04.642577+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 157, "ts": "2026-04-11T22:37:04.646800+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 158, "ts": "2026-04-11T22:37:04.650243+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 159, "ts": "2026-04-11T22:37:04.650628+00:00", "build_id": "BUILD-004", "event": "spec_blocked", "msg": "BUILD-004 \u2014 Frank Lloyd is blocked on planning: off-limits file. Revise the request or check the workspace."}
+{"id": 160, "ts": "2026-04-11T22:37:04.655590+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 161, "ts": "2026-04-11T22:37:08.095197+00:00", "build_id": "BUILD-023", "event": "pipeline_start", "msg": "BUILD-023 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 162, "ts": "2026-04-11T22:37:09.505391+00:00", "build_id": "BUILD-024", "event": "pipeline_start", "msg": "BUILD-024 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 163, "ts": "2026-04-11T22:37:10.794566+00:00", "build_id": "BUILD-025", "event": "pipeline_start", "msg": "BUILD-025 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 164, "ts": "2026-04-11T22:37:12.439767+00:00", "build_id": "BUILD-026", "event": "pipeline_start", "msg": "BUILD-026 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 165, "ts": "2026-04-11T22:37:16.403792+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 166, "ts": "2026-04-11T22:37:17.503337+00:00", "build_id": "BUILD-042", "event": "pipeline_start", "msg": "BUILD-042 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 167, "ts": "2026-04-11T22:37:17.798513+00:00", "build_id": "BUILD-023", "event": "draft_ready", "msg": "BUILD-023 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 168, "ts": "2026-04-11T22:37:18.549596+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 169, "ts": "2026-04-11T22:37:19.911447+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 170, "ts": "2026-04-11T22:37:21.126701+00:00", "build_id": "BUILD-024", "event": "draft_ready", "msg": "BUILD-024 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 171, "ts": "2026-04-11T22:37:21.335272+00:00", "build_id": "BUILD-042", "event": "pipeline_start", "msg": "BUILD-042 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 172, "ts": "2026-04-11T22:37:21.658607+00:00", "build_id": "BUILD-026", "event": "draft_ready", "msg": "BUILD-026 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 173, "ts": "2026-04-11T22:37:21.672678+00:00", "build_id": "BUILD-025", "event": "draft_ready", "msg": "BUILD-025 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 174, "ts": "2026-04-11T22:37:22.437186+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 175, "ts": "2026-04-11T22:37:23.768085+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 176, "ts": "2026-04-11T22:37:24.893963+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 177, "ts": "2026-04-11T22:37:26.416566+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 178, "ts": "2026-04-11T22:38:46.964579+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 179, "ts": "2026-04-11T22:38:46.965240+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 180, "ts": "2026-04-11T22:38:46.967916+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 181, "ts": "2026-04-11T22:38:46.971646+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 182, "ts": "2026-04-11T22:38:46.972178+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 183, "ts": "2026-04-11T22:38:46.975220+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 184, "ts": "2026-04-11T22:38:46.979019+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 185, "ts": "2026-04-11T22:38:46.982755+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 186, "ts": "2026-04-11T22:38:46.983276+00:00", "build_id": "BUILD-008", "event": "draft_blocked", "msg": "BUILD-008 \u2014 Draft generation failed: LM timeout. Stage 2 is authorized \u2014 retry from the Frank Lloyd workspace."}
+{"id": 187, "ts": "2026-04-11T22:38:46.986010+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 188, "ts": "2026-04-11T22:38:46.986364+00:00", "build_id": "BUILD-004", "event": "spec_blocked", "msg": "BUILD-004 \u2014 Frank Lloyd is blocked on planning: off-limits file. Revise the request or check the workspace."}
+{"id": 189, "ts": "2026-04-11T22:38:46.990177+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 190, "ts": "2026-04-11T22:38:46.990708+00:00", "build_id": "BUILD-002", "event": "draft_ready", "msg": "BUILD-002 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 191, "ts": "2026-04-11T22:38:46.994080+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 192, "ts": "2026-04-11T22:38:46.994637+00:00", "build_id": "BUILD-003", "event": "draft_ready", "msg": "BUILD-003 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 193, "ts": "2026-04-11T22:38:46.998101+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 194, "ts": "2026-04-11T22:38:46.998746+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 195, "ts": "2026-04-11T22:39:05.926733+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 196, "ts": "2026-04-11T22:39:05.927262+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 197, "ts": "2026-04-11T22:39:05.930069+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 198, "ts": "2026-04-11T22:39:05.933789+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 199, "ts": "2026-04-11T22:39:05.934296+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 200, "ts": "2026-04-11T22:39:05.937377+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 201, "ts": "2026-04-11T22:39:05.940713+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 202, "ts": "2026-04-11T22:39:05.944673+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 203, "ts": "2026-04-11T22:39:05.945264+00:00", "build_id": "BUILD-008", "event": "draft_blocked", "msg": "BUILD-008 \u2014 Draft generation failed: LM timeout. Stage 2 is authorized \u2014 retry from the Frank Lloyd workspace."}
+{"id": 204, "ts": "2026-04-11T22:39:05.948058+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 205, "ts": "2026-04-11T22:39:05.948599+00:00", "build_id": "BUILD-004", "event": "spec_blocked", "msg": "BUILD-004 \u2014 Frank Lloyd is blocked on planning: off-limits file. Revise the request or check the workspace."}
+{"id": 206, "ts": "2026-04-11T22:39:05.953932+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 207, "ts": "2026-04-11T22:39:05.954674+00:00", "build_id": "BUILD-002", "event": "draft_ready", "msg": "BUILD-002 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 208, "ts": "2026-04-11T22:39:05.959977+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 209, "ts": "2026-04-11T22:39:05.960466+00:00", "build_id": "BUILD-003", "event": "draft_ready", "msg": "BUILD-003 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 210, "ts": "2026-04-11T22:39:05.964440+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 211, "ts": "2026-04-11T22:39:05.965459+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 212, "ts": "2026-04-11T22:39:12.867787+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 213, "ts": "2026-04-11T22:39:12.872765+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 214, "ts": "2026-04-11T22:39:12.878117+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 215, "ts": "2026-04-11T22:39:12.885011+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 216, "ts": "2026-04-11T22:39:12.890369+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 217, "ts": "2026-04-11T22:39:12.895370+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 218, "ts": "2026-04-11T22:39:12.899511+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 219, "ts": "2026-04-11T22:39:12.904510+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 220, "ts": "2026-04-11T22:39:12.910148+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 221, "ts": "2026-04-11T22:39:12.916042+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 222, "ts": "2026-04-11T22:39:16.482751+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 223, "ts": "2026-04-11T22:39:16.485385+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 224, "ts": "2026-04-11T22:39:16.490687+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 225, "ts": "2026-04-11T22:39:16.492849+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 226, "ts": "2026-04-11T22:39:16.494811+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 227, "ts": "2026-04-11T22:39:16.500576+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 228, "ts": "2026-04-11T22:39:59.480564+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 229, "ts": "2026-04-11T22:39:59.484789+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 230, "ts": "2026-04-11T22:39:59.489087+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 231, "ts": "2026-04-11T22:39:59.493734+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 232, "ts": "2026-04-11T22:39:59.499935+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 233, "ts": "2026-04-11T22:39:59.505722+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 234, "ts": "2026-04-11T22:39:59.509942+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 235, "ts": "2026-04-11T22:39:59.516337+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 236, "ts": "2026-04-11T22:39:59.522170+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 237, "ts": "2026-04-11T22:39:59.528099+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 238, "ts": "2026-04-11T22:40:03.503379+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 239, "ts": "2026-04-11T22:40:03.506356+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 240, "ts": "2026-04-11T22:40:03.513037+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 241, "ts": "2026-04-11T22:40:03.515355+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 242, "ts": "2026-04-11T22:40:03.517523+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 243, "ts": "2026-04-11T22:40:03.523081+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 244, "ts": "2026-04-11T22:40:53.490314+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 245, "ts": "2026-04-11T22:40:53.491086+00:00", "build_id": "BUILD-002", "event": "draft_ready", "msg": "BUILD-002 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 246, "ts": "2026-04-11T22:40:53.494541+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 247, "ts": "2026-04-11T22:40:53.499400+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 248, "ts": "2026-04-11T22:40:53.534807+00:00", "build_id": "BUILD-035", "event": "pipeline_start", "msg": "BUILD-035 \u2014 Frank Lloyd is planning and building."}
+{"id": 249, "ts": "2026-04-11T22:41:20.921114+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 250, "ts": "2026-04-11T22:41:20.925077+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 251, "ts": "2026-04-11T22:41:36.301660+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 252, "ts": "2026-04-11T22:41:36.308931+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 253, "ts": "2026-04-11T22:41:36.314382+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 254, "ts": "2026-04-11T22:41:36.319677+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 255, "ts": "2026-04-11T22:41:36.330467+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 256, "ts": "2026-04-11T22:41:36.357350+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 257, "ts": "2026-04-11T22:41:36.363080+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 258, "ts": "2026-04-11T22:41:36.366355+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building."}
+{"id": 259, "ts": "2026-04-11T22:41:36.410945+00:00", "build_id": "BUILD-035", "event": "pipeline_start", "msg": "BUILD-035 \u2014 Frank Lloyd is planning and building."}
+{"id": 260, "ts": "2026-04-11T22:41:36.416601+00:00", "build_id": "BUILD-035", "event": "pipeline_start", "msg": "BUILD-035 \u2014 Frank Lloyd is planning and building."}
+{"id": 261, "ts": "2026-04-11T22:41:36.422826+00:00", "build_id": "BUILD-035", "event": "pipeline_start", "msg": "BUILD-035 \u2014 Frank Lloyd is planning and building."}
+{"id": 262, "ts": "2026-04-11T22:41:36.430802+00:00", "build_id": "BUILD-035", "event": "pipeline_start", "msg": "BUILD-035 \u2014 Frank Lloyd is planning and building."}
+{"id": 263, "ts": "2026-04-11T22:41:36.454287+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 264, "ts": "2026-04-11T22:41:36.457688+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 265, "ts": "2026-04-11T22:41:36.461997+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 266, "ts": "2026-04-11T22:41:36.491510+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 267, "ts": "2026-04-11T22:41:36.502740+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 268, "ts": "2026-04-11T22:41:36.514820+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 269, "ts": "2026-04-11T22:41:36.525901+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 270, "ts": "2026-04-11T22:41:36.536910+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 271, "ts": "2026-04-11T22:41:36.549175+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 272, "ts": "2026-04-11T22:41:36.560408+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 273, "ts": "2026-04-11T22:41:42.600397+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 274, "ts": "2026-04-11T22:41:42.601138+00:00", "build_id": "BUILD-002", "event": "draft_ready", "msg": "BUILD-002 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 275, "ts": "2026-04-11T22:41:42.604521+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 276, "ts": "2026-04-11T22:41:46.993299+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 277, "ts": "2026-04-11T22:41:46.994114+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 278, "ts": "2026-04-11T22:41:46.997596+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 279, "ts": "2026-04-11T22:41:47.001610+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 280, "ts": "2026-04-11T22:41:47.002507+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 281, "ts": "2026-04-11T22:41:47.006101+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 282, "ts": "2026-04-11T22:41:47.011501+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 283, "ts": "2026-04-11T22:41:47.015588+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 284, "ts": "2026-04-11T22:41:47.016231+00:00", "build_id": "BUILD-008", "event": "draft_blocked", "msg": "BUILD-008 \u2014 Draft generation failed: LM timeout. Stage 2 is authorized \u2014 retry from the Frank Lloyd workspace."}
+{"id": 285, "ts": "2026-04-11T22:41:47.018943+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 286, "ts": "2026-04-11T22:41:47.019419+00:00", "build_id": "BUILD-004", "event": "spec_blocked", "msg": "BUILD-004 \u2014 Frank Lloyd is blocked on planning: off-limits file. Revise the request or check the workspace."}
+{"id": 287, "ts": "2026-04-11T22:41:47.023218+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 288, "ts": "2026-04-11T22:41:47.023835+00:00", "build_id": "BUILD-002", "event": "draft_ready", "msg": "BUILD-002 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 289, "ts": "2026-04-11T22:41:47.027547+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 290, "ts": "2026-04-11T22:41:47.028324+00:00", "build_id": "BUILD-003", "event": "draft_ready", "msg": "BUILD-003 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 291, "ts": "2026-04-11T22:41:47.031959+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 292, "ts": "2026-04-11T22:41:47.032443+00:00", "build_id": "BUILD-001", "event": "draft_ready", "msg": "BUILD-001 \u2014 Draft is ready. Review the apply summary and apply when satisfied."}
+{"id": 293, "ts": "2026-04-11T22:41:54.956541+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 294, "ts": "2026-04-11T22:41:54.960264+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 295, "ts": "2026-04-11T22:41:54.964665+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 296, "ts": "2026-04-11T22:41:54.969247+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 297, "ts": "2026-04-11T22:41:54.975190+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 298, "ts": "2026-04-11T22:41:54.979821+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 299, "ts": "2026-04-11T22:41:54.983344+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 300, "ts": "2026-04-11T22:41:54.990329+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 301, "ts": "2026-04-11T22:41:54.997504+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 302, "ts": "2026-04-11T22:41:55.002596+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 303, "ts": "2026-04-11T22:41:58.644035+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 304, "ts": "2026-04-11T22:41:58.646278+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 305, "ts": "2026-04-11T22:41:58.651170+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 306, "ts": "2026-04-11T22:41:58.653065+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 307, "ts": "2026-04-11T22:41:58.655566+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 308, "ts": "2026-04-11T22:41:58.661363+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 309, "ts": "2026-04-11T22:42:38.103070+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 310, "ts": "2026-04-11T22:42:38.107897+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 311, "ts": "2026-04-11T22:42:38.112471+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 312, "ts": "2026-04-11T22:42:38.117185+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 313, "ts": "2026-04-11T22:42:38.123902+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 314, "ts": "2026-04-11T22:42:38.129176+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 315, "ts": "2026-04-11T22:42:38.133705+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 316, "ts": "2026-04-11T22:42:38.139027+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 317, "ts": "2026-04-11T22:42:38.144193+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 318, "ts": "2026-04-11T22:42:38.149602+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 319, "ts": "2026-04-11T22:42:41.639529+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 320, "ts": "2026-04-11T22:42:41.641818+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 321, "ts": "2026-04-11T22:42:41.647134+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 322, "ts": "2026-04-11T22:42:41.649339+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 323, "ts": "2026-04-11T22:42:41.651383+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 324, "ts": "2026-04-11T22:42:41.657122+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 325, "ts": "2026-04-11T23:20:19.248340+00:00", "build_id": "BUILD-025", "event": "abandoned", "msg": "BUILD-025 was abandoned (was: draft generated)."}
+{"id": 326, "ts": "2026-04-11T23:20:21.358515+00:00", "build_id": "BUILD-026", "event": "abandoned", "msg": "BUILD-026 was abandoned (was: draft generated)."}
+{"id": 327, "ts": "2026-04-11T23:20:24.669338+00:00", "build_id": "BUILD-027", "event": "abandoned", "msg": "BUILD-027 was abandoned (was: draft generated)."}
+{"id": 328, "ts": "2026-04-11T23:20:27.160753+00:00", "build_id": "BUILD-028", "event": "abandoned", "msg": "BUILD-028 was abandoned (was: draft generated)."}
+{"id": 329, "ts": "2026-04-11T23:20:29.731844+00:00", "build_id": "BUILD-029", "event": "abandoned", "msg": "BUILD-029 was abandoned (was: draft generated)."}
+{"id": 330, "ts": "2026-04-11T23:20:34.034839+00:00", "build_id": "BUILD-030", "event": "abandoned", "msg": "BUILD-030 was abandoned (was: draft generated)."}
+{"id": 331, "ts": "2026-04-11T23:20:37.346712+00:00", "build_id": "BUILD-031", "event": "abandoned", "msg": "BUILD-031 was abandoned (was: draft generated)."}
+{"id": 332, "ts": "2026-04-11T23:20:39.621463+00:00", "build_id": "BUILD-032", "event": "abandoned", "msg": "BUILD-032 was abandoned (was: draft generated)."}
+{"id": 333, "ts": "2026-04-11T23:20:42.099134+00:00", "build_id": "BUILD-033", "event": "abandoned", "msg": "BUILD-033 was abandoned (was: draft generated)."}
+{"id": 334, "ts": "2026-04-11T23:20:44.938995+00:00", "build_id": "BUILD-034", "event": "abandoned", "msg": "BUILD-034 was abandoned (was: draft generated)."}
+{"id": 335, "ts": "2026-04-11T23:20:47.265892+00:00", "build_id": "BUILD-035", "event": "abandoned", "msg": "BUILD-035 was abandoned (was: draft generated)."}
+{"id": 336, "ts": "2026-04-11T23:20:49.829523+00:00", "build_id": "BUILD-036", "event": "abandoned", "msg": "BUILD-036 was abandoned (was: draft generated)."}
+{"id": 337, "ts": "2026-04-11T23:20:52.827455+00:00", "build_id": "BUILD-037", "event": "abandoned", "msg": "BUILD-037 was abandoned (was: draft generated)."}
+{"id": 338, "ts": "2026-04-11T23:20:55.447556+00:00", "build_id": "BUILD-038", "event": "abandoned", "msg": "BUILD-038 was abandoned (was: draft generated)."}
+{"id": 339, "ts": "2026-04-11T23:20:58.297813+00:00", "build_id": "BUILD-039", "event": "abandoned", "msg": "BUILD-039 was abandoned (was: draft generated)."}
+{"id": 340, "ts": "2026-04-11T23:21:01.215283+00:00", "build_id": "BUILD-040", "event": "abandoned", "msg": "BUILD-040 was abandoned (was: draft generated)."}
+{"id": 341, "ts": "2026-04-11T23:21:06.938208+00:00", "build_id": "BUILD-041", "event": "abandoned", "msg": "BUILD-041 was abandoned (was: draft generated)."}
+{"id": 342, "ts": "2026-04-11T23:21:22.962944+00:00", "build_id": "BUILD-042", "event": "abandoned", "msg": "BUILD-042 was abandoned (was: spec approved)."}
+{"id": 343, "ts": "2026-04-11T23:21:26.210700+00:00", "build_id": "BUILD-023", "event": "abandoned", "msg": "BUILD-023 was abandoned (was: draft discarded)."}
+{"id": 344, "ts": "2026-04-11T23:21:29.904953+00:00", "build_id": "BUILD-024", "event": "abandoned", "msg": "BUILD-024 was abandoned (was: draft discarded)."}
+{"id": 345, "ts": "2026-04-11T23:44:24.408816+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 346, "ts": "2026-04-11T23:44:24.413784+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 347, "ts": "2026-04-11T23:44:24.418248+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 348, "ts": "2026-04-11T23:44:24.422192+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 349, "ts": "2026-04-11T23:44:24.426250+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 350, "ts": "2026-04-11T23:44:24.430603+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 351, "ts": "2026-04-11T23:44:24.434056+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 352, "ts": "2026-04-11T23:44:24.439513+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 353, "ts": "2026-04-11T23:44:24.443289+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 354, "ts": "2026-04-11T23:44:24.447797+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 355, "ts": "2026-04-11T23:44:27.906448+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 356, "ts": "2026-04-11T23:44:27.907841+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 357, "ts": "2026-04-11T23:44:27.909938+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 358, "ts": "2026-04-11T23:44:27.910936+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 359, "ts": "2026-04-11T23:44:27.911964+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 360, "ts": "2026-04-11T23:44:27.914233+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 361, "ts": "2026-04-11T23:44:31.910846+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 362, "ts": "2026-04-11T23:44:31.914779+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 363, "ts": "2026-04-11T23:44:31.919018+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 364, "ts": "2026-04-11T23:44:31.923551+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 365, "ts": "2026-04-11T23:44:31.928293+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 366, "ts": "2026-04-11T23:44:31.934262+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 367, "ts": "2026-04-11T23:44:31.937772+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 368, "ts": "2026-04-11T23:44:31.942034+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 369, "ts": "2026-04-11T23:44:31.946724+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 370, "ts": "2026-04-11T23:44:31.950932+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 371, "ts": "2026-04-11T23:44:35.316314+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 372, "ts": "2026-04-11T23:44:35.317783+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 373, "ts": "2026-04-11T23:44:35.320412+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 374, "ts": "2026-04-11T23:44:35.321808+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 375, "ts": "2026-04-11T23:44:35.323257+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 376, "ts": "2026-04-11T23:44:35.326298+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 377, "ts": "2026-04-11T23:44:37.384887+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 378, "ts": "2026-04-11T23:44:37.390658+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 379, "ts": "2026-04-11T23:44:37.398265+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 380, "ts": "2026-04-11T23:44:37.403921+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 381, "ts": "2026-04-11T23:44:37.409573+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 382, "ts": "2026-04-11T23:44:37.415967+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 383, "ts": "2026-04-11T23:44:37.421363+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 384, "ts": "2026-04-11T23:44:37.427527+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 385, "ts": "2026-04-11T23:44:37.434046+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 386, "ts": "2026-04-11T23:44:37.441062+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 387, "ts": "2026-04-11T23:44:40.168733+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 388, "ts": "2026-04-11T23:44:40.172848+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 389, "ts": "2026-04-11T23:44:40.176878+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 390, "ts": "2026-04-11T23:44:40.182500+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 391, "ts": "2026-04-11T23:44:40.188859+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 392, "ts": "2026-04-11T23:44:40.196763+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 393, "ts": "2026-04-11T23:44:40.201267+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 394, "ts": "2026-04-11T23:44:40.207883+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 395, "ts": "2026-04-11T23:44:40.214058+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 396, "ts": "2026-04-11T23:44:40.219449+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 397, "ts": "2026-04-11T23:44:40.745283+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 398, "ts": "2026-04-11T23:44:40.747708+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 399, "ts": "2026-04-11T23:44:40.753271+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 400, "ts": "2026-04-11T23:44:40.755582+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 401, "ts": "2026-04-11T23:44:40.758009+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 402, "ts": "2026-04-11T23:44:40.763630+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 403, "ts": "2026-04-11T23:44:44.069828+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 404, "ts": "2026-04-11T23:44:44.071511+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 405, "ts": "2026-04-11T23:44:44.074440+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 406, "ts": "2026-04-11T23:44:44.075947+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 407, "ts": "2026-04-11T23:44:44.077454+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 408, "ts": "2026-04-11T23:44:44.080735+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 409, "ts": "2026-04-11T23:44:44.494770+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 410, "ts": "2026-04-11T23:44:44.498049+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 411, "ts": "2026-04-11T23:44:44.501943+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 412, "ts": "2026-04-11T23:44:44.505742+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 413, "ts": "2026-04-11T23:44:44.509806+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 414, "ts": "2026-04-11T23:44:44.515073+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 415, "ts": "2026-04-11T23:44:44.518257+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 416, "ts": "2026-04-11T23:44:44.522352+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 417, "ts": "2026-04-11T23:44:44.526345+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 418, "ts": "2026-04-11T23:44:44.530483+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 419, "ts": "2026-04-11T23:44:48.322135+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 420, "ts": "2026-04-11T23:44:48.323372+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 421, "ts": "2026-04-11T23:44:48.325721+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 422, "ts": "2026-04-11T23:44:48.326800+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 423, "ts": "2026-04-11T23:44:48.327982+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 424, "ts": "2026-04-11T23:44:48.330345+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 425, "ts": "2026-04-11T23:44:48.841459+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 426, "ts": "2026-04-11T23:44:48.844933+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 427, "ts": "2026-04-11T23:44:48.848782+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 428, "ts": "2026-04-11T23:44:48.853016+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 429, "ts": "2026-04-11T23:44:48.858417+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 430, "ts": "2026-04-11T23:44:48.862422+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 431, "ts": "2026-04-11T23:44:48.865746+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 432, "ts": "2026-04-11T23:44:48.869834+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 433, "ts": "2026-04-11T23:44:48.873827+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 434, "ts": "2026-04-11T23:44:48.877854+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 435, "ts": "2026-04-11T23:44:52.361174+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 436, "ts": "2026-04-11T23:44:52.362451+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 437, "ts": "2026-04-11T23:44:52.364757+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 438, "ts": "2026-04-11T23:44:52.365735+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 439, "ts": "2026-04-11T23:44:52.367020+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 440, "ts": "2026-04-11T23:44:52.369101+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 441, "ts": "2026-04-11T23:45:04.705052+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 442, "ts": "2026-04-11T23:45:04.710000+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 443, "ts": "2026-04-11T23:45:04.714518+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 444, "ts": "2026-04-11T23:45:04.718799+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 445, "ts": "2026-04-11T23:45:04.724974+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 446, "ts": "2026-04-11T23:45:04.729722+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 447, "ts": "2026-04-11T23:45:04.733464+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 448, "ts": "2026-04-11T23:45:04.738044+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 449, "ts": "2026-04-11T23:45:04.742532+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 450, "ts": "2026-04-11T23:45:04.747343+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 451, "ts": "2026-04-11T23:45:08.171112+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 452, "ts": "2026-04-11T23:45:08.172227+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 453, "ts": "2026-04-11T23:45:08.174135+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 454, "ts": "2026-04-11T23:45:08.175202+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 455, "ts": "2026-04-11T23:45:08.176190+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: spec ready)."}
+{"id": 456, "ts": "2026-04-11T23:45:08.178319+00:00", "build_id": "BUILD-001", "event": "abandoned", "msg": "BUILD-001 was abandoned (was: request queued)."}
+{"id": 457, "ts": "2026-04-11T23:45:14.233434+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 458, "ts": "2026-04-11T23:45:14.240404+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 459, "ts": "2026-04-11T23:45:14.247019+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 460, "ts": "2026-04-11T23:45:14.253781+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 461, "ts": "2026-04-11T23:45:14.261119+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 462, "ts": "2026-04-11T23:45:14.273111+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 463, "ts": "2026-04-11T23:45:14.281051+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 464, "ts": "2026-04-11T23:45:14.282503+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building."}
+{"id": 465, "ts": "2026-04-11T23:45:14.302726+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 466, "ts": "2026-04-11T23:45:14.307027+00:00", "build_id": "BUILD-005", "event": "pipeline_start", "msg": "BUILD-005 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 467, "ts": "2026-04-11T23:45:14.311333+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 468, "ts": "2026-04-11T23:45:14.315169+00:00", "build_id": "BUILD-006", "event": "pipeline_start", "msg": "BUILD-006 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 469, "ts": "2026-04-11T23:45:14.319087+00:00", "build_id": "BUILD-007", "event": "pipeline_start", "msg": "BUILD-007 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 470, "ts": "2026-04-11T23:45:14.324695+00:00", "build_id": "BUILD-008", "event": "pipeline_start", "msg": "BUILD-008 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 471, "ts": "2026-04-11T23:45:14.328930+00:00", "build_id": "BUILD-004", "event": "pipeline_start", "msg": "BUILD-004 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 472, "ts": "2026-04-11T23:45:14.333825+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 473, "ts": "2026-04-11T23:45:14.339446+00:00", "build_id": "BUILD-003", "event": "pipeline_start", "msg": "BUILD-003 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 474, "ts": "2026-04-11T23:45:14.345134+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building in the background."}
+{"id": 475, "ts": "2026-04-11T23:45:21.942966+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 476, "ts": "2026-04-11T23:45:21.945449+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 477, "ts": "2026-04-11T23:45:21.956483+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 478, "ts": "2026-04-11T23:45:21.963936+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 479, "ts": "2026-04-11T23:45:21.970853+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 480, "ts": "2026-04-11T23:45:21.982305+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 481, "ts": "2026-04-11T23:45:21.988190+00:00", "build_id": "BUILD-001", "event": "pipeline_start", "msg": "BUILD-001 \u2014 Frank Lloyd is planning and building."}
+{"id": 482, "ts": "2026-04-11T23:45:21.991480+00:00", "build_id": "BUILD-002", "event": "pipeline_start", "msg": "BUILD-002 \u2014 Frank Lloyd is planning and building."}

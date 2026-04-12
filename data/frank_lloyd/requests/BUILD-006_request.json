@@ -1,0 +1,11 @@
+{
+  "request_id": "BUILD-006",
+  "title": "Create health endpoint verifies connection database",
+  "description": "Create a health endpoint that verifies the connection to the database and returns the status.",
+  "requester": "operator",
+  "requested_at": "2026-04-11T11:38:15.403710+00:00",
+  "success_criteria": "The health endpoint returns a successful response indicating the database is reachable.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": []
+}

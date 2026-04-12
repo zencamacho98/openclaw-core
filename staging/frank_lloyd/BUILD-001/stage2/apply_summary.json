@@ -1,0 +1,18 @@
+{
+  "build_id": "BUILD-001",
+  "generated_at": "2026-04-11T11:12:56.908724+00:00",
+  "lm_ok": true,
+  "summary": {
+    "what_built": "This module manages the stopping state UI for control buttons.",
+    "problem": "It solves the issue of control buttons not reflecting the stopping state correctly.",
+    "files": [
+      "draft_module.py",
+      "draft_notes.md"
+    ],
+    "risk": "The risk level is critical because incorrect UI behavior could confuse users during trading.",
+    "validation": "The code was checked for syntax and basic functionality and passed those checks.",
+    "on_apply": "When the operator clicks Apply, the new UI management module will be integrated into the existing system.",
+    "uncertainty": "The exact behavior of the UI under various stopping conditions is not fully tested, so watch for any discrepancies.",
+    "target_path": "path/to/repo/draft_module.py"
+  }
+}

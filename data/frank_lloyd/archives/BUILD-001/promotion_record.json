@@ -1,0 +1,12 @@
+{
+  "build_id": "BUILD-001",
+  "promoted_at": "2026-04-11T11:13:22.273966+00:00",
+  "promoted_by": "operator",
+  "target_path": "path/to/repo/draft_module.py",
+  "task_class": "code_draft_low",
+  "source_staging": "/home/zen_camacho98/openclaw-core/staging/frank_lloyd/BUILD-001/stage2/draft_module.py",
+  "model_used": "openai/gpt-4o-mini",
+  "provider_tier": "cheap",
+  "generated_at": "2026-04-11T11:12:51.244581+00:00",
+  "notes": null
+}

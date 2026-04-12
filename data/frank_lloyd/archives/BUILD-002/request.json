@@ -1,0 +1,11 @@
+{
+  "request_id": "BUILD-002",
+  "title": "Modify Mr. Belfort's house AI announce",
+  "description": "Modify Mr. Belfort's house AI to announce its current status instead of the most recent trading action while in idle mode.",
+  "requester": "operator",
+  "requested_at": "2026-04-11T11:11:05.431251+00:00",
+  "success_criteria": "Verify that the house now announces its current status during idle mode instead of the most recent trading action.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": []
+}

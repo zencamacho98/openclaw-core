@@ -1,0 +1,11 @@
+{
+  "request_id": "BUILD-001",
+  "title": "Peter, have Frank Lloyd fix Belfort\u2019s",
+  "description": "Peter, have Frank Lloyd fix Belfort\u2019s stopping-state UI so the control buttons reflect stopping correctly. Success: when Belfort is stopping, the control buttons visibly reflect stopping and do not look like normal active-trading controls.",
+  "requester": "operator",
+  "requested_at": "2026-04-11T07:27:20.346662+00:00",
+  "success_criteria": "when Belfort is stopping, the control buttons visibly reflect stopping and do not look like normal active-trading controls.",
+  "build_type_hint": "",
+  "context_refs": [],
+  "constraints": []
+}

@@ -119,6 +119,13 @@ TASK_POLICY: dict[str, TaskPolicy] = {
     "routing_change":    TaskPolicy("strong", "Changes operator command dispatch or identity"),
     "architecture":      TaskPolicy("strong", "Structural decisions with broad impact"),
     "escalated_build":   TaskPolicy("strong", "Builder confidence below threshold"),
+    # ── Frank Lloyd task classes (model selected via FL_PROVIDER_REGISTRY) ────
+    # Tier here reflects the warden category; actual model comes from FL_*_MODEL env.
+    "spec_draft":          TaskPolicy("cheap",  "Frank Lloyd Stage 1 spec drafting (FL cheap lane)"),
+    "code_draft_low":      TaskPolicy("cheap",  "Frank Lloyd Stage 2 low-risk isolated code (FL cheap lane)"),
+    "code_draft_medium":   TaskPolicy("strong", "Frank Lloyd Stage 2 medium-risk integration code (FL coding lane)"),
+    "code_draft_critical": TaskPolicy("strong", "Frank Lloyd Stage 2 critical/architecture code (FL strong lane)"),
+    "review_proof":        TaskPolicy("strong", "Frank Lloyd final review/proof escalation (FL critical lane)"),
 }
 
 # Escalation conditions (cheap → strong override)
@@ -261,17 +268,19 @@ class LMHelper:
 
     def __init__(
         self,
-        agent_name:   str,
-        task:         str,
-        max_tokens:   int   = 400,
-        temperature:  float = 0.4,
-        force_tier:   str | None = None,
+        agent_name:     str,
+        task:           str,
+        max_tokens:     int   = 400,
+        temperature:    float = 0.4,
+        force_tier:     str | None = None,
+        model_override: str | None = None,
     ) -> None:
-        self.agent_name  = agent_name
-        self.task        = task
-        self.max_tokens  = max_tokens
-        self.temperature = temperature
-        self.force_tier  = force_tier
+        self.agent_name     = agent_name
+        self.task           = task
+        self.max_tokens     = max_tokens
+        self.temperature    = temperature
+        self.force_tier     = force_tier
+        self.model_override = model_override  # bypass tier→model resolution; use this model directly
 
     def call(
         self,
@@ -291,6 +300,13 @@ class LMHelper:
             force_tier        = self.force_tier,
             escalation_reason = escalation_reason,
         )
+
+        # Apply model_override: use the specified model but keep the tier/reason from policy.
+        # This allows callers (e.g. frank_lloyd.provider_router.FLLMHelper) to select a
+        # specific model (e.g. openai/gpt-4o for the coding lane) without altering tier logic.
+        if self.model_override and decision.tier != "deterministic":
+            from dataclasses import replace
+            decision = replace(decision, model=self.model_override)
 
         if decision.tier == "deterministic":
             return LMResult(

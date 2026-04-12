@@ -162,14 +162,15 @@ class TestBuilderStatusRoute(unittest.TestCase):
         resp = client.get("/frank-lloyd/status")
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
-        for key in ("builder_stage", "pending_builds", "completed_builds", "summary"):
+        for key in ("builder_stage", "pending_builds", "inprogress_builds",
+                    "completed_builds", "summary"):
             self.assertIn(key, body, f"Missing top-level key: {key}")
 
     def test_summary_has_all_required_fields(self):
         resp = client.get("/frank-lloyd/status")
         summary = resp.json()["summary"]
-        for key in ("pending_count", "completed_count", "approved_count",
-                    "rejected_count", "abandoned_count"):
+        for key in ("pending_count", "inprogress_count", "completed_count",
+                    "approved_count", "rejected_count", "abandoned_count"):
             self.assertIn(key, summary, f"Missing summary key: {key}")
 
     # ── status derivation ─────────────────────────────────────────────────────
@@ -191,15 +192,17 @@ class TestBuilderStatusRoute(unittest.TestCase):
         self.assertEqual(len(pending), 1)
         self.assertEqual(pending[0]["status"], "pending_review")
 
-    def test_spec_approved_in_completed(self):
+    def test_spec_approved_in_inprogress(self):
+        """spec_approved is an active pipeline state — it belongs in inprogress, not completed."""
         self._write_log([
             _request_queued("BUILD-001", "Event log query", "2026-04-11T10:00:00+00:00"),
             _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
         ])
         body = client.get("/frank-lloyd/status").json()
-        self.assertEqual(len(body["pending_builds"]),   0)
-        self.assertEqual(len(body["completed_builds"]), 1)
-        self.assertEqual(body["completed_builds"][0]["status"], "spec_approved")
+        self.assertEqual(len(body["pending_builds"]),    0)
+        self.assertEqual(len(body["completed_builds"]),  0)
+        self.assertEqual(len(body["inprogress_builds"]), 1)
+        self.assertEqual(body["inprogress_builds"][0]["status"], "spec_approved")
 
     def test_spec_rejected_in_completed(self):
         self._write_log([
@@ -256,7 +259,7 @@ class TestBuilderStatusRoute(unittest.TestCase):
             _request_queued("BUILD-001", "Event log query", "2026-04-11T10:00:00+00:00"),
             _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
         ])
-        item = client.get("/frank-lloyd/status").json()["completed_builds"][0]
+        item = client.get("/frank-lloyd/status").json()["inprogress_builds"][0]
         self.assertEqual(item["build_type"],     "platform_capability")
         self.assertEqual(item["risk_level"],     "critical")
         self.assertEqual(item["stage_completed"], 1)
@@ -291,11 +294,14 @@ class TestBuilderStatusRoute(unittest.TestCase):
             _request_queued("BUILD-003", "Pending",  "2026-04-11T10:00:00+00:00"),
         ])
         summary = client.get("/frank-lloyd/status").json()["summary"]
-        self.assertEqual(summary["pending_count"],   1)
-        self.assertEqual(summary["completed_count"], 2)
-        self.assertEqual(summary["approved_count"],  1)
-        self.assertEqual(summary["rejected_count"],  1)
-        self.assertEqual(summary["abandoned_count"], 0)
+        # BUILD-001 spec_approved → inprogress; BUILD-002 spec_rejected → completed;
+        # BUILD-003 pending → pending
+        self.assertEqual(summary["pending_count"],    1)
+        self.assertEqual(summary["inprogress_count"], 1)
+        self.assertEqual(summary["completed_count"],  1)
+        self.assertEqual(summary["approved_count"],   1)  # the inprogress build
+        self.assertEqual(summary["rejected_count"],   1)
+        self.assertEqual(summary["abandoned_count"],  0)
 
     # ── multiple builds / bucketing ───────────────────────────────────────────
 
@@ -308,24 +314,30 @@ class TestBuilderStatusRoute(unittest.TestCase):
             _ev("BUILD-003", "abandoned", "2026-04-11T10:20:00+00:00"),
         ])
         body = client.get("/frank-lloyd/status").json()
-        self.assertEqual(len(body["pending_builds"]),   1)
-        self.assertEqual(len(body["completed_builds"]), 2)
-        self.assertEqual({b["build_id"] for b in body["pending_builds"]},   {"BUILD-002"})
-        self.assertEqual({b["build_id"] for b in body["completed_builds"]}, {"BUILD-001", "BUILD-003"})
+        # spec_approved → inprogress; abandoned → completed; pending → pending
+        self.assertEqual(len(body["pending_builds"]),    1)
+        self.assertEqual(len(body["inprogress_builds"]), 1)
+        self.assertEqual(len(body["completed_builds"]),  1)
+        self.assertEqual({b["build_id"] for b in body["pending_builds"]},    {"BUILD-002"})
+        self.assertEqual({b["build_id"] for b in body["inprogress_builds"]}, {"BUILD-001"})
+        self.assertEqual({b["build_id"] for b in body["completed_builds"]},  {"BUILD-003"})
 
     # ── resilience ────────────────────────────────────────────────────────────
 
     def test_unknown_future_events_are_skipped(self):
-        # Stage 2+ event "promoted" appears after spec_approved — must not change status
+        # Unrecognized event "promoted" after spec_approved must not change status.
+        # spec_approved → inprogress bucket; "promoted" is not a known event.
         self._write_log([
             _request_queued("BUILD-001", "My build", "2026-04-11T10:00:00+00:00"),
             _spec_approved("BUILD-001", "2026-04-11T10:20:00+00:00"),
             _ev("BUILD-001", "promoted", "2026-04-11T10:30:00+00:00"),
         ])
-        completed = client.get("/frank-lloyd/status").json()["completed_builds"]
-        self.assertEqual(len(completed), 1)
-        # "promoted" is not a Stage 1 event; latest known Stage 1 event is spec_approved
-        self.assertEqual(completed[0]["status"], "spec_approved")
+        body = client.get("/frank-lloyd/status").json()
+        inprog = body["inprogress_builds"]
+        self.assertEqual(len(inprog), 1)
+        # "promoted" is unrecognized; latest known event is spec_approved
+        self.assertEqual(inprog[0]["status"], "spec_approved")
+        self.assertEqual(len(body["completed_builds"]), 0)
 
     def test_malformed_lines_skipped_no_crash(self):
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -349,12 +361,25 @@ class TestBuilderStatusRoute(unittest.TestCase):
 
     # ── sort order ────────────────────────────────────────────────────────────
 
-    def test_completed_builds_sorted_newest_resolved_first(self):
+    def test_inprogress_builds_sorted_newest_resolved_first(self):
+        """inprogress builds are sorted newest resolved_at first."""
         self._write_log([
             _request_queued("BUILD-001", "Older", "2026-04-11T08:00:00+00:00"),
             _spec_approved("BUILD-001", "2026-04-11T08:30:00+00:00"),
             _request_queued("BUILD-002", "Newer", "2026-04-11T09:00:00+00:00"),
             _spec_approved("BUILD-002", "2026-04-11T09:30:00+00:00"),
+        ])
+        inprog = client.get("/frank-lloyd/status").json()["inprogress_builds"]
+        self.assertEqual(inprog[0]["build_id"], "BUILD-002")
+        self.assertEqual(inprog[1]["build_id"], "BUILD-001")
+
+    def test_completed_builds_sorted_newest_resolved_first(self):
+        """completed (truly terminal) builds are sorted newest resolved_at first."""
+        self._write_log([
+            _request_queued("BUILD-001", "Older", "2026-04-11T08:00:00+00:00"),
+            _ev("BUILD-001", "spec_rejected", "2026-04-11T08:30:00+00:00"),
+            _request_queued("BUILD-002", "Newer", "2026-04-11T09:00:00+00:00"),
+            _ev("BUILD-002", "spec_rejected", "2026-04-11T09:30:00+00:00"),
         ])
         completed = client.get("/frank-lloyd/status").json()["completed_builds"]
         self.assertEqual(completed[0]["build_id"], "BUILD-002")
@@ -368,6 +393,95 @@ class TestBuilderStatusRoute(unittest.TestCase):
         pending = client.get("/frank-lloyd/status").json()["pending_builds"]
         self.assertEqual(pending[0]["build_id"], "BUILD-002")
         self.assertEqual(pending[1]["build_id"], "BUILD-001")
+
+    # ── stage2_authorized and Stage 2 draft events (gap closure) ─────────────
+
+    def test_stage2_authorized_in_inprogress(self):
+        """stage2_authorized is an active pipeline state — belongs in inprogress."""
+        self._write_log([
+            _request_queued("BUILD-001", "My build", "2026-04-11T10:00:00+00:00"),
+            _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
+            _ev("BUILD-001", "stage2_authorized", "2026-04-11T11:00:00+00:00"),
+        ])
+        body = client.get("/frank-lloyd/status").json()
+        inprog = body["inprogress_builds"]
+        self.assertEqual(len(inprog), 1)
+        self.assertEqual(inprog[0]["status"], "stage2_authorized")
+        self.assertEqual(len(body["pending_builds"]),   0)
+        self.assertEqual(len(body["completed_builds"]), 0)
+
+    def test_stage2_authorized_supersedes_spec_approved(self):
+        """stage2_authorized is later than spec_approved — must override it in inprogress."""
+        self._write_log([
+            _request_queued("BUILD-001", "My build", "2026-04-11T10:00:00+00:00"),
+            _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
+            _ev("BUILD-001", "stage2_authorized", "2026-04-11T11:00:00+00:00"),
+        ])
+        inprog = client.get("/frank-lloyd/status").json()["inprogress_builds"]
+        self.assertNotEqual(inprog[0]["status"], "spec_approved")
+        self.assertEqual(inprog[0]["status"], "stage2_authorized")
+
+    def test_draft_generated_in_inprogress(self):
+        """draft_generated awaits promotion — it is in progress, not completed."""
+        self._write_log([
+            _request_queued("BUILD-001", "My build", "2026-04-11T10:00:00+00:00"),
+            _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
+            _ev("BUILD-001", "stage2_authorized",        "2026-04-11T11:00:00+00:00"),
+            _ev("BUILD-001", "draft_generation_started", "2026-04-11T11:10:00+00:00"),
+            _ev("BUILD-001", "draft_generated",          "2026-04-11T11:11:00+00:00"),
+        ])
+        inprog = client.get("/frank-lloyd/status").json()["inprogress_builds"]
+        self.assertEqual(len(inprog), 1)
+        self.assertEqual(inprog[0]["status"], "draft_generated")
+
+    def test_draft_blocked_in_inprogress(self):
+        """draft_blocked awaits discard/retry — it is in progress, not completed."""
+        self._write_log([
+            _request_queued("BUILD-001", "My build", "2026-04-11T10:00:00+00:00"),
+            _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
+            _ev("BUILD-001", "stage2_authorized", "2026-04-11T11:00:00+00:00"),
+            _ev("BUILD-001", "draft_blocked",     "2026-04-11T11:10:00+00:00"),
+        ])
+        inprog = client.get("/frank-lloyd/status").json()["inprogress_builds"]
+        self.assertEqual(len(inprog), 1)
+        self.assertEqual(inprog[0]["status"], "draft_blocked")
+
+    def test_draft_generation_started_in_inprogress(self):
+        """draft_generation_started mid-flight belongs in inprogress."""
+        self._write_log([
+            _request_queued("BUILD-001", "My build", "2026-04-11T10:00:00+00:00"),
+            _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
+            _ev("BUILD-001", "stage2_authorized",        "2026-04-11T11:00:00+00:00"),
+            _ev("BUILD-001", "draft_generation_started", "2026-04-11T11:10:00+00:00"),
+        ])
+        inprog = client.get("/frank-lloyd/status").json()["inprogress_builds"]
+        self.assertEqual(len(inprog), 1)
+        self.assertEqual(inprog[0]["status"], "draft_generation_started")
+
+    def test_draft_promoted_in_completed(self):
+        """draft_promoted is the only inprogress→completed transition in Stage 2."""
+        self._write_log([
+            _request_queued("BUILD-001", "My build", "2026-04-11T10:00:00+00:00"),
+            _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
+            _ev("BUILD-001", "stage2_authorized", "2026-04-11T11:00:00+00:00"),
+            _ev("BUILD-001", "draft_generated",   "2026-04-11T11:10:00+00:00"),
+            _ev("BUILD-001", "draft_promoted",    "2026-04-11T11:20:00+00:00"),
+        ])
+        body = client.get("/frank-lloyd/status").json()
+        self.assertEqual(len(body["inprogress_builds"]), 0)
+        self.assertEqual(len(body["completed_builds"]),  1)
+        self.assertEqual(body["completed_builds"][0]["status"], "draft_promoted")
+
+    def test_unknown_stage2_events_still_skipped(self):
+        """Unrecognized Stage 2 events like 'promoted' must still be skipped."""
+        self._write_log([
+            _request_queued("BUILD-001", "My build", "2026-04-11T10:00:00+00:00"),
+            _spec_approved("BUILD-001", "2026-04-11T10:30:00+00:00"),
+            _ev("BUILD-001", "stage2_authorized", "2026-04-11T11:00:00+00:00"),
+            _ev("BUILD-001", "promoted",          "2026-04-11T11:30:00+00:00"),
+        ])
+        inprog = client.get("/frank-lloyd/status").json()["inprogress_builds"]
+        self.assertEqual(inprog[0]["status"], "stage2_authorized")
 
 
 if __name__ == "__main__":
