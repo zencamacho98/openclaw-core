@@ -188,6 +188,44 @@ class TestSignalLogWrite:
         for k in required_keys:
             assert k in result, f"Missing key: {k}"
 
+    def test_setup_tag_and_scanner_context_are_logged(self, tmp_path):
+        from app.belfort_signal_eval import evaluate_signal
+        from app.belfort_strategy import BelfortSignal
+        from app.belfort_risk import RiskCheckResult
+        from datetime import datetime, timezone
+
+        q = _make_quote(symbol="ABCD")
+        sig = BelfortSignal(
+            symbol="ABCD", action="buy", qty=1, order_type="marketable_limit",
+            limit_price=10.10, rationale="trend continuation", data_lane="IEX_ONLY",
+            session_type="regular", generated_at=datetime.now(timezone.utc).isoformat(),
+        )
+        rr = RiskCheckResult(passed=True, block_reason=None, check_name="ok", signal=sig)
+        log_path = tmp_path / "signal_log.jsonl"
+        with (
+            patch("app.belfort_signal_eval._SIGNAL_LOG", log_path),
+            patch("app.belfort_signal_eval._strategy") as mock_strat,
+            patch("app.belfort_signal_eval._guardrails") as mock_risk,
+            patch("app.market_time.session_type", return_value="regular", create=True),
+            patch("app.belfort_scanner.lookup_candidate", return_value={
+                "strategy_fit": "relative strength breakout watch",
+                "price_bucket": "lower-price momentum watch",
+                "catalyst_type": "business catalyst",
+                "relative_strength_label": "leading SPY",
+                "risk_flags": ["dilution risk"],
+            }),
+        ):
+            mock_strat.evaluate.return_value = sig
+            mock_strat.last_evidence = {"active_policy": "ma_crossover", "market_regime": "trending"}
+            mock_risk.check.return_value = rr
+            result = evaluate_signal(q, mode="shadow", portfolio=_make_portfolio())
+
+        assert result["setup_tag"] == "relative strength breakout"
+        assert result["price_bucket"] == "lower-price momentum watch"
+        assert result["catalyst_type"] == "business catalyst"
+        assert result["relative_strength_label"] == "leading SPY"
+        assert result["risk_flags"] == ["dilution risk"]
+
 
 # ── Blocked signals ───────────────────────────────────────────────────────────
 
@@ -312,6 +350,68 @@ class TestReadSignalStatsToday:
         assert stats["holds"] == 1
         assert stats["allowed"] == 2
         assert stats["blocked"] == 1
+
+
+class TestReadSetupScorecard:
+    def test_aggregates_recent_setup_activity(self, tmp_path):
+        from observability.belfort_summary import read_setup_scorecard
+
+        signal_log = tmp_path / "signal_log.jsonl"
+        paper_log = tmp_path / "paper_exec_log.jsonl"
+        sim_log = tmp_path / "sim_log.jsonl"
+
+        signal_log.write_text(
+            "\n".join([
+                json.dumps({
+                    "written_at": "2026-04-14T12:00:00+00:00",
+                    "symbol": "ABCD",
+                    "signal_action": "buy",
+                    "risk_can_proceed": True,
+                    "setup_tag": "relative strength breakout",
+                }),
+                json.dumps({
+                    "written_at": "2026-04-14T12:01:00+00:00",
+                    "symbol": "SPY",
+                    "signal_action": "hold",
+                    "risk_can_proceed": False,
+                    "setup_tag": "mean reversion",
+                }),
+            ]) + "\n",
+            encoding="utf-8",
+        )
+        paper_log.write_text(
+            json.dumps({
+                "written_at": "2026-04-14T12:02:00+00:00",
+                "symbol": "ABCD",
+                "execution_status": "submitted",
+                "setup_tag": "relative strength breakout",
+            }) + "\n",
+            encoding="utf-8",
+        )
+        sim_log.write_text(
+            json.dumps({
+                "written_at": "2026-04-14T12:03:00+00:00",
+                "symbol": "ABCD",
+                "action": "buy",
+                "setup_tag": "relative strength breakout",
+            }) + "\n",
+            encoding="utf-8",
+        )
+
+        with (
+            patch("observability.belfort_summary._SIGNAL_LOG", signal_log),
+            patch("observability.belfort_summary._PAPER_EXEC_LOG", paper_log),
+            patch("observability.belfort_summary._SIM_LOG", sim_log),
+            patch("observability.belfort_summary._JSONL_CACHE", {}),
+        ):
+            result = read_setup_scorecard(limit=20)
+
+        leader = result["leaders"][0]
+        assert leader["setup_tag"] == "relative strength breakout"
+        assert leader["signals"] == 1
+        assert leader["risk_cleared"] == 1
+        assert leader["paper_submitted"] == 1
+        assert leader["sim_fills"] == 1
 
 
 # ── Peter handle_belfort_status signal integration ────────────────────────────

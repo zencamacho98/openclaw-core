@@ -134,6 +134,69 @@ def _clamp(value, parameter: str):
     return value
 
 
+# Direct-assignment format: "PARAM_NAME to VALUE[%]"
+# e.g. "STOP_LOSS_PCT to 1.5%" or "POSITION_SIZE to 0.05"
+_DIRECT_RE = re.compile(
+    r"^([A-Za-z_][A-Za-z_0-9]*)\s+to\s+([\d]*\.[\d]+|\d+)\s*(%?)\s*$",
+    re.IGNORECASE,
+)
+
+_DIRECT_REASONS: dict[str, str] = {
+    "SHORT_WINDOW":  "set moving average short window to recommended target",
+    "LONG_WINDOW":   "set moving average long window to recommended target",
+    "STOP_LOSS_PCT": "set stop loss to recommended target",
+    "POSITION_SIZE": "set position size to recommended target",
+}
+
+
+def _try_direct(recommendation: str, occurrence_ratio: float, confidence_trend: str) -> dict | None:
+    """
+    Handle the 'PARAM_NAME to VALUE[%]' direct-assignment format.
+    Returns a proposal dict or None if the text doesn't match.
+    """
+    m = _DIRECT_RE.match(recommendation.strip())
+    if not m:
+        return None
+
+    param_raw, num_raw, pct = m.group(1).upper(), m.group(2), m.group(3)
+    if param_raw not in _BOUNDS:
+        return None
+
+    proposed: float | int
+    if pct:
+        proposed = round(float(num_raw) / 100, 6)
+    else:
+        lo, hi = _BOUNDS[param_raw]
+        proposed = float(num_raw) if isinstance(lo, float) else int(num_raw)
+
+    proposed = _clamp(proposed, param_raw)
+
+    try:
+        cfg     = get_config()
+        current = cfg[param_raw]
+    except Exception:
+        current = None
+
+    is_float = isinstance(proposed, float)
+    if is_float:
+        proposed = round(proposed, 4)
+        if current is not None:
+            current = round(float(current), 4)
+
+    reason = _DIRECT_REASONS.get(param_raw, f"set {param_raw} to recommended target")
+
+    return {
+        "strategy_name":          STRATEGY_NAME,
+        "parameter":              param_raw,
+        "current_value":          current,
+        "proposed_value":         proposed,
+        "reason":                 reason,
+        "source_confidence":      _derive_confidence(occurrence_ratio, confidence_trend),
+        "occurrence_ratio":       round(occurrence_ratio, 2),
+        "matched_recommendation": recommendation,
+    }
+
+
 def parse(
     recommendation: str,
     confidence_trend: str,
@@ -149,8 +212,14 @@ def parse(
     if not recommendation or not records_analyzed:
         return None
 
-    text = recommendation.lower()
     occurrence_ratio = occurrences / records_analyzed
+
+    # Direct-assignment format takes priority ("STOP_LOSS_PCT to 1.5%")
+    direct = _try_direct(recommendation, occurrence_ratio, confidence_trend)
+    if direct is not None:
+        return direct
+
+    text = recommendation.lower()
 
     for rule in _RULES:
         # Step 1: does this recommendation mention the parameter at all?

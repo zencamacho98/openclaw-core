@@ -1,13 +1,14 @@
 # app/routes/neighborhood.py
 #
-# The Abode Neighborhood — pixel-style visual frontend shell.
+# The Abode Neighborhood — calm cockpit frontend shell.
 #
 # Serves the neighborhood HTML view and a state aggregation endpoint.
 # This is a frontend layer on top of existing APIs — it does NOT replace
 # the existing Streamlit dashboard, which remains the advanced control surface.
 #
 # Endpoints:
-#   GET /neighborhood          — pixel-art neighborhood HTML page
+#   GET /neighborhood          — analog cockpit HTML page
+#   GET /neighborhood/legacy   — previous neighborhood HTML page
 #   GET /neighborhood/state    — aggregated agent/system state for the view
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body
 from fastapi.responses import HTMLResponse
+
+from app.analog_cockpit import ANALOG_COCKPIT_HTML
 
 router = APIRouter()
 
@@ -51,6 +54,45 @@ def _backend_state() -> dict:
     return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
 
 
+def _parse_utc_ts(raw: str | None) -> datetime | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        return datetime.fromisoformat(text)
+    except Exception:
+        return None
+
+
+def _human_duration(seconds: int | float | None) -> str:
+    if seconds is None:
+        return "unknown"
+    total = max(0, int(seconds))
+    if total < 60:
+        return f"{total}s"
+    minutes, sec = divmod(total, 60)
+    if minutes < 60:
+        return f"{minutes}m {sec}s" if sec else f"{minutes}m"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 24:
+        return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+    days, hours = divmod(hours, 24)
+    return f"{days}d {hours}h" if hours else f"{days}d"
+
+
+def _working_order_stale_threshold_seconds(session_type: str | None) -> int:
+    session = str(session_type or "").strip().lower()
+    if session == "regular":
+        return 180
+    if session in {"pre_market", "pre market", "after_hours", "after hours"}:
+        return 480
+    if session == "closed":
+        return 60
+    return 300
+
+
 def _belfort_state() -> dict:
     try:
         from observability.agent_state import load_state, MR_BELFORT
@@ -72,9 +114,14 @@ def _belfort_state() -> dict:
         base["cash"]           = snap.get("cash", 100000.0)
         base["realized_pnl"]   = snap.get("realized_pnl", 0.0)
         base["unrealized_pnl"] = snap.get("unrealized_pnl", 0.0)
+        base["paper_equity"]   = (
+            float(base["cash"] or 0.0)
+            + float(base["realized_pnl"] or 0.0)
+            + float(base["unrealized_pnl"] or 0.0)
+        )
         base["trade_count"]    = snap.get("trade_count", 0)
         base["open_positions"] = list(_positions.keys())[:4]
-        trades_list = get_trades()
+        trades_list = get_trades(limit=1)
         if trades_list:
             lt = trades_list[-1]
             base["last_trade"] = {
@@ -87,7 +134,111 @@ def _belfort_state() -> dict:
             base["last_trade"] = None
     except Exception:
         base.update({"cash": 100000.0, "realized_pnl": 0.0, "unrealized_pnl": 0.0,
-                     "trade_count": 0, "open_positions": [], "last_trade": None})
+                     "paper_equity": 100000.0, "trade_count": 0, "open_positions": [], "last_trade": None})
+
+    local_open_positions = [str(sym).upper() for sym in (base.get("open_positions") or []) if str(sym).strip()]
+    base["paper_truth_source"] = "local_fallback"
+    base["broker_cash"] = None
+    base["broker_buying_power"] = None
+    base["broker_equity"] = None
+    base["broker_unrealized_pnl"] = None
+    base["broker_open_positions"] = []
+    base["broker_position_warning"] = ""
+
+    try:
+        from app.order_ledger import get_today_summary, get_open_orders, replay
+
+        order_summary = get_today_summary(environment="paper")
+        open_orders = get_open_orders(environment="paper")
+        ledger_events = replay(environment="paper")
+        recent_events = ledger_events[-10:]
+        now_utc = datetime.now(timezone.utc)
+        history_by_order: dict[str, list[dict]] = {}
+        for event in ledger_events:
+            order_id = str(event.get("order_id", "")).strip()
+            if not order_id:
+                continue
+            history_by_order.setdefault(order_id, []).append(event)
+
+        working_orders: list[dict] = []
+        stale_working_orders: list[dict] = []
+        oldest_open_age_seconds = 0
+        latest_update_age_seconds: int | None = None
+        for row in open_orders:
+            order_id = str(row.get("order_id", "")).strip()
+            history = history_by_order.get(order_id, [])
+            first_seen = _parse_utc_ts((history[0] if history else row).get("timestamp_utc"))
+            last_seen = _parse_utc_ts((history[-1] if history else row).get("timestamp_utc"))
+            age_seconds = int((now_utc - first_seen).total_seconds()) if first_seen else None
+            updated_seconds = int((now_utc - last_seen).total_seconds()) if last_seen else None
+            session_type = str(row.get("session_type", "")).replace("_", " ")
+            stale_threshold_seconds = _working_order_stale_threshold_seconds(session_type)
+            is_stale = age_seconds is not None and age_seconds >= stale_threshold_seconds
+            if age_seconds is not None:
+                oldest_open_age_seconds = max(oldest_open_age_seconds, age_seconds)
+            if updated_seconds is not None:
+                latest_update_age_seconds = updated_seconds if latest_update_age_seconds is None else min(latest_update_age_seconds, updated_seconds)
+            monitor_row = {
+                "order_id": order_id,
+                "symbol": str(row.get("symbol", "")).upper(),
+                "side": str(row.get("side", "")).lower(),
+                "qty": row.get("qty", 0),
+                "event_type": str(row.get("event_type", "")).lower(),
+                "age_seconds": age_seconds,
+                "age_label": _human_duration(age_seconds),
+                "updated_seconds": updated_seconds,
+                "updated_label": _human_duration(updated_seconds),
+                "status_label": str(row.get("event_type", "working")).replace("_", " "),
+                "session_type": session_type,
+                "stale_threshold_seconds": stale_threshold_seconds,
+                "stale_threshold_label": _human_duration(stale_threshold_seconds),
+                "is_stale": is_stale,
+            }
+            working_orders.append(monitor_row)
+            if is_stale:
+                stale_working_orders.append(monitor_row)
+        stale_warning = ""
+        if stale_working_orders:
+            first_stale = stale_working_orders[0]
+            stale_warning = (
+                f"{len(stale_working_orders)} working paper order"
+                f"{'' if len(stale_working_orders) == 1 else 's'} look stale. "
+                f"{first_stale.get('symbol', '--')} has been working for {first_stale.get('age_label', 'unknown')}"
+                f" in {first_stale.get('session_type', 'this session')}."
+            )
+        base["belfort_order_monitor"] = {
+            "orders_placed": int(order_summary.get("orders_placed", 0) or 0),
+            "fills": int(order_summary.get("fills", 0) or 0),
+            "rejects": int(order_summary.get("rejects", 0) or 0),
+            "open_orders": len(open_orders),
+            "latest_open_symbols": [str(row.get("symbol", "")).upper() for row in open_orders if str(row.get("symbol", "")).strip()][:4],
+            "working_orders": working_orders[:4],
+            "stale_working_orders": stale_working_orders[:4],
+            "stale_open_orders": len(stale_working_orders),
+            "stale_warning": stale_warning,
+            "oldest_open_age_seconds": oldest_open_age_seconds,
+            "oldest_open_age_label": _human_duration(oldest_open_age_seconds) if open_orders else "none",
+            "latest_update_age_seconds": latest_update_age_seconds or 0,
+            "latest_update_age_label": _human_duration(latest_update_age_seconds) if latest_update_age_seconds is not None else "none",
+            "recent_events": recent_events[-6:],
+        }
+    except Exception:
+        base["belfort_order_monitor"] = {
+            "orders_placed": 0,
+            "fills": 0,
+            "rejects": 0,
+            "open_orders": 0,
+            "latest_open_symbols": [],
+            "working_orders": [],
+            "stale_working_orders": [],
+            "stale_open_orders": 0,
+            "stale_warning": "",
+            "oldest_open_age_seconds": 0,
+            "oldest_open_age_label": "none",
+            "latest_update_age_seconds": 0,
+            "latest_update_age_label": "none",
+            "recent_events": [],
+        }
 
     try:
         from app.trading_loop import get_status
@@ -102,8 +253,11 @@ def _belfort_state() -> dict:
         from observability.belfort_summary import (
             read_belfort_preflight, read_belfort_freshness_state,
             read_latest_signal_decision, read_belfort_mode,
-            read_latest_paper_execution,
-            read_latest_sim_trade, read_sim_stats_today,
+            read_latest_paper_execution, read_latest_paper_fill,
+            read_latest_sim_trade, read_latest_sim_record,
+            read_sim_stats_today, read_sim_main_reason,
+            read_signal_stats_today, read_paper_exec_stats_today,
+            read_belfort_activity_feed, read_reconciliation_status,
         )
         pf = read_belfort_preflight()
         fs = read_belfort_freshness_state()
@@ -118,20 +272,29 @@ def _belfort_state() -> dict:
         base["belfort_session_type"]    = fs.get("session_type", "unknown")
         base["belfort_latest_signal"]   = read_latest_signal_decision()
         base["belfort_latest_paper_exec"] = read_latest_paper_execution()
+        base["belfort_latest_paper_fill"] = read_latest_paper_fill()
         base["belfort_latest_sim_trade"]  = read_latest_sim_trade()
+        base["belfort_latest_sim_record"] = read_latest_sim_record()
+        base["belfort_signal_stats_today"] = read_signal_stats_today()
+        base["belfort_paper_exec_stats_today"] = read_paper_exec_stats_today()
         base["belfort_sim_stats_today"]   = read_sim_stats_today()
+        base["belfort_sim_main_reason"]   = read_sim_main_reason()
+        base["belfort_activity_feed"]     = read_belfort_activity_feed(limit=24)
+        base["belfort_reconciliation"]    = read_reconciliation_status()
         try:
             from observability.belfort_summary import read_learn_strip
             base["belfort_learn_strip"] = read_learn_strip()
         except Exception:
             base["belfort_learn_strip"] = None
         try:
-            from observability.belfort_summary import read_regime_metrics, read_strategy_profile
+            from observability.belfort_summary import read_regime_metrics, read_strategy_profile, read_setup_scorecard
             base["belfort_regime_metrics"]   = read_regime_metrics()
             base["belfort_strategy_profile"] = read_strategy_profile()
+            base["belfort_setup_scorecard"]  = read_setup_scorecard()
         except Exception:
             base["belfort_regime_metrics"]   = None
             base["belfort_strategy_profile"] = None
+            base["belfort_setup_scorecard"]  = None
     except Exception:
         base["belfort_mode"]              = "observation"
         base["belfort_readiness"]         = "NOT_READY"
@@ -143,11 +306,19 @@ def _belfort_state() -> dict:
         base["belfort_session_type"]      = "unknown"
         base["belfort_latest_signal"]     = None
         base["belfort_latest_paper_exec"] = None
+        base["belfort_latest_paper_fill"] = None
         base["belfort_latest_sim_trade"]   = None
+        base["belfort_latest_sim_record"]  = None
+        base["belfort_signal_stats_today"] = None
+        base["belfort_paper_exec_stats_today"] = None
         base["belfort_sim_stats_today"]    = None
+        base["belfort_sim_main_reason"]    = None
+        base["belfort_activity_feed"]      = []
+        base["belfort_reconciliation"]     = {"halted": False, "last_report": None}
         base["belfort_learn_strip"]        = None
         base["belfort_regime_metrics"]     = None
         base["belfort_strategy_profile"]   = None
+        base["belfort_setup_scorecard"]    = None
 
     try:
         from app.belfort_sim import get_sim_status
@@ -156,11 +327,19 @@ def _belfort_state() -> dict:
         base["sim_position"] = ss.get("sim_position", 0)
         base["sim_cash"]     = ss.get("sim_cash", 10000.0)
         base["sim_fills"]    = ss.get("fills", 0)
+        base["sim_ticks"]    = ss.get("ticks", 0)
+        base["sim_symbol"]   = ss.get("sim_symbol", "SPY")
+        base["sim_interval"] = ss.get("interval", 5)
+        base["sim_started_at"] = ss.get("started_at")
     except Exception:
         base["sim_active"]   = False
         base["sim_position"] = 0
         base["sim_cash"]     = 10000.0
         base["sim_fills"]    = 0
+        base["sim_ticks"]    = 0
+        base["sim_symbol"]   = "SPY"
+        base["sim_interval"] = 5
+        base["sim_started_at"] = None
 
     try:
         from observability.belfort_summary import read_sim_performance, read_latest_regime_snapshot
@@ -175,16 +354,29 @@ def _belfort_state() -> dict:
         base["belfort_recent_activity"] = None
 
     try:
+        from app.belfort_scanner import read_scanner_snapshot
+        scanner = read_scanner_snapshot()
+        base["belfort_scanner"] = scanner
+        base["belfort_focus_symbol"] = scanner.get("focus_symbol", "SPY")
+        base["belfort_focus_reason"] = scanner.get("focus_reason", "")
+        base["belfort_paper_focus_symbol"] = scanner.get("paper_eligible_focus_symbol", "")
+        base["belfort_paper_focus_reason"] = scanner.get("paper_eligible_focus_reason", "")
+    except Exception:
+        base["belfort_scanner"] = None
+        base["belfort_focus_symbol"] = "SPY"
+        base["belfort_focus_reason"] = ""
+        base["belfort_paper_focus_symbol"] = ""
+        base["belfort_paper_focus_reason"] = ""
+
+    try:
         from app.market_time import session_type as _market_st
         _sess = _market_st()
-        if _sess == "regular":
+        if _sess in ("regular", "pre_market", "after_hours"):
             base["belfort_paper_available"]          = True
             base["belfort_paper_unavailable_reason"] = None
         else:
             _unavail_reasons = {
-                "pre_market":  "Pre-market hours \u2014 paper execution requires regular session",
-                "after_hours": "After hours \u2014 paper execution requires regular session",
-                "closed":      "Market closed \u2014 paper execution requires regular session",
+                "closed":      "Market closed \u2014 Belfort can paper trade in pre-market, regular hours, and after-hours, but not while the market is fully closed",
             }
             base["belfort_paper_available"]          = False
             base["belfort_paper_unavailable_reason"] = _unavail_reasons.get(
@@ -200,7 +392,472 @@ def _belfort_state() -> dict:
     except Exception:
         base["belfort_live_readiness"] = None
 
+    try:
+        from app.belfort_broker import broker_status
+        base["belfort_broker_status"] = broker_status()
+    except Exception:
+        base["belfort_broker_status"] = {
+            "paper_only": True,
+            "is_paper_url": False,
+            "base_url_configured": False,
+            "has_credentials": False,
+            "url_marker": "paper-api.alpaca.markets",
+        }
+
+    try:
+        from app.belfort_broker import fetch_paper_account_snapshot, fetch_paper_positions
+
+        broker_account = fetch_paper_account_snapshot()
+        broker_positions = fetch_paper_positions()
+        if broker_account.available or broker_positions.available:
+            base["paper_truth_source"] = "alpaca_broker"
+
+        if broker_account.available:
+            base["broker_cash"] = broker_account.cash
+            base["broker_buying_power"] = broker_account.buying_power
+            base["broker_equity"] = broker_account.equity
+            base["cash"] = broker_account.cash
+            base["paper_equity"] = broker_account.equity
+            base["buying_power"] = broker_account.buying_power
+
+        if broker_positions.available:
+            broker_open_positions = []
+            broker_unrealized_pnl = 0.0
+            for pos in broker_positions.positions:
+                symbol = str(pos.symbol or "").upper().strip()
+                if not symbol:
+                    continue
+                try:
+                    qty = float(pos.qty or 0.0)
+                except (TypeError, ValueError):
+                    qty = 0.0
+                if qty <= 0:
+                    continue
+                broker_open_positions.append(symbol)
+                if pos.unrealized_pnl is not None:
+                    broker_unrealized_pnl += float(pos.unrealized_pnl or 0.0)
+                elif pos.market_value is not None:
+                    broker_unrealized_pnl += float(pos.market_value or 0.0) - (float(pos.avg_cost or 0.0) * qty)
+            base["broker_unrealized_pnl"] = broker_unrealized_pnl
+            base["unrealized_pnl"] = broker_unrealized_pnl
+            base["broker_open_positions"] = broker_open_positions
+            base["open_positions"] = broker_open_positions[:4]
+            if sorted(broker_open_positions) != sorted(local_open_positions):
+                if broker_open_positions:
+                    base["broker_position_warning"] = (
+                        "Alpaca still shows open paper positions. Belfort will treat the broker book as the source of truth."
+                    )
+                elif local_open_positions:
+                    base["broker_position_warning"] = (
+                        "Local paper ledger still shows positions, but Alpaca is flat. Belfort is trusting the broker book."
+                    )
+        if not broker_account.available and not broker_positions.available:
+            broker_errors = [
+                str(getattr(broker_account, "broker_error", "") or "").strip(),
+                str(getattr(broker_account, "submission_error", "") or "").strip(),
+                str(getattr(broker_positions, "broker_error", "") or "").strip(),
+                str(getattr(broker_positions, "submission_error", "") or "").strip(),
+            ]
+            broker_errors = [msg for msg in broker_errors if msg]
+            if broker_errors:
+                base["broker_position_warning"] = broker_errors[0]
+    except Exception:
+        pass
+
+    try:
+        from app.belfort_paper_exec import paper_entry_policy_state
+
+        latest_signal = base.get("belfort_latest_signal") or {}
+        scanner = base.get("belfort_scanner") or {}
+        rows = []
+        for key in ("leaders", "benchmarks", "lower_price_watch"):
+            bucket = scanner.get(key) or []
+            if isinstance(bucket, list):
+                rows.extend([row for row in bucket if isinstance(row, dict)])
+        focus_symbol = str(
+            latest_signal.get("symbol")
+            or base.get("belfort_paper_focus_symbol")
+            or base.get("belfort_focus_symbol")
+            or "SPY"
+        ).upper()
+        focus_row = next((row for row in rows if str(row.get("symbol", "")).upper() == focus_symbol), {})
+        seed = {
+            "symbol": focus_symbol,
+            "signal_action": latest_signal.get("signal_action", "hold"),
+            "signal_qty": latest_signal.get("signal_qty", 0),
+            "signal_limit_price": latest_signal.get("signal_limit_price") or focus_row.get("mid") or 0.0,
+            "session_type": base.get("belfort_session_type", "unknown"),
+            "data_lane": latest_signal.get("data_lane") or focus_row.get("data_lane", "UNKNOWN"),
+            "setup_tag": latest_signal.get("setup_tag") or focus_row.get("strategy_fit", "monitor only"),
+            "observed_spread_pct": focus_row.get("spread_pct"),
+            "relative_strength_vs_spy_pct": latest_signal.get("relative_strength_vs_spy_pct") or focus_row.get("relative_strength_vs_spy_pct"),
+            "relative_volume": latest_signal.get("relative_volume") or focus_row.get("relative_volume"),
+            "gap_pct": latest_signal.get("gap_pct") or focus_row.get("gap_pct"),
+            "float_turnover_pct": latest_signal.get("float_turnover_pct") or focus_row.get("float_turnover_pct"),
+        }
+        base["belfort_paper_policy"] = paper_entry_policy_state(seed)
+    except Exception:
+        base["belfort_paper_policy"] = {}
+
+    readiness = _belfort_operator_state(base)
+    base["belfort_paper_open_readiness"] = readiness
+    base["belfort_operator_state"] = readiness
+
     return base
+
+
+def _belfort_operator_state(base: dict) -> dict:
+    def _human_session(raw: str) -> str:
+        mapping = {
+            "regular": "regular session",
+            "pre_market": "pre-market",
+            "after_hours": "after-hours",
+            "closed": "market closed",
+            "unknown": "unknown session",
+        }
+        return mapping.get(str(raw), str(raw).replace("_", " "))
+
+    mode = str(base.get("belfort_mode", "observation"))
+    session = str(base.get("belfort_session_type", "unknown"))
+    sim_active = bool(base.get("sim_active"))
+    sim_ticks = int(base.get("sim_ticks", 0) or 0)
+    sim_fills = int(base.get("sim_fills", 0) or 0)
+    trading_active = bool(base.get("trading_active"))
+    signal_stats = base.get("belfort_signal_stats_today") or {}
+    paper_stats = base.get("belfort_paper_exec_stats_today") or {}
+    broker = base.get("belfort_broker_status") or {}
+    recon = base.get("belfort_reconciliation") or {}
+    focus_symbol = str(base.get("belfort_focus_symbol", "SPY") or "SPY")
+    latest_signal = base.get("belfort_latest_signal") or {}
+    latest_paper = base.get("belfort_latest_paper_exec") or {}
+    latest_paper_fill = base.get("belfort_latest_paper_fill") or {}
+    latest_sim = base.get("belfort_latest_sim_record") or {}
+    scanner = base.get("belfort_scanner") or {}
+    policy_state = base.get("belfort_paper_policy") or {}
+    paper_focus_symbol = str(base.get("belfort_paper_focus_symbol", "") or scanner.get("paper_eligible_focus_symbol", "") or "").upper()
+    paper_focus_reason = str(base.get("belfort_paper_focus_reason", "") or scanner.get("paper_eligible_focus_reason", "") or "").strip()
+    scanner_rows = []
+    for key in ("leaders", "benchmarks", "lower_price_watch"):
+        rows = scanner.get(key) or []
+        if isinstance(rows, list):
+            scanner_rows.extend([row for row in rows if isinstance(row, dict)])
+    focus_candidate = next((row for row in scanner_rows if str(row.get("symbol", "")).upper() == focus_symbol), {})
+    signal_symbol = str((latest_signal.get("symbol") or paper_focus_symbol or focus_symbol or "SPY")).upper()
+    open_positions = [str(sym).upper() for sym in (base.get("open_positions") or []) if str(sym).strip()]
+    overnight_inventory_open = session == "closed" and bool(open_positions)
+
+    broker_ready = bool(broker.get("is_paper_url")) and bool(broker.get("has_credentials"))
+    recon_ok = not bool(recon.get("halted"))
+    scanner_live = bool(scanner.get("written_at")) and int(scanner.get("universe_size", 0) or 0) > 0
+    paper_universe_ready = int(scanner.get("paper_eligible_count", 0) or 0) > 0
+    focus_symbol_tradeable = bool(focus_candidate.get("paper_eligible"))
+    warmup_ready = bool(latest_signal) or sim_ticks >= 10 or int(base.get("belfort_ticks_today", 0) or 0) >= 10
+    risk_explicit = bool(latest_signal) and (
+        "risk_can_proceed" in latest_signal or "risk_block_reason" in latest_signal
+    )
+    session_open = session == "regular"
+    paper_session_open = session in ("regular", "pre_market", "after_hours")
+    armed_mode = mode == "paper"
+    paper_orders_submitted = int(paper_stats.get("submitted", 0) or 0)
+    paper_fills_synced = int(paper_stats.get("filled", 0) or 0)
+    order_pacing_state = str(policy_state.get("order_pacing_state", "open") or "open")
+    remaining_daily_capacity = int(policy_state.get("remaining_daily_capacity", 0) or 0)
+    remaining_exposure_capacity = float(policy_state.get("remaining_exposure_capacity", 0.0) or 0.0)
+    paper_lane_state = "running" if trading_active else "stopped"
+    paper_path_proven = all([
+        armed_mode,
+        broker_ready,
+        recon_ok,
+        scanner_live,
+        paper_universe_ready,
+        warmup_ready,
+        risk_explicit,
+        not overnight_inventory_open,
+    ])
+    operator_start_required = bool(paper_session_open and paper_path_proven and not trading_active)
+
+    if overnight_inventory_open:
+        current_blocker = (
+            f"Market is closed and Belfort is still carrying {len(open_positions)} overnight paper position"
+            f"{'' if len(open_positions) == 1 else 's'}. Flatten them in the next tradeable session before adding new risk."
+        )
+    elif not armed_mode:
+        current_blocker = f"Belfort is still in {mode.replace('_', ' ')} mode."
+    elif not broker_ready:
+        current_blocker = "Paper broker credentials or the paper endpoint are not ready."
+    elif not recon_ok:
+        current_blocker = "Paper trading is halted until reconciliation passes."
+    elif not scanner_live:
+        current_blocker = "Scanner is not live yet, so Belfort does not have a current board."
+    elif not paper_universe_ready:
+        current_blocker = "Scanner is live, but there is no paper-eligible Phase 1 name on the board yet."
+    elif not warmup_ready:
+        current_blocker = "Belfort still needs more fresh tape before trusting a setup."
+    elif not risk_explicit:
+        current_blocker = "Signal evaluation has not produced a fresh risk decision yet."
+    elif policy_state.get("blocker"):
+        current_blocker = str(policy_state.get("blocker"))
+    elif not paper_session_open:
+        current_blocker = "Paper trading window is closed — Belfort is staged and waiting for the next pre-market, regular, or after-hours session."
+    elif not trading_active:
+        current_blocker = f"Ready for operator start in {_human_session(session)}."
+    else:
+        current_blocker = ""
+
+    if trading_active and paper_path_proven and paper_session_open:
+        verdict = "actively_trading"
+        summary = f"Belfort is actively running the paper lane in {_human_session(session)}."
+    elif paper_path_proven and paper_session_open:
+        verdict = "ready_for_operator_start"
+        summary = f"Belfort is ready for operator start in {_human_session(session)}."
+    elif paper_path_proven and not paper_session_open:
+        verdict = "staged_for_open"
+        summary = "Belfort is staged for the next paper-trading window. Sim can rehearse now, and paper is waiting for the next tradeable session."
+    else:
+        verdict = "not_ready"
+        summary = current_blocker
+
+    focus_gap_reason = ""
+    if focus_symbol and paper_focus_symbol and focus_symbol != paper_focus_symbol:
+        focus_gap_reason = (
+            f"Scanner focus {focus_symbol} is still research-first; "
+            f"paper-eligible focus is {paper_focus_symbol}."
+        )
+    elif focus_symbol and not focus_symbol_tradeable:
+        focus_gap_reason = f"Scanner focus {focus_symbol} is watch only for the first paper phase."
+
+    checklist = [
+        {
+            "id": "mode",
+            "label": "Paper mode armed",
+            "pass": armed_mode,
+            "note": "Belfort is in paper mode." if armed_mode else f"Belfort is still in {mode.replace('_', ' ')} mode.",
+        },
+        {
+            "id": "broker",
+            "label": "Paper broker ready",
+            "pass": broker_ready,
+            "note": "Alpaca paper endpoint and credentials are configured." if broker_ready else "Paper broker credentials or paper endpoint are not ready.",
+        },
+        {
+            "id": "reconciliation",
+            "label": "Position tracking clear",
+            "pass": recon_ok,
+            "note": "No reconciliation halt is blocking paper orders." if recon_ok else "Reconciliation halted paper trading until positions match again.",
+        },
+        {
+            "id": "overnight_inventory",
+            "label": "Overnight inventory clear",
+            "pass": not overnight_inventory_open,
+            "note": (
+                "Belfort is flat overnight and will start the next tradeable session with fresh buying power."
+                if not overnight_inventory_open else
+                f"{len(open_positions)} overnight paper position(s) still need to be flattened."
+            ),
+        },
+        {
+            "id": "scanner",
+            "label": "Scanner live",
+            "pass": scanner_live,
+            "note": (
+                f"Scanner has ranked {int(scanner.get('universe_size', 0) or 0)} symbol(s)."
+                if scanner_live
+                else "Scanner has not produced a fresh ranked board yet."
+            ),
+        },
+        {
+            "id": "paper_universe",
+            "label": "Paper universe ready",
+            "pass": paper_universe_ready,
+            "note": (
+                f"{int(scanner.get('paper_eligible_count', 0) or 0)} name(s) are currently eligible for Phase 1 paper trading."
+                if paper_universe_ready
+                else "No Phase 1 paper name is eligible yet."
+            ),
+        },
+        {
+            "id": "warmup",
+            "label": "Signal engine warmed up",
+            "pass": warmup_ready,
+            "note": (
+                f"Belfort has enough fresh tape to make decisions in {signal_symbol}."
+                if warmup_ready
+                else f"Belfort is still collecting fresh tape before he can trust a setup in {signal_symbol}."
+            ),
+        },
+        {
+            "id": "session",
+            "label": "Paper trading window open",
+            "pass": paper_session_open,
+            "note": f"Paper orders can be sent right now in {_human_session(session)}." if paper_session_open else "Paper orders are standing by until the next pre-market, regular, or after-hours session opens.",
+        },
+        {
+            "id": "sim",
+            "label": "Practice sim active",
+            "pass": sim_active and sim_ticks > 0,
+            "note": (
+                f"Sim has processed {sim_ticks} tick(s) and {sim_fills} fill(s)."
+                if sim_active and sim_ticks > 0
+                else "Practice sim is not producing fresh training tape yet."
+            ),
+        },
+    ]
+
+    if latest_paper_fill:
+        current_action = (
+            f"Last paper fill: {str(latest_paper_fill.get('action', 'trade')).upper()} "
+            f"{latest_paper_fill.get('symbol', 'SPY')}."
+        )
+    elif latest_paper:
+        if latest_paper.get("execution_status") == "gated":
+            current_action = f"Paper orders are waiting because no paper-tradeable session is open right now. Current session: {_human_session(session)}."
+        elif latest_paper.get("execution_status") == "submitted":
+            current_action = f"Belfort submitted a paper order in {latest_paper.get('symbol', 'SPY')} and is waiting for the broker response."
+        else:
+            current_action = "Paper lane updated."
+    elif sim_active and latest_sim:
+        if latest_sim.get("action") == "hold":
+            current_action = "Belfort is reading each tick in sim and skipping trades until the setup and quote quality line up."
+        else:
+            current_action = (
+                f"Belfort is managing a simulated {str(latest_sim.get('action', 'trade')).upper()} "
+                f"in {latest_sim.get('symbol', 'SPY')}."
+            )
+    elif overnight_inventory_open:
+        current_action = (
+            f"Belfort is carrying {len(open_positions)} overnight paper position"
+            f"{'' if len(open_positions) == 1 else 's'} and needs to flatten them in the next tradeable session."
+        )
+    elif sim_active:
+        current_action = f"Belfort is practicing on {focus_symbol} in the sim lane and waiting for a valid setup."
+    elif trading_active and not paper_session_open:
+        current_action = f"The paper lane is armed for {focus_symbol}, but paper orders wait for the next paper-tradeable session."
+    else:
+        current_action = "Belfort is idle and waiting for the next operator action."
+
+    proof_chain = [
+        {
+            "id": "scanner",
+            "label": "Scanner",
+            "status": "ready" if scanner_live and paper_universe_ready else ("warming" if not scanner_live else "blocked"),
+            "note": (
+                f"Board is live. {int(scanner.get('paper_eligible_count', 0) or 0)} Phase 1 name(s) are paper-eligible."
+                if scanner_live and paper_universe_ready
+                else (
+                    "Scanner is live, but no Phase 1 paper-eligible name is ready yet."
+                    if scanner_live else
+                    "Scanner is still building the current board."
+                )
+            ),
+        },
+        {
+            "id": "signal",
+            "label": "Signal",
+            "status": "ready" if warmup_ready and latest_signal else "warming",
+            "note": (
+                f"Latest signal evaluated on {signal_symbol}."
+                if latest_signal else
+                f"Still warming up before Belfort can trust a setup in {signal_symbol}."
+            ),
+        },
+        {
+            "id": "risk",
+            "label": "Risk",
+            "status": "blocked" if policy_state.get("blocker") else ("ready" if risk_explicit else "warming"),
+            "note": (
+                f"Pacing or capacity blocked the entry: {policy_state.get('blocker')}"
+                if policy_state.get("blocker") else
+                "Risk cleared the latest signal."
+                if latest_signal and latest_signal.get("risk_can_proceed") is True
+                else (
+                    f"Signal blocked by risk: {latest_signal.get('risk_block_reason', 'risk gate blocked it')}."
+                    if latest_signal and risk_explicit
+                    else "Waiting for a fresh risk decision."
+                )
+            ),
+        },
+        {
+            "id": "broker",
+            "label": "Broker",
+            "status": "ready" if broker_ready else "blocked",
+            "note": "Paper broker credentials and paper URL are healthy." if broker_ready else "Paper broker credentials or paper URL are not ready.",
+        },
+        {
+            "id": "tracking",
+            "label": "Tracking",
+            "status": "ready" if recon_ok else "blocked",
+            "note": "Paper fill and position tracking are clear." if recon_ok else "Reconciliation halt is blocking paper trading.",
+        },
+        {
+            "id": "inventory",
+            "label": "Inventory",
+            "status": "blocked" if overnight_inventory_open else "ready",
+            "note": (
+                "The book is flat overnight."
+                if not overnight_inventory_open else
+                f"{len(open_positions)} overnight paper position(s) still need to be flattened."
+            ),
+        },
+        {
+            "id": "session",
+            "label": "Session",
+            "status": "ready" if paper_session_open else "blocked",
+            "note": f"{_human_session(session).capitalize()} is open for paper trading." if paper_session_open else "No paper-tradeable session is open right now.",
+        },
+    ]
+
+    why_not_trading = ""
+    if verdict != "actively_trading":
+        if focus_gap_reason:
+            why_not_trading = focus_gap_reason
+        elif current_blocker:
+            why_not_trading = current_blocker
+        else:
+            why_not_trading = "Belfort is waiting for the next valid paper setup."
+
+    return {
+        "verdict": verdict,
+        "summary": summary,
+        "current_action": current_action,
+        "current_session": session,
+        "paper_lane_state": paper_lane_state,
+        "armed_mode": armed_mode,
+        "broker_ready": broker_ready,
+        "reconciliation_clear": recon_ok,
+        "signal_engine_warm": warmup_ready,
+        "scanner_live": scanner_live,
+        "paper_universe_ready": paper_universe_ready,
+        "focus_symbol_tradeable": focus_symbol_tradeable,
+        "regular_session_open": session_open,
+        "paper_session_open": paper_session_open,
+        "operator_start_required": operator_start_required,
+        "paper_path_proven": paper_path_proven,
+        "current_blocker": current_blocker,
+        "focus_symbol": focus_symbol,
+        "signal_symbol": signal_symbol,
+        "paper_eligible_focus_symbol": paper_focus_symbol,
+        "paper_eligible_focus_reason": paper_focus_reason,
+        "focus_gap_reason": focus_gap_reason,
+        "why_not_trading": why_not_trading,
+        "overnight_inventory_open": overnight_inventory_open,
+        "overnight_open_positions": open_positions,
+        "order_pacing_state": order_pacing_state,
+        "remaining_daily_capacity": remaining_daily_capacity,
+        "remaining_hourly_capacity": int(policy_state.get("remaining_hourly_capacity", 0) or 0),
+        "remaining_exposure_capacity": remaining_exposure_capacity,
+        "daily_order_cap": int(policy_state.get("daily_order_cap", 0) or 0),
+        "total_exposure_usd": float(policy_state.get("total_exposure_usd", 0.0) or 0.0),
+        "symbol_exposure_usd": float(policy_state.get("symbol_exposure_usd", 0.0) or 0.0),
+        "active_positions": int(policy_state.get("active_positions", 0) or 0),
+        "max_active_positions": int(policy_state.get("max_active_positions", 0) or 0),
+        "turnover_remaining_usd": float(policy_state.get("turnover_remaining_usd", 0.0) or 0.0),
+        "turnover_budget_usd": float(policy_state.get("turnover_budget_usd", 0.0) or 0.0),
+        "policy_blocker": str(policy_state.get("blocker", "") or ""),
+        "proof_chain": proof_chain,
+        "paper_orders_submitted": paper_orders_submitted,
+        "paper_fills_synced": paper_fills_synced,
+        "checklist": checklist,
+    }
 
 
 def _supervisor_state() -> dict:
@@ -457,11 +1114,12 @@ def _frank_lloyd_state() -> dict:
 
 @router.get("/neighborhood/docs")
 def neighborhood_docs(file: str = "BRD.md") -> dict:
-    """Read-only access to project docs. Allowlist: BRD.md, TRD.md, CAPABILITY_REGISTRY.md, CHANGE_JOURNAL.md."""
+    """Read-only access to project docs for the operator guide surface."""
     from fastapi import HTTPException
     ALLOWED = {
         "BRD.md":                  "Business Requirements",
         "TRD.md":                  "Technical Design",
+        "BELFORT_HOW_IT_WORKS.md": "How Belfort Works",
         "CAPABILITY_REGISTRY.md":  "Capability Registry",
         "CHANGE_JOURNAL.md":       "Change Journal",
     }
@@ -650,7 +1308,13 @@ def peter_queue_build(body: dict = Body(default={})) -> dict:
 
 @router.get("/neighborhood", response_class=HTMLResponse)
 def neighborhood_view() -> HTMLResponse:
-    """Serve the pixel-art neighborhood frontend."""
+    """Serve the analog cockpit frontend."""
+    return HTMLResponse(content=ANALOG_COCKPIT_HTML)
+
+
+@router.get("/neighborhood/legacy", response_class=HTMLResponse)
+def neighborhood_legacy_view() -> HTMLResponse:
+    """Serve the previous neighborhood frontend."""
     return HTMLResponse(content=_NEIGHBORHOOD_HTML)
 
 
@@ -1331,6 +1995,7 @@ body {
   font-size: 10px; line-height: 1.5;
 }
 .chat-msg-peter    { color: #7ecbbd; letter-spacing: 0.3px; }
+.chat-msg-frank    { color: #f3c77b; letter-spacing: 0.3px; }
 .chat-msg-operator { color: #c8d8e0; text-align: right; letter-spacing: 0.3px; }
 .chat-loading      { color: #37474f; font-style: italic; }
 .peter-chat-input-row { display: flex; gap: 5px; margin-top: 2px; align-items: flex-end; }
@@ -1650,6 +2315,17 @@ body {
   border-radius:2px; cursor:pointer;
 }
 .learning-research-btn:hover { background:#2a0a0a; }
+.strategy-adj-actions { display:flex; gap:4px; margin-top:5px; }
+.strategy-adj-apply {
+  flex:1; padding:4px 0; font-size:9px; letter-spacing:0.7px; font-weight:600;
+  background:#0a1a0a; color:#00e676; border:1px solid #1a4a30; border-radius:2px; cursor:pointer;
+}
+.strategy-adj-apply:hover { background:#0d2510; }
+.strategy-adj-keep {
+  flex:1; padding:4px 0; font-size:9px; letter-spacing:0.7px; font-weight:600;
+  background:#080d1a; color:#546e7a; border:1px solid #1e2d45; border-radius:2px; cursor:pointer;
+}
+.strategy-adj-keep:hover { background:#0d1525; }
 
 /* ── Readiness scorecard ─────────────────────────────────────────────────── */
 .readiness-strategy {
@@ -2086,6 +2762,11 @@ body {
           <div id="learning-hurting"        class="learning-item learning-hurting"></div>
           <div id="learning-helping"        class="learning-item learning-helping"></div>
           <div id="learning-recommendation" class="learning-recommendation"></div>
+          <div id="strategy-adj-target" style="font-size:8px;color:#37474f;letter-spacing:0.3px;margin-top:2px;display:none"></div>
+          <div id="strategy-adj-actions" class="strategy-adj-actions" style="display:none">
+            <button class="strategy-adj-apply" onclick="belfortApplyProposal()">&#9654; Apply Suggested Adjustment</button>
+            <button class="strategy-adj-keep"  onclick="belfortKeepStrategy()">Keep Current Strategy</button>
+          </div>
           <div id="learning-history"        class="learning-history"></div>
           <div id="learning-research-goal"  class="learning-research-goal"></div>
           <button id="learning-research-btn" class="learning-research-btn" style="display:none"
@@ -2195,13 +2876,19 @@ body {
 
         <!-- Composer: smart build request box -->
         <div id="fl-composer">
-          <div class="fl-composer-label">WHAT SHOULD FRANK LLOYD DO?</div>
-          <textarea id="fl-compose-prompt" class="fl-prompt-box" rows="4"
-            placeholder="Describe what to build, fix, refactor, or improve. Frank Lloyd will plan it and build it.&#10;&#10;Examples:&#10;&bull; Add a /stats endpoint that shows per-build timing.&#10;&bull; Clean up the work stream so old entries disappear after completion.&#10;&bull; Diagnose why Peter and Frank Lloyd feel disconnected."></textarea>
-          <div class="fl-form-btns" style="margin-top:6px">
-            <button class="dp-action-btn primary" style="flex:1" onclick="flQueueBuild()">BUILD IT</button>
+          <div class="fl-composer-label">TALK TO FRANK LLOYD</div>
+          <div id="fl-chat-history" class="peter-chat-history"></div>
+          <div class="peter-chat-input-row">
+            <textarea id="fl-compose-prompt" class="peter-chat-input" rows="3"
+              placeholder="Tell Frank Lloyd what to build, fix, refactor, or do next.&#10;&#10;Examples:&#10;&bull; Build a /stats endpoint and make success 200 with per-build timing.&#10;&bull; Approve BUILD-012 and start Stage 2.&#10;&bull; What are you working on right now?"></textarea>
+            <button id="fl-chat-send" class="peter-chat-send" onclick="frankChatSend()">SEND</button>
           </div>
-          <div id="fl-compose-feedback" class="fl-action-feedback" style="display:none"></div>
+          <div class="chat-chips">
+            <span class="chat-chip" onclick="frankChatAsk('What are you working on right now?')">Status</span>
+            <span class="chat-chip" onclick="frankChatAsk('Build a small status endpoint and success means it returns 200 with the latest build timing')">Queue build</span>
+            <span class="chat-chip" onclick="frankChatAsk('Approve the current Frank Lloyd plan')">Approve plan</span>
+            <span class="chat-chip" onclick="frankChatAsk('Generate the current draft')">Generate draft</span>
+          </div>
         </div>
 
       </div>
@@ -2238,6 +2925,7 @@ let _lastLearning            = null;
 let _flActionBuildId         = null;  // build_id currently targeted by FL action buttons
 let _flReviewVisible         = false; // true when review area is open
 let _flLastStatus            = null;  // previous job status — for transition detection
+let _frankChat               = [];    // [{role:'frank'|'operator', text:str, loading?:true}]
 let _belfortReadinessLastLoad    = 0;
 let _belfortLearningLastLoad     = 0;
 let _belfortDiagnosticsLastLoad  = 0;
@@ -2628,6 +3316,18 @@ function populatePanel(id, state, _skipClear) {
 
     // Render builder workspace
     _flRenderWorkspace(job);
+    const flInp = document.getElementById('fl-compose-prompt');
+    if (!_frankChat.length) {
+      _frankChat = [{role: 'frank', text: 'Ready. Tell me what to build or what build action to take.'}];
+    }
+    frankChatRender();
+    if (flInp && !flInp._enterBound) {
+      flInp._enterBound = true;
+      flInp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); frankChatSend(); }
+      });
+      flInp.addEventListener('input', function() { _peterInputGrow(this); });
+    }
 
     // Contextual actions — only show what makes sense for the current state.
     // Safe lane states (pending_spec, spec_approved, stage2_authorized) collapse
@@ -3108,6 +3808,27 @@ function peterChatAsk(text) {
   peterChatSend();
 }
 
+function frankChatRender() {
+  const el = document.getElementById('fl-chat-history');
+  if (!el) return;
+  if (!_frankChat.length) {
+    el.innerHTML = '<div class="chat-msg-frank">Ready. Tell me what to build or what build action to take.</div>';
+    return;
+  }
+  el.innerHTML = _frankChat.map(m => {
+    const base = m.role === 'frank' ? 'chat-msg-frank' : 'chat-msg-operator';
+    const extra = m.loading ? ' chat-loading' : '';
+    return `<div class="${base}${extra}">${_escHtml(m.text).replace(/\n/g, '<br>')}</div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function frankChatAsk(text) {
+  const inp = document.getElementById('fl-compose-prompt');
+  if (inp) { inp.value = text; _peterInputGrow(inp); }
+  frankChatSend();
+}
+
 // ── Peter chat routing ────────────────────────────────────────────────────────
 //
 // Three routing paths:
@@ -3546,9 +4267,67 @@ async function loadBelfortLearning() {
       researchBtn.style.display = (d.verdict === 'research' && !loopOn) ? '' : 'none';
     }
 
+    // Strategy adjustment proposal buttons
+    const adjActions = document.getElementById('strategy-adj-actions');
+    const adjTarget  = document.getElementById('strategy-adj-target');
+    try {
+      const pr = await fetch('/monitor/proposal', { cache: 'no-store' });
+      if (pr.ok) {
+        const pd = await pr.json();
+        const prop = pd.proposal;
+        const dismissed = pd.dismissed;
+        if (prop && !dismissed) {
+          const isNoop = prop.current_value === prop.proposed_value;
+          if (adjTarget) {
+            adjTarget.textContent = isNoop
+              ? 'Current parameter already matches the recommended target.'
+              : prop.parameter + ': ' + prop.current_value + ' \u2192 ' + prop.proposed_value + ' \u2014 ' + prop.reason;
+            adjTarget.style.display = '';
+          }
+          if (adjActions) adjActions.style.display = isNoop ? 'none' : '';
+        } else {
+          if (adjTarget)  adjTarget.style.display = 'none';
+          if (adjActions) adjActions.style.display = 'none';
+        }
+      }
+    } catch(_) {
+      if (adjTarget)  adjTarget.style.display = 'none';
+      if (adjActions) adjActions.style.display = 'none';
+    }
+
   } catch(e) {
     section.style.display = 'none';
   }
+}
+
+async function belfortApplyProposal() {
+  const adjActions = document.getElementById('strategy-adj-actions');
+  const adjTarget  = document.getElementById('strategy-adj-target');
+  try {
+    const r = await fetch('/monitor/proposal/apply', { method: 'POST', cache: 'no-store' });
+    const d = await r.json();
+    if (r.ok) {
+      if (adjTarget)  { adjTarget.textContent = 'Applied: ' + (d.parameter || '?') + ' set to ' + (d.new_value != null ? d.new_value : '?'); }
+      if (adjActions) adjActions.style.display = 'none';
+      _belfortLearningLastLoad = 0;  // force refresh
+    } else {
+      if (adjTarget) adjTarget.textContent = 'Apply failed: ' + (d.detail || 'unknown error');
+    }
+  } catch(e) {
+    if (adjTarget) adjTarget.textContent = 'Apply failed: network error';
+  }
+}
+
+async function belfortKeepStrategy() {
+  const adjActions = document.getElementById('strategy-adj-actions');
+  const adjTarget  = document.getElementById('strategy-adj-target');
+  try {
+    const r = await fetch('/monitor/proposal/dismiss', { method: 'POST', cache: 'no-store' });
+    if (r.ok) {
+      if (adjTarget)  { adjTarget.textContent = 'Current strategy kept.'; }
+      if (adjActions) adjActions.style.display = 'none';
+    }
+  } catch(_) {}
 }
 
 // ── Belfort diagnostics ───────────────────────────────────────────────────
@@ -3824,6 +4603,8 @@ function updateBelfortStats(belfort, supervisor) {
       const symbol    = _escHtml(sig.symbol || '?');
       const rationale = _escHtml((sig.signal_rationale || '').substring(0, 80));
       const riskOk    = sig.risk_can_proceed !== false;
+      const policy    = _escHtml((sig.active_policy || sig.strategy_name || 'policy').replace(/_/g, ' '));
+      const regime    = _escHtml((sig.market_regime || 'unknown').replace(/_/g, ' '));
       const riskLbl   = riskOk ? 'allowed' : _escHtml(('blocked: ' + (sig.risk_block_reason || '')).substring(0, 55));
       const actionCls = action === 'BUY' ? 'bsig-action-buy' : action === 'SELL' ? 'bsig-action-sell' : 'bsig-action-hold';
       const riskCls   = riskOk ? 'bsig-risk-allowed' : 'bsig-risk-blocked';
@@ -3831,6 +4612,7 @@ function updateBelfortStats(belfort, supervisor) {
       sigEl.innerHTML =
         '<div class="bsig-label">LATEST SIGNAL \u2014 NO ORDER PLACED</div>' +
         '<span class="' + actionCls + '">' + action + '\u00a0' + symbol + '</span>' +
+        '\u00a0[\u00a0' + policy + ' / ' + regime + '\u00a0]' +
         '\u00a0\u2014\u00a0' + rationale +
         '\u00a0[\u00a0risk:\u00a0<span class="' + riskCls + '">' + riskLbl + '</span>\u00a0]';
     } else {
@@ -4015,7 +4797,7 @@ function updateBelfortStats(belfort, supervisor) {
       stratEl.style.display = '';
       const regLabel = {regular:'REGULAR', pre_market:'PRE-MKT', after_hours:'AFTER-HRS', closed:'CLOSED'}[curRegime] || curRegime.toUpperCase();
       let txt = 'Paper [' + regLabel + ']: ' + (fitReg || '\u2014') + ' \u00b7 Sim [any-hour]: ' + (fitSim || '\u2014');
-      if (curRegime !== 'regular') txt += ' \u00b7 Extended hours: paper not supported.';
+      if (curRegime === 'pre_market' || curRegime === 'after_hours') txt += ' \u00b7 Extended hours: liquid-only paper trading is available.';
       stratEl.textContent = txt;
     } else {
       stratEl.style.display = 'none';
@@ -5022,35 +5804,49 @@ function _updateFlControlBlock(fl) {
 // ── Frank Lloyd build composer ────────────────────────────────────────────────
 
 async function flQueueBuild() {
-  const promptEl = document.getElementById('fl-compose-prompt');
-  const fb       = document.getElementById('fl-compose-feedback');
-  const raw      = promptEl ? promptEl.value.trim() : '';
-  if (!raw) {
-    if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = 'Describe what Frank Lloyd should build.'; fb.style.display = ''; }
-    return;
-  }
-  if (fb) { fb.className = 'fl-action-feedback fl-fb-pending'; fb.textContent = 'Frank Lloyd is planning\u2026'; fb.style.display = ''; }
+  await frankChatSend();
+}
+
+async function frankChatSend() {
+  const inp = document.getElementById('fl-compose-prompt');
+  const btn = document.getElementById('fl-chat-send');
+  if (!inp || !btn) return;
+  const msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+  inp.style.height = '';
+  inp.disabled = true;
+  btn.disabled = true;
+  btn.textContent = '\u2026';
+  _frankChat.push({role: 'operator', text: msg});
+  _frankChat.push({role: 'frank', text: '\u2026', loading: true});
+  frankChatRender();
   try {
-    const r = await fetch('/frank-lloyd/smart-queue', {
+    const r = await fetch('/frank-lloyd/chat', {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({raw_input: raw}),
+      body:    JSON.stringify({message: msg}),
     });
     const data = await r.json();
-    if (data.needs_clarification) {
-      if (fb) { fb.className = 'fl-action-feedback fl-fb-pending'; fb.textContent = data.question || 'Could you be more specific?'; fb.style.display = ''; }
-    } else if (data.ok) {
-      if (fb) { fb.className = 'fl-action-feedback fl-fb-ok'; fb.textContent = '\u2713 ' + _escHtml(data.message || 'Queued — Frank Lloyd is on it.'); fb.style.display = ''; }
-      if (promptEl) promptEl.value = '';
-      // Smart-queue fires auto-run server-side; poll quickly to show progress
+    _frankChat = _frankChat.filter(m => !m.loading);
+    _frankChat.push({
+      role: 'frank',
+      text: data.text || (data.ok ? 'Done.' : 'Frank Lloyd could not process that request.'),
+    });
+    if (data.ok || data.needs_clarification) {
       setTimeout(tick, 400);
       setTimeout(tick, 1800);
       setTimeout(tick, 4000);
-    } else {
-      if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = _escHtml(data.error || 'Could not queue build.'); fb.style.display = ''; }
     }
   } catch(e) {
-    if (fb) { fb.className = 'fl-action-feedback fl-fb-error'; fb.textContent = 'Error: ' + _escHtml(e.message); fb.style.display = ''; }
+    _frankChat = _frankChat.filter(m => !m.loading);
+    _frankChat.push({role: 'frank', text: 'Could not reach Frank Lloyd \u2014 try again.'});
+  } finally {
+    inp.disabled = false;
+    btn.disabled = false;
+    btn.textContent = 'SEND';
+    frankChatRender();
+    inp.focus();
   }
 }
 

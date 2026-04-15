@@ -1,3 +1,8 @@
+import hashlib
+import json
+import pathlib
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Body
 from app.portfolio import get_snapshot, get_trades
 from app.report import compute_report
@@ -6,6 +11,39 @@ from app.strategy.simple_strategy import get_state as strategy_state
 
 router = APIRouter(prefix="/monitor")
 
+_DISMISS_FILE = pathlib.Path("data/strategy_rec_dismiss.json")
+_DISMISS_TTL_HOURS = 48
+
+
+def _rec_hash(text: str) -> str:
+    return hashlib.md5(text.encode()).hexdigest()[:12]
+
+
+def _read_dismiss() -> dict:
+    if not _DISMISS_FILE.exists():
+        return {}
+    try:
+        return json.loads(_DISMISS_FILE.read_text())
+    except Exception:
+        return {}
+
+
+def _is_dismissed(rec_text: str) -> tuple[bool, str | None]:
+    """Return (dismissed, dismissed_at_iso) for the given recommendation text."""
+    if not rec_text:
+        return False, None
+    d = _read_dismiss()
+    if d.get("hash") != _rec_hash(rec_text):
+        return False, None
+    dismissed_at = d.get("dismissed_at", "")
+    try:
+        age_h = (datetime.now(timezone.utc) - datetime.fromisoformat(dismissed_at)).total_seconds() / 3600
+        if age_h > _DISMISS_TTL_HOURS:
+            return False, None
+    except Exception:
+        return False, None
+    return True, dismissed_at
+
 
 @router.get("/portfolio")
 def portfolio():
@@ -13,8 +51,8 @@ def portfolio():
 
 
 @router.get("/trades")
-def trades():
-    return get_trades()
+def trades(n: int | None = None):
+    return get_trades(limit=n)
 
 
 @router.get("/agents")
@@ -27,9 +65,25 @@ def report():
     return compute_report()
 
 
+def _resolved_symbol(symbol: str | None) -> str:
+    raw = str(symbol or "").strip().upper()
+    if raw:
+        return raw
+    try:
+        from app.belfort_scanner import get_focus_symbol
+        return get_focus_symbol(default="SPY")
+    except Exception:
+        return "SPY"
+
+
 @router.get("/strategy")
-def strategy(symbol: str = "SPY"):
-    return strategy_state(symbol)
+def strategy(symbol: str | None = None):
+    target = _resolved_symbol(symbol)
+    try:
+        from app.belfort_policy import get_live_policy_state
+        return get_live_policy_state(target)
+    except Exception:
+        return strategy_state(target)
 
 
 @router.get("/analysis")
@@ -62,9 +116,14 @@ def decision():
 
     # Log only fresh decisions (cache miss) with valid analysis
     if not cache_used and "error" not in analyzer_output:
-        from app.strategy.config import get_config as _get_cfg
-        cfg = _get_cfg()
-        strategy_name = f"MA Crossover (short={cfg['SHORT_WINDOW']}, long={cfg['LONG_WINDOW']})"
+        from app.belfort_policy import get_live_policy_state
+        focus_symbol = _resolved_symbol(None)
+        pol = get_live_policy_state(focus_symbol)
+        strategy_name = (
+            f"Belfort {pol.get('active_policy', 'policy')} "
+            f"[{pol.get('market_regime', 'unknown')}] "
+            f"{focus_symbol}"
+        )
         tuning_log.append(
             analysis=analyzer_output,
             decision=decision_output,
@@ -107,9 +166,32 @@ def trading_start(interval: int = 3):
 
 
 @router.post("/trading/stop")
-def trading_stop():
+def trading_stop(close_positions: bool = True):
     from app.trading_loop import stop_trading
-    return stop_trading()
+    flatten_result = None
+    if close_positions:
+        try:
+            from app.belfort_paper_exec import flatten_paper_positions
+            flatten_result = flatten_paper_positions("Operator stopped the paper lane and requested a full flatten.")
+        except Exception as exc:
+            flatten_result = {"status": "error", "message": f"Could not flatten open paper positions: {exc}"}
+    result = stop_trading()
+    if flatten_result:
+        result["flatten"] = flatten_result
+        if flatten_result.get("submitted", 0):
+            result["message"] = (
+                flatten_result.get("message")
+                or "Close-all exit orders were submitted while the paper lane stops."
+            )
+        elif flatten_result.get("status") == "blocked":
+            result["message"] = flatten_result.get("message") or result.get("message", "")
+    return result
+
+
+@router.post("/trading/flatten")
+def trading_flatten():
+    from app.belfort_paper_exec import flatten_paper_positions
+    return flatten_paper_positions("Operator requested close-all on the paper book.")
 
 
 @router.post("/trading/sim/start")
@@ -128,6 +210,41 @@ def sim_stop():
 def sim_status():
     from app.belfort_sim import get_sim_status
     return get_sim_status()
+
+
+@router.get("/scanner")
+def scanner():
+    from app.belfort_scanner import read_scanner_snapshot
+    return read_scanner_snapshot()
+
+
+@router.get("/chart")
+def chart(symbol: str | None = None, timeframe: str = "5Min", limit: int = 32):
+    from app.market_data_feed import get_recent_bars
+
+    target = _resolved_symbol(symbol)
+    bars = get_recent_bars(target, timeframe=timeframe, limit=limit)
+    latest = bars[-1] if bars else {}
+    previous_close = bars[-2]["close"] if len(bars) > 1 else latest.get("open")
+    try:
+        last_close = float(latest.get("close", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        last_close = 0.0
+    try:
+        prev_close = float(previous_close or 0.0)
+    except (TypeError, ValueError):
+        prev_close = 0.0
+    change = (last_close - prev_close) if (last_close and prev_close) else 0.0
+    change_pct = (change / prev_close) if prev_close else 0.0
+    return {
+        "symbol": target,
+        "timeframe": timeframe,
+        "bars": bars,
+        "last_close": last_close,
+        "change": round(change, 6),
+        "change_pct": round(change_pct, 6),
+        "bar_count": len(bars),
+    }
 
 
 @router.post("/belfort/mode/advance")
@@ -230,9 +347,10 @@ def strategy_config():
 
 
 @router.get("/regime")
-def regime_state(symbol: str = "SPY"):
-    from app.strategy.router import get_state as router_state
-    return router_state(symbol)
+def regime_state(symbol: str | None = None):
+    target = _resolved_symbol(symbol)
+    from app.belfort_policy import get_live_policy_state
+    return get_live_policy_state(target)
 
 
 @router.post("/tuning/apply")
@@ -318,21 +436,74 @@ def proposal(n: int = 20):
     from app.proposal_parser import parse
 
     agg = summarize(n)
+    rec_text = agg.get("most_common_recommendation") or ""
 
     parsed = parse(
-        recommendation=agg.get("most_common_recommendation") or "",
+        recommendation=rec_text,
         confidence_trend=agg.get("confidence_trend", "stable"),
         occurrences=agg.get("occurrences", 0),
         records_analyzed=agg.get("records_analyzed", 0),
     )
 
+    dismissed, dismissed_at = _is_dismissed(rec_text)
+
     return {
         "proposal": parsed,
         "source": {
-            "most_common_recommendation": agg.get("most_common_recommendation"),
+            "most_common_recommendation": rec_text,
             "occurrences": agg.get("occurrences"),
             "records_analyzed": agg.get("records_analyzed"),
             "confidence_trend": agg.get("confidence_trend"),
         },
         "applied": False,  # always False — proposals are never auto-applied
+        "dismissed": dismissed,
+        "dismissed_at": dismissed_at,
     }
+
+
+@router.post("/proposal/apply")
+def proposal_apply():
+    """Apply the current parsed proposal. Operator-initiated only."""
+    from app.pattern_aggregator import summarize
+    from app.proposal_parser import parse
+    from app.strategy.applier import apply
+    from fastapi import HTTPException
+
+    agg = summarize(20)
+    rec_text = agg.get("most_common_recommendation") or ""
+    parsed = parse(
+        recommendation=rec_text,
+        confidence_trend=agg.get("confidence_trend", "stable"),
+        occurrences=agg.get("occurrences", 0),
+        records_analyzed=agg.get("records_analyzed", 0),
+    )
+    if not parsed:
+        raise HTTPException(status_code=400, detail="No actionable proposal available.")
+    try:
+        result = apply(parsed)
+        # Clear any existing dismiss since it's now applied
+        if _DISMISS_FILE.exists():
+            _DISMISS_FILE.unlink()
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/proposal/dismiss")
+def proposal_dismiss():
+    """Dismiss the current recommendation. It won't reappear until the text changes or 48h pass."""
+    from app.pattern_aggregator import summarize
+    from fastapi import HTTPException
+
+    agg = summarize(20)
+    rec_text = agg.get("most_common_recommendation") or ""
+    if not rec_text:
+        raise HTTPException(status_code=400, detail="No active recommendation to dismiss.")
+    now = datetime.now(timezone.utc).isoformat()
+    _DISMISS_FILE.parent.mkdir(exist_ok=True)
+    _DISMISS_FILE.write_text(json.dumps({
+        "hash": _rec_hash(rec_text),
+        "recommendation_text": rec_text,
+        "dismissed_at": now,
+    }))
+    return {"dismissed": True, "dismissed_at": now}

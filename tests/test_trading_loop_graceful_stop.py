@@ -35,6 +35,8 @@ def _reset_loop():
     tl._ticks          = 0
     tl._started_at     = None
     tl._thread         = None
+    tl._last_eod_flatten_date = None
+    tl._last_reopen_flatten_date = None
 
 
 def _snapshot_with_position() -> dict:
@@ -249,6 +251,8 @@ class TestLoopExitsAfterPositionCloses(unittest.TestCase):
             tick_count[0] += 1
 
         with patch("app.trading_loop._has_open_position", side_effect=fake_has_open), \
+             patch("app.trading_loop._maybe_flatten_overnight_inventory_at_reopen", return_value=False), \
+             patch("app.trading_loop._maybe_flatten_for_day_trader_close", return_value=False), \
              patch("app.trading_loop.run_once", side_effect=fake_run_once), \
              patch("app.trading_loop.manager"), \
              patch("time.sleep"):
@@ -258,6 +262,58 @@ class TestLoopExitsAfterPositionCloses(unittest.TestCase):
         self.assertEqual(tick_count[0], 2)
         self.assertFalse(tl._running)
         self.assertFalse(tl._stop_requested)
+
+
+class TestEndOfDayFlatten(unittest.TestCase):
+
+    def setUp(self):
+        _reset_loop()
+
+    def test_after_hours_cutoff_submits_flatten_once(self):
+        import app.trading_loop as tl
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        now_et = datetime(2026, 4, 15, 19, 46, tzinfo=ZoneInfo("America/New_York"))
+        fake_datetime = MagicMock()
+        fake_datetime.now.return_value = now_et
+
+        with (
+            patch("app.trading_loop.datetime", fake_datetime),
+            patch("app.trading_loop._has_open_position", return_value=True),
+            patch("app.belfort_mode.current_mode", return_value=types.SimpleNamespace(value="paper")),
+            patch("app.market_time.session_type", return_value="after_hours"),
+            patch("app.belfort_paper_exec.flatten_paper_positions", return_value={"status": "flatten_submitted"}) as mock_flatten,
+        ):
+            first = tl._maybe_flatten_for_day_trader_close()
+            second = tl._maybe_flatten_for_day_trader_close()
+
+        self.assertTrue(first)
+        self.assertTrue(second)
+        mock_flatten.assert_called_once()
+
+    def test_pre_market_reopen_flattens_overnight_inventory_once(self):
+        import app.trading_loop as tl
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        now_et = datetime(2026, 4, 16, 7, 5, tzinfo=ZoneInfo("America/New_York"))
+        fake_datetime = MagicMock()
+        fake_datetime.now.return_value = now_et
+
+        with (
+            patch("app.trading_loop.datetime", fake_datetime),
+            patch("app.trading_loop._has_open_position", return_value=True),
+            patch("app.belfort_mode.current_mode", return_value=types.SimpleNamespace(value="paper")),
+            patch("app.market_time.session_type", return_value="pre_market"),
+            patch("app.belfort_paper_exec.flatten_paper_positions", return_value={"status": "flatten_submitted"}) as mock_flatten,
+        ):
+            first = tl._maybe_flatten_overnight_inventory_at_reopen()
+            second = tl._maybe_flatten_overnight_inventory_at_reopen()
+
+        self.assertTrue(first)
+        self.assertTrue(second)
+        mock_flatten.assert_called_once()
 
     def test_loop_continues_while_position_is_open(self):
         """
@@ -285,6 +341,8 @@ class TestLoopExitsAfterPositionCloses(unittest.TestCase):
             tick_count[0] += 1
 
         with patch("app.trading_loop._has_open_position", side_effect=fake_has_open), \
+             patch("app.trading_loop._maybe_flatten_overnight_inventory_at_reopen", return_value=False), \
+             patch("app.trading_loop._maybe_flatten_for_day_trader_close", return_value=False), \
              patch("app.trading_loop.run_once", side_effect=fake_run_once), \
              patch("app.trading_loop.manager"), \
              patch("time.sleep"):
@@ -345,17 +403,29 @@ class TestHasOpenPosition(unittest.TestCase):
 
     def test_returns_true_when_positions_exist(self):
         import app.trading_loop as tl
-        with patch("app.portfolio.get_snapshot", return_value=_snapshot_with_position()):
+        from app.belfort_broker import PaperPositionsSnapshot
+        with (
+            patch("app.belfort_broker.fetch_paper_positions", return_value=PaperPositionsSnapshot(available=False, positions=[])),
+            patch("app.portfolio.get_snapshot", return_value=_snapshot_with_position()),
+        ):
             self.assertTrue(tl._has_open_position())
 
     def test_returns_false_when_no_positions(self):
         import app.trading_loop as tl
-        with patch("app.portfolio.get_snapshot", return_value=_snapshot_no_position()):
+        from app.belfort_broker import PaperPositionsSnapshot
+        with (
+            patch("app.belfort_broker.fetch_paper_positions", return_value=PaperPositionsSnapshot(available=False, positions=[])),
+            patch("app.portfolio.get_snapshot", return_value=_snapshot_no_position()),
+        ):
             self.assertFalse(tl._has_open_position())
 
     def test_returns_false_when_positions_is_empty_dict(self):
         import app.trading_loop as tl
-        with patch("app.portfolio.get_snapshot", return_value={"positions": {}}):
+        from app.belfort_broker import PaperPositionsSnapshot
+        with (
+            patch("app.belfort_broker.fetch_paper_positions", return_value=PaperPositionsSnapshot(available=False, positions=[])),
+            patch("app.portfolio.get_snapshot", return_value={"positions": {}}),
+        ):
             self.assertFalse(tl._has_open_position())
 
 

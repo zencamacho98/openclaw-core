@@ -1,5 +1,5 @@
 # Business Requirements Document — The Abode
-*Last updated: 2026-04-11 (vision reset)*
+*Last updated: 2026-04-15 (Belfort flow leaders, pre-open scoring, and fee-aware pacing)*
 
 ---
 
@@ -39,13 +39,26 @@ See `docs/vision/PROJECT_VISION.md` for the full strategic framing.
 ### 3.1 Neighborhood (primary product surface)
 URL: `http://localhost:8001/neighborhood` (served from FastAPI backend at port 8001)
 
-- Pixel-art community visual with clickable houses
+- Dark trading-platform shell with clear views for Belfort, Peter, Frank Lloyd, controls, and guide material
 - Each house represents a real agent with real ownership and real outcomes
 - Peter's house: conversation, current situation summary, key decisions pending
-- Belfort's house: trading status, position, P&L, research state, readiness scorecard, learning verdict, diagnostics
+- Belfort's house now uses four internal workspaces:
+  - `Trade` — watchlist, focus symbol, signal/order state, account, readiness, and controls
+  - `Scanner` — expanded watchlist, flow leaders, catalyst desk, setup radar, and tape context
+  - `Research` — learning verdict, setup scorecards, readiness checklist, bounded adjustments, and blotter
+  - `Guide` — `How It Works`, `BRD`, and `TRD`
+- Belfort's `Trade` workspace now acts as the operator-proof surface for the market open:
+  - watchlist rows are labeled `eligible`, `watch only`, or `blocked`
+  - the desk shows a compact `Ready at Open` verdict and an `Open Proof` ladder
+  - the desk names one primary blocker when Belfort is not ready to paper trade
+  - the desk also shows remaining order capacity and buying-power room for new entries
+  - pacing, concentration, and cost blockers are surfaced in plain trading-English
+  - overnight inventory now explicitly blocks readiness because Belfort is being run as a day-trader desk, not a swing desk
+  - the watched symbol now carries structure context like market cap, float, average volume, and volatility profile
+  - the watched symbol now also carries intraday flow context like relative volume, gap, and float-turnover participation
 - Backstage operating services: currently visible in an ops row with expandable panels. Goal: secondary presences, not primary houses equal in weight to Peter and Belfort.
 - Refreshes automatically every 5 seconds
-- Calm, compact, plain-English first
+- Compact, plain-English first, with research-heavy panels moved off the default Belfort trading surface
 
 Rule: visuals reflect real system state. Animation and lore must not substitute for honest performance.
 
@@ -71,7 +84,7 @@ URL: `http://127.0.0.1:8001`
 These meet the house eligibility criteria: durable specialized role, measurable outcomes, some autonomy, standalone value, real workflow ownership. See `docs/vision/HOUSE_ELIGIBILITY.md`.
 
 - **Peter** — operator-facing coordinator, reporter, front door
-- **Mr Belfort** — trading research, prototype revenue house, proving ground for learning infrastructure
+- **Mr Belfort** — trading research house, market scanner, catalyst reader, policy selector, and bounded paper/sim execution desk
 
 Planned:
 - **Frank Lloyd** — construction house: agent and house creation, modification, and evolution
@@ -93,21 +106,43 @@ A backstage service can earn house status if it matures into a real specialized 
 
 ### 5.1 Watching Belfort trade
 **User opens Belfort's house → sees:**
+- What Belfort is watching now (focus symbol and ranked board)
+- Why that symbol is in play (price action, quote quality, relative strength vs the tape, and catalyst context)
 - Trading ON/OFF
 - Current position (or "flat")
 - Cash, P&L, trade count
 - Last trade summary
 - Regime label (what kind of market)
+- The `Trade` workspace without having to scroll through the entire research stack
 
 **Result:** User understands current state without reading logs.
 
 ### 5.2 Understanding Belfort's health
 **User sees in Belfort panel:**
-- Readiness scorecard (8 gates, pass/fail)
+- Compact readiness verdict on `Trade`, full readiness scorecard in `Research`
+- Explicit `Open Proof` path: scanner → signal → risk → broker → tracking → session
+- Explicit new-entry truth: scanner focus → paper-eligible name → pacing/cost/capacity gate
 - Learning verdict: Continue / Monitor / Tune / Research / Pause
-- Diagnostics: strategy drift from baseline, expectancy path, trigger pressure
+- Diagnostics and research-heavy surfaces moved behind Belfort's `Research` tab instead of sitting on the default trading screen
+- Ready-for-open verdict with the exact blocker when paper trading cannot fire yet
+- Tape-context read showing whether current movers are truly leading SPY or just drifting with the market
+- Setup scorecards showing which named Belfort patterns are earning or losing trust
+- Blotter showing signal → risk → paper/sim → learning → adjustment flow
+- Clear reasons when Belfort is skipping churn, oversizing, or high-friction trades
 
 **Result:** User knows if Belfort is performing well or slipping.
+
+### 5.2a Knowing whether Belfort can trade at the bell
+**User opens Belfort `Trade` → sees:**
+- current scanner focus
+- current paper-eligible focus
+- whether the board is showing only `watch only` names or a real liquid trade candidate
+- one-line explanation for why Belfort is not trading
+- remaining order capacity and buying-power room for the day
+- whether Belfort is blocked by pacing, cost, concentration, or session
+- whether the desk is `staged for open`, `ready for operator start`, or `actively trading`
+
+**Result:** User does not have to infer readiness from internal jargon or scattered panels.
 
 ### 5.3 Reviewing a research candidate
 **When Belfort triggers research:**
@@ -117,6 +152,15 @@ A backstage service can earn house status if it matures into a real specialized 
 - User approves or rejects
 
 **Result:** Strategy only changes with operator sign-off.
+
+### 5.3a Understanding how Belfort works
+**User opens the Guide view → sees:**
+- `How Belfort Works`
+- `BRD`
+- `TRD`
+- a plain-English explanation of strategy families, scanner inputs, paper vs sim separation, and the exact trade path
+
+**Result:** Operator can trust the desk without reading code or guessing from partial status phrases.
 
 ### 5.4 Talking to Peter
 **User types a question or command in Peter's panel:**
@@ -140,7 +184,11 @@ A backstage service can earn house status if it matures into a real specialized 
 | Goal | Success signal |
 |---|---|
 | User understands state at a glance | Neighborhood panel loads in < 2s, readable without tooltips |
-| Belfort's performance is tracked | Trade count, P&L, expectancy, win rate always current |
+| Belfort's performance is tracked | Trade count, P&L, expectancy, win rate, focus symbol, and scanner board always current |
+| Belfort behaves like a bounded desk | New entries obey order-capacity, turnover, concentration, and buying-power limits |
+| Belfort behaves like a day trader | Paper inventory is flattened into the overnight handoff window and overnight carry is surfaced as a blocker |
+| Belfort ranks opportunity instead of just a fixed list | Scanner uses catalysts, tape, spread, market cap, float, average volume, relative volume, gap context, float turnover, and pre-open opportunity filters |
+| Belfort does not churn away good days | Pacing is fee-aware and throttles rapid-fire trading when the likely net edge is too thin |
 | Weak strategies surface early | Soft trigger fires before hard failure threshold is crossed |
 | Strategy changes require approval | No config change applies without operator confirmation |
 | LM costs stay bounded | Cheap-tier model handles routine tasks; strong-tier used sparingly |
@@ -152,7 +200,7 @@ A backstage service can earn house status if it matures into a real specialized 
 
 ## 7. What The Abode is NOT
 
-- Not a live trading system yet — live deployment requires earned readiness, risk controls, and measurable performance proof. The current mock-trading state is a stage, not a ceiling.
+- Not a live trading system yet — live deployment requires earned readiness, risk controls, and measurable performance proof. The current sim + paper state is a stage, not a ceiling.
 - Not a high-frequency strategy engine
 - Not a Discord bot (not a current goal)
 - Not a flat list of scripts that happen to call LLMs

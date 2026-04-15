@@ -43,6 +43,160 @@ _SPEC_STATUS_FROM_EVENT: dict[str, str] = {
     "draft_discarded":           "stage2_authorized",
 }
 
+_FRANK_SCOPE_TEXT = (
+    "I handle build and operator work here: queue builds, report build status, "
+    "approve or reject plans, start Stage 2, generate drafts, apply drafts, "
+    "and control Frank intake. Ask Peter for whole-house coordination and ask "
+    "Belfort for trading or research decisions."
+)
+
+
+def _is_frank_status_request(message: str) -> bool:
+    lower = message.lower().strip()
+    if lower in {
+        "status",
+        "what are you doing",
+        "what are you working on",
+        "what's happening",
+        "what is happening",
+        "what next",
+        "what should i do next",
+        "what needs review",
+        "show queue",
+        "queue",
+    }:
+        return True
+    return bool(
+        "frank" in lower and any(
+            token in lower
+            for token in ("status", "doing", "working on", "what next", "queue", "review")
+        )
+    )
+
+
+def _is_frank_build_intent(message: str) -> bool:
+    import re
+
+    lower = message.lower().strip()
+    if not lower:
+        return False
+    if re.search(r"\b(frank\s*lloyd|frank|builder)\b", lower) and re.search(
+        r"\b(build|add|make|create|write|implement|fix|refactor|clean|diagnose|improve|monitor|remove|delete|update|change|rework|rewrite)\b",
+        lower,
+    ):
+        return True
+    if re.search(
+        r"\b(build|implement|add|create|write|develop|fix|refactor|clean up|diagnose|improve|remove|delete|rework|rewrite)\b",
+        lower,
+    ) and re.search(
+        r"\b(endpoint|route|module|handler|function|feature|service|script|api|panel|widget|tab|view|page|button|form|class|test|ui|workflow)\b",
+        lower,
+    ):
+        return True
+    return False
+
+
+def _frank_status_command(message: str):
+    from peter.commands import Command, CommandType
+
+    return Command(
+        type=CommandType.FL_LIFECYCLE_NL,
+        args={
+            "action": "status_query",
+            "build_id": "",
+            "notes": "",
+            "reason": "",
+            "target_path": "",
+        },
+        transport="cli",
+        operator_id="neighborhood_ui",
+        raw_text=message,
+    )
+
+
+@router.post("/frank-lloyd/chat")
+def frank_lloyd_chat(background_tasks: BackgroundTasks, body: dict = Body(default={})) -> dict:
+    """
+    Direct Frank Lloyd chat for the neighborhood UI.
+
+    Keeps Frank in his builder/operator lane while making the UI feel direct:
+      - build requests shape + queue through the existing smart queue
+      - FL lifecycle commands reuse Peter's parser/router and the same audited handlers
+      - generic out-of-scope prompts get a short lane reminder instead of silently failing
+    """
+    from peter.commands import CommandType, parse_command
+    from peter.router import route
+
+    message = str((body or {}).get("message", "")).strip()[:2000]
+    if not message:
+        return {
+            "ok": False,
+            "text": "Tell Frank Lloyd what to build or what build action to take.",
+            "command_type": "unknown",
+        }
+
+    if _is_frank_status_request(message):
+        resp = route(_frank_status_command(message))
+        return {
+            "ok": resp.ok,
+            "text": resp.summary,
+            "command_type": resp.command_type,
+            "next_action": resp.next_action or "",
+            "build_id": (resp.raw or {}).get("build_id", "") or (resp.metrics or {}).get("build_id", ""),
+        }
+
+    parsed = parse_command(message, transport="cli", operator_id="neighborhood_ui")
+    allowed = {
+        CommandType.BUILD_INTENT,
+        CommandType.APPROVE_BUILD,
+        CommandType.REJECT_BUILD,
+        CommandType.AUTHORIZE_STAGE2,
+        CommandType.DRAFT_STAGE2,
+        CommandType.PROMOTE_DRAFT,
+        CommandType.DISCARD_DRAFT,
+        CommandType.FL_LIFECYCLE_NL,
+        CommandType.FL_HARD_STOP,
+        CommandType.FL_CLEAR_ALL,
+        CommandType.FL_DISABLE,
+        CommandType.FL_ENABLE,
+        CommandType.HELP,
+    }
+
+    if parsed.type == CommandType.HELP:
+        return {"ok": True, "text": _FRANK_SCOPE_TEXT, "command_type": "help"}
+
+    if parsed.type in allowed and parsed.type != CommandType.BUILD_INTENT:
+        resp = route(parsed)
+        return {
+            "ok": resp.ok,
+            "text": resp.summary,
+            "command_type": resp.command_type,
+            "next_action": resp.next_action or "",
+            "build_id": (resp.raw or {}).get("build_id", "") or (resp.metrics or {}).get("build_id", ""),
+        }
+
+    if parsed.type == CommandType.BUILD_INTENT or _is_frank_build_intent(message):
+        queued = smart_queue(background_tasks, {"raw_input": message})
+        text = (
+            queued.get("message")
+            or queued.get("question")
+            or queued.get("error")
+            or "Frank Lloyd could not process that build request."
+        )
+        return {
+            "ok": bool(queued.get("ok")),
+            "text": text,
+            "command_type": "build_intent",
+            "needs_clarification": bool(queued.get("needs_clarification")),
+            "build_id": queued.get("build_id") or "",
+        }
+
+    return {
+        "ok": False,
+        "text": _FRANK_SCOPE_TEXT,
+        "command_type": "out_of_scope",
+    }
+
 
 @router.get("/frank-lloyd/{build_id}/spec-review")
 def get_spec_review(build_id: str) -> dict:

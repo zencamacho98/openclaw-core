@@ -87,15 +87,13 @@ class TestRiskGuardrailsBlocks(unittest.TestCase):
             min_cash_buffer    = 100.0,
         )
 
-    def test_non_regular_session_blocked(self) -> None:
+    def test_pre_market_passes_session_check(self) -> None:
         result = self.g.check(_signal("buy", session_type="pre_market"), _portfolio())
-        self.assertFalse(result.passed)
-        self.assertEqual(result.check_name, "session_check")
+        self.assertTrue(result.passed)
 
-    def test_after_hours_blocked(self) -> None:
+    def test_after_hours_passes_session_check(self) -> None:
         result = self.g.check(_signal("sell", session_type="after_hours"), _portfolio())
-        self.assertFalse(result.passed)
-        self.assertEqual(result.check_name, "session_check")
+        self.assertTrue(result.passed)
 
     def test_unknown_data_lane_blocked(self) -> None:
         result = self.g.check(_signal("buy", data_lane="UNKNOWN"), _portfolio())
@@ -125,6 +123,12 @@ class TestRiskGuardrailsBlocks(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertEqual(result.check_name, "daily_order_count")
 
+    def test_default_guardrails_use_config_backstop_not_hardcoded_50(self) -> None:
+        g = RiskGuardrails()
+        with patch("app.strategy.config.get_config", return_value={"BELFORT_MAX_ORDERS_PER_DAY": 80}):
+            result = g.check(_signal("buy"), _portfolio(orders_today=79))
+        self.assertTrue(result.passed)
+
     def test_position_size_blocked(self) -> None:
         result = self.g.check(_signal("buy", qty=101), _portfolio())
         self.assertFalse(result.passed)
@@ -153,7 +157,7 @@ class TestRiskGuardrailsBlocks(unittest.TestCase):
         self.assertIs(result.signal, sig)
 
     def test_check_order_session_before_data_lane(self) -> None:
-        # Both bad session and unknown lane — session_check should fire first
+        # Both closed session and unknown lane — session_check should fire first
         result = self.g.check(
             _signal("buy", session_type="closed", data_lane="UNKNOWN"),
             _portfolio(),

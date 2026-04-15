@@ -5,3 +5,7 @@ __pycache__/
 data/experiments/
 run/
 logs/
+/data/research_ledger/
+/data/belfort/*.jsonl
+/data/orders/*.jsonl
+/data/warden_usage.jsonl

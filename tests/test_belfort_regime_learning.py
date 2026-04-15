@@ -66,8 +66,9 @@ class TestRegimeLearningModule:
     def test_learning_history_path_correct(self):
         assert '"learning_history.jsonl"' in _RM
 
-    def test_extended_is_not_supported(self):
-        assert '"not_supported"' in _RM
+    def test_extended_support_is_described(self):
+        assert '"extended"' in _RM
+        assert "supported_limit_only" in _RM
 
 
 # ── B. compute_regime_metrics ─────────────────────────────────────────────────
@@ -80,10 +81,12 @@ class TestComputeRegimeMetrics:
         assert "closed_sim" in result
         assert "extended" in result
 
-    def test_extended_is_not_supported(self):
+    def test_extended_has_correct_keys(self):
         from app.belfort_regime_learning import compute_regime_metrics
         result = compute_regime_metrics()
-        assert result["extended"] == "not_supported"
+        ext = result["extended"]
+        for key in ("submitted", "gated", "errored", "total"):
+            assert key in ext
 
     def test_regular_has_correct_keys(self):
         from app.belfort_regime_learning import compute_regime_metrics
@@ -122,17 +125,17 @@ class TestCurrentStrategyProfile:
                     "regime_metrics", "fitness_regular", "fitness_sim", "extended_hours"):
             assert key in p, f"Missing key: {key}"
 
-    def test_paper_regime_is_regular(self):
+    def test_paper_regime_is_regular_and_extended(self):
         from app.belfort_regime_learning import current_strategy_profile
-        assert current_strategy_profile()["paper_regime"] == "regular"
+        assert current_strategy_profile()["paper_regime"] == "regular + extended"
 
     def test_sim_regime_is_closed_sim(self):
         from app.belfort_regime_learning import current_strategy_profile
         assert current_strategy_profile()["sim_regime"] == "closed_sim"
 
-    def test_extended_hours_is_not_supported(self):
+    def test_extended_hours_is_supported_limit_only(self):
         from app.belfort_regime_learning import current_strategy_profile
-        assert current_strategy_profile()["extended_hours"] == "not_supported"
+        assert "supported_limit_only" in current_strategy_profile()["extended_hours"]
 
     def test_fitness_fields_are_strings(self):
         from app.belfort_regime_learning import current_strategy_profile
@@ -271,7 +274,7 @@ class TestObsBridgeExports:
         fallback_area = _OBS[_OBS.find("def read_regime_metrics"):][:700]
         assert '"regular"' in fallback_area
         assert '"closed_sim"' in fallback_area
-        assert '"not_supported"' in fallback_area
+        assert '"extended"' in fallback_area
 
 
 # ── I. neighborhood._belfort_state() keys ────────────────────────────────────
@@ -330,8 +333,8 @@ class TestStrategyProfileUi:
         assert "stratEl" in _NH
         assert "stratProfile" in _NH
 
-    def test_extended_hours_not_supported_in_js(self):
-        assert "Extended hours: paper not supported" in _NH or "extended hours" in _NH.lower()
+    def test_extended_hours_supported_string_present(self):
+        assert "extended hours" in _NH.lower()
 
 
 # ── L. Peter handler imports ──────────────────────────────────────────────────
@@ -360,8 +363,8 @@ class TestPeterBelfortStatusRegimeLine:
     def test_regime_label_in_peter(self):
         assert "Market regime" in _PH
 
-    def test_extended_not_supported_in_peter(self):
-        assert "not supported" in _PH
+    def test_extended_support_in_peter(self):
+        assert "Extended hours paper:" in _PH
 
     def test_calls_read_strategy_profile(self):
         regime_section = _PH[_PH.find("regime_line"):][:400]

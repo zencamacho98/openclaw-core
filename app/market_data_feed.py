@@ -22,6 +22,8 @@
 #
 # Public API:
 #   get_quote(symbol)    → QuoteEvent
+#   get_recent_bars(symbol, timeframe="5Min", limit=32) → list[dict]
+#   get_multi_symbol_bar_context(symbols, intraday_timeframe="10Min", intraday_limit=24) → dict[str, dict]
 #   feed_status()        → FeedStatus
 #   DATA_LANE            — current lane constant (module-level)
 
@@ -226,6 +228,199 @@ def get_quote(symbol: str) -> QuoteEvent:
     except Exception as exc:
         _record_error(str(exc))
         return _error_quote(sym, ts, str(exc))
+
+
+def get_recent_bars(symbol: str, timeframe: str = "5Min", limit: int = 32) -> list[dict]:
+    """
+    Fetch recent OHLCV bars for a symbol.
+
+    Returns a compact list of dicts suitable for direct UI rendering.
+    Never raises; returns [] on any failure.
+    """
+    sym = str(symbol or "").upper().strip()
+    if not sym:
+        return []
+    try:
+        limit = max(8, min(int(limit or 32), 96))
+    except (TypeError, ValueError):
+        limit = 32
+    timeframe = str(timeframe or "5Min").strip() or "5Min"
+
+    if not (_API_KEY and _API_SECRET):
+        return []
+
+    try:
+        resp = _http.get(
+            f"{_ALPACA_DATA_URL}/stocks/bars",
+            headers={
+                "APCA-API-KEY-ID": _API_KEY,
+                "APCA-API-SECRET-KEY": _API_SECRET,
+            },
+            params={
+                "symbols": sym,
+                "timeframe": timeframe,
+                "limit": limit,
+                "adjustment": "raw",
+                "feed": _FEED_PARAM,
+                "sort": "asc",
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        raw_bars = ((payload.get("bars") or {}).get(sym) or [])
+        out: list[dict] = []
+        for bar in raw_bars:
+            try:
+                o = float(bar.get("o"))
+                h = float(bar.get("h"))
+                l = float(bar.get("l"))
+                c = float(bar.get("c"))
+                v = float(bar.get("v", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            out.append({
+                "t": str(bar.get("t", "")),
+                "open": round(o, 6),
+                "high": round(h, 6),
+                "low": round(l, 6),
+                "close": round(c, 6),
+                "volume": round(v, 2),
+            })
+        return out
+    except Exception as exc:
+        _record_error(str(exc))
+        return []
+
+
+def get_multi_symbol_bar_context(
+    symbols: list[str],
+    intraday_timeframe: str = "10Min",
+    intraday_limit: int = 24,
+) -> dict[str, dict]:
+    """
+    Fetch compact intraday and daily bar context for multiple symbols.
+
+    Returns:
+        {
+            "NVDA": {
+                "intraday_bars": [...],
+                "daily_bars": [...],
+                "bar_count": 24,
+                "recent_volume": 1234567.0,
+                "intraday_open": 850.0,
+                "intraday_last": 862.5,
+                "intraday_change_pct": 0.0147,
+                "prev_close": 842.1,
+                "gap_pct": 0.0094,
+            },
+            ...
+        }
+    """
+    unique_symbols: list[str] = []
+    seen: set[str] = set()
+    for raw in symbols or []:
+        sym = str(raw or "").upper().strip()
+        if sym and sym not in seen:
+            seen.add(sym)
+            unique_symbols.append(sym)
+    if not unique_symbols or not (_API_KEY and _API_SECRET):
+        return {}
+
+    try:
+        intraday_limit = max(8, min(int(intraday_limit or 24), 64))
+    except (TypeError, ValueError):
+        intraday_limit = 24
+
+    out: dict[str, dict] = {}
+    intraday_map = _fetch_multi_bars(unique_symbols, timeframe=intraday_timeframe, limit=intraday_limit)
+    daily_map = _fetch_multi_bars(unique_symbols, timeframe="1Day", limit=2)
+    for sym in unique_symbols:
+        intraday = intraday_map.get(sym, [])
+        daily = daily_map.get(sym, [])
+        recent_volume = round(sum(float(bar.get("volume", 0.0) or 0.0) for bar in intraday), 2)
+        intraday_open = _f((intraday[0] if intraday else {}).get("open"))
+        intraday_last = _f((intraday[-1] if intraday else {}).get("close"))
+        intraday_change_pct = None
+        if intraday_open and intraday_last:
+            intraday_change_pct = round((intraday_last - intraday_open) / intraday_open, 4)
+        prev_close = None
+        if len(daily) >= 2:
+            prev_close = _f(daily[-2].get("close"))
+        gap_pct = None
+        if intraday_open and prev_close:
+            gap_pct = round((intraday_open - prev_close) / prev_close, 4)
+        out[sym] = {
+            "intraday_bars": intraday,
+            "daily_bars": daily,
+            "bar_count": len(intraday),
+            "recent_volume": recent_volume,
+            "intraday_open": intraday_open,
+            "intraday_last": intraday_last,
+            "intraday_change_pct": intraday_change_pct,
+            "prev_close": prev_close,
+            "gap_pct": gap_pct,
+        }
+    return out
+
+
+def _fetch_multi_bars(symbols: list[str], *, timeframe: str, limit: int) -> dict[str, list[dict]]:
+    out: dict[str, list[dict]] = {}
+    for chunk in _chunks(symbols, 20):
+        try:
+            resp = _http.get(
+                f"{_ALPACA_DATA_URL}/stocks/bars",
+                headers={
+                    "APCA-API-KEY-ID": _API_KEY,
+                    "APCA-API-SECRET-KEY": _API_SECRET,
+                },
+                params={
+                    "symbols": ",".join(chunk),
+                    "timeframe": timeframe,
+                    "limit": limit,
+                    "adjustment": "raw",
+                    "feed": _FEED_PARAM,
+                    "sort": "asc",
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            raw_map = payload.get("bars") or {}
+            if not isinstance(raw_map, dict):
+                continue
+            for sym in chunk:
+                raw_bars = raw_map.get(sym) or []
+                cleaned: list[dict] = []
+                for bar in raw_bars:
+                    try:
+                        o = float(bar.get("o"))
+                        h = float(bar.get("h"))
+                        l = float(bar.get("l"))
+                        c = float(bar.get("c"))
+                        v = float(bar.get("v", 0) or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    cleaned.append({
+                        "t": str(bar.get("t", "")),
+                        "open": round(o, 6),
+                        "high": round(h, 6),
+                        "low": round(l, 6),
+                        "close": round(c, 6),
+                        "volume": round(v, 2),
+                    })
+                out[sym] = cleaned
+        except Exception as exc:
+            _record_error(str(exc))
+            for sym in chunk:
+                out.setdefault(sym, [])
+    return out
+
+
+def _chunks(items: list[str], size: int) -> list[list[str]]:
+    if size <= 0:
+        return [items]
+    return [items[idx:idx + size] for idx in range(0, len(items), size)]
 
 
 def _get_last_trade(symbol: str) -> dict:

@@ -2,9 +2,9 @@
 #
 # Belfort signal evaluation layer — non-executing decision path.
 #
-# Wires MeanReversionV1 into the live tick path for SHADOW and PAPER modes.
-# Evaluates signals, runs them through RiskGuardrails, and logs the result
-# as a decision artifact. Never places orders.
+# Wires Belfort's regime-aware policy selector into the live tick path for
+# SHADOW and PAPER modes. Evaluates signals, runs them through RiskGuardrails,
+# and logs the result as a decision artifact. Never places orders.
 #
 # Design:
 #   _QuoteProxy       — wraps a raw quote and injects session_type + data_lane
@@ -26,25 +26,44 @@ import pathlib
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.belfort_strategy import MeanReversionV1
+from app.belfort_policy import live_engine
 from app.belfort_risk import RiskGuardrails
 
 _ROOT       = pathlib.Path(__file__).resolve().parent.parent
 _SIGNAL_LOG = _ROOT / "data" / "belfort" / "signal_log.jsonl"
 
 # Singletons — shared across all calls, retain rolling window state
-_strategy   = MeanReversionV1()
+_strategy   = live_engine()
 _guardrails = RiskGuardrails()
 
 # Modes where signal evaluation is active
 _EVAL_MODES = {"shadow", "paper"}
 
 
+def _clean_setup_tag(raw: object, *, active_policy: str = "", market_regime: str = "") -> str:
+    tag = str(raw or "").strip().lower()
+    if tag.endswith(" watch"):
+        tag = tag[:-6].strip()
+    if tag.startswith("avoid"):
+        return "avoid / spread risk"
+    if tag and tag != "monitor only":
+        return tag
+    active_policy = str(active_policy or "").strip().lower()
+    market_regime = str(market_regime or "").strip().lower()
+    if active_policy == "mean_reversion":
+        return "mean reversion"
+    if active_policy == "ma_crossover" and market_regime == "trending":
+        return "trend continuation"
+    if active_policy == "ma_crossover":
+        return "trend"
+    return "monitor only"
+
+
 class _QuoteProxy:
     """
     Wraps a raw quote object and injects session_type and data_lane as attributes.
 
-    MeanReversionV1.evaluate() reads these via getattr — the raw quote from
+    Belfort's policy selector reads these via getattr — the raw quote from
     market_data_feed does not carry session_type, so we inject it here.
     """
 
@@ -103,20 +122,45 @@ def evaluate_signal(
     # Build proxy so strategy can read session_type + data_lane
     proxied = _QuoteProxy(quote, session_type=session_type, data_lane=raw_data_lane)
 
+    # Build portfolio dict compatible with RiskGuardrails (key remapping)
+    pf = portfolio or {}
+    orders_placed_today = pf.get("trade_count", 0)
+    try:
+        from app.order_ledger import get_today_count
+        orders_placed_today = max(int(orders_placed_today or 0), int(get_today_count(environment="paper") or 0))
+    except Exception:
+        orders_placed_today = int(orders_placed_today or 0)
+    risk_portfolio = {
+        "realized_pnl_today":  pf.get("realized_pnl", 0.0),
+        "orders_placed_today": orders_placed_today,
+        "cash":                pf.get("cash", 0.0),
+        "positions":           pf.get("positions", {}) or {},
+    }
+
     # Run strategy
     try:
-        signal = _strategy.evaluate(proxied)
+        try:
+            signal = _strategy.evaluate(proxied, portfolio=risk_portfolio)
+        except TypeError:
+            signal = _strategy.evaluate(proxied)
     except Exception as exc:
         # Strategy must never raise, but if it does, log a safe hold
         return _write_error_record(now_str, mode, session_type, raw_data_lane, str(exc))
-
-    # Build portfolio dict compatible with RiskGuardrails (key remapping)
-    pf = portfolio or {}
-    risk_portfolio = {
-        "realized_pnl_today":  pf.get("realized_pnl", 0.0),
-        "orders_placed_today": pf.get("trade_count", 0),
-        "cash":                pf.get("cash", 0.0),
-    }
+    evidence = getattr(_strategy, "last_evidence", {})
+    if not isinstance(evidence, dict):
+        evidence = {}
+    try:
+        from app.belfort_scanner import lookup_candidate
+        scanner_ctx = lookup_candidate(signal.symbol)
+    except Exception:
+        scanner_ctx = None
+    active_policy = str(evidence.get("active_policy") or "policy_selector")
+    regime_label = str(evidence.get("market_regime") or "unknown")
+    setup_tag = _clean_setup_tag(
+        (scanner_ctx or {}).get("strategy_fit"),
+        active_policy=active_policy,
+        market_regime=regime_label,
+    )
 
     # Run risk guardrails
     try:
@@ -133,14 +177,16 @@ def evaluate_signal(
     # Plain-English decision summary
     action_upper = signal.action.upper()
     risk_label   = "allowed" if risk_can_proceed else f"blocked ({risk_block_reason})"
+    strategy_name = active_policy
     decision_summary = (
         f"{mode.upper()} decision: {action_upper} {signal.symbol}. "
+        f"Setup: {setup_tag}. Policy: {strategy_name} in {regime_label}. "
         f"Rationale: {signal.rationale}. "
         f"Risk: {risk_label}. "
         "No order was placed."
     )
 
-    quote_is_live = (session_type == "regular") and (raw_data_lane != "UNKNOWN")
+    quote_is_live = (session_type in ("regular", "pre_market", "after_hours")) and (raw_data_lane != "UNKNOWN")
 
     record: dict = {
         "written_at":                 now_str,
@@ -150,7 +196,26 @@ def evaluate_signal(
         "data_lane":                  raw_data_lane,
         "quote_source":               raw_data_lane,
         "quote_is_live":              quote_is_live,
-        "strategy_name":              "MeanReversionV1",
+        "strategy_name":              strategy_name,
+        "policy_selector":            evidence.get("policy_selector", "regime_router_v1"),
+        "policy_family":              evidence.get("policy_family", ""),
+        "active_policy":              strategy_name,
+        "market_regime":              regime_label,
+        "selection_reason":           evidence.get("selection_reason", ""),
+        "efficiency_ratio":           evidence.get("efficiency_ratio"),
+        "setup_tag":                  setup_tag,
+        "scanner_strategy_fit":       (scanner_ctx or {}).get("strategy_fit"),
+        "price_bucket":               (scanner_ctx or {}).get("price_bucket"),
+        "catalyst_type":              (scanner_ctx or {}).get("catalyst_type"),
+        "relative_strength_label":    (scanner_ctx or {}).get("relative_strength_label"),
+        "relative_strength_vs_spy_pct": (scanner_ctx or {}).get("relative_strength_vs_spy_pct"),
+        "relative_volume":            (scanner_ctx or {}).get("relative_volume"),
+        "gap_pct":                    (scanner_ctx or {}).get("gap_pct"),
+        "float_turnover_pct":         (scanner_ctx or {}).get("float_turnover_pct"),
+        "risk_flags":                 list((scanner_ctx or {}).get("risk_flags") or []),
+        "paper_eligible":             bool((scanner_ctx or {}).get("paper_eligible")),
+        "tradeability_label":         (scanner_ctx or {}).get("tradeability_label"),
+        "tradeability_reason":        (scanner_ctx or {}).get("tradeability_reason"),
         "signal_action":              signal.action,
         "signal_qty":                 signal.qty,
         "signal_order_type":          signal.order_type,
@@ -162,6 +227,10 @@ def evaluate_signal(
         "risk_checks_run":            risk_check_name,
         "was_executed":               False,
         "execution_mode":             "none",
+        "strategy_context":           {
+            "ma_crossover": evidence.get("ma_crossover"),
+            "mean_reversion": evidence.get("mean_reversion"),
+        },
         "decision_summary_plain_english": decision_summary,
     }
 
@@ -194,7 +263,19 @@ def _write_error_record(
         "data_lane":                  data_lane,
         "quote_source":               data_lane,
         "quote_is_live":              False,
-        "strategy_name":              "MeanReversionV1",
+        "strategy_name":              "policy_selector",
+        "policy_selector":            "regime_router_v1",
+        "policy_family":              "",
+        "active_policy":              "none",
+        "market_regime":              "unknown",
+        "selection_reason":           "",
+        "efficiency_ratio":           None,
+        "setup_tag":                  "strategy error",
+        "scanner_strategy_fit":       None,
+        "price_bucket":               None,
+        "catalyst_type":              None,
+        "relative_strength_label":    None,
+        "risk_flags":                 [],
         "signal_action":              "hold",
         "signal_qty":                 0,
         "signal_order_type":          "none",
@@ -206,6 +287,7 @@ def _write_error_record(
         "risk_checks_run":            "skipped_due_to_strategy_error",
         "was_executed":               False,
         "execution_mode":             "none",
+        "strategy_context":           {},
         "decision_summary_plain_english": (
             f"{mode.upper()} decision: strategy raised an error. No order was placed."
         ),

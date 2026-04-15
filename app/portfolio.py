@@ -89,8 +89,15 @@ def get_snapshot() -> dict:
     }
 
 
-def get_trades() -> list:
-    return trade_history.copy()
+def get_trades(limit: int | None = None) -> list:
+    """
+    Return trade history, optionally capped to the most recent `limit` trades.
+    """
+    if limit is None:
+        return trade_history.copy()
+    if limit <= 0:
+        return []
+    return trade_history[-limit:].copy()
 
 
 def save_state() -> None:

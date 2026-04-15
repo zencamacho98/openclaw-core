@@ -69,17 +69,22 @@ class TestMeanReversionV1Overrides(unittest.TestCase):
     def setUp(self) -> None:
         self.strat = MeanReversionV1(window=5, threshold=0.01, qty=10)
 
-    def test_non_regular_session_returns_hold(self) -> None:
-        q = FakeQuote(bid=500.0, ask=500.10, session_type="pre_market")
+    def test_closed_session_returns_hold(self) -> None:
+        q = FakeQuote(bid=500.0, ask=500.10, session_type="closed")
         sig = self.strat.evaluate(q)
         self.assertEqual(sig.action, "hold")
-        self.assertIn("outside regular hours", sig.rationale)
+        self.assertIn("paper-tradeable session is closed", sig.rationale)
 
-    def test_non_regular_does_not_mutate_history(self) -> None:
-        q = FakeQuote(bid=500.0, ask=500.10, session_type="after_hours")
+    def test_closed_session_does_not_mutate_history(self) -> None:
+        q = FakeQuote(bid=500.0, ask=500.10, session_type="closed")
         before = len(self.strat._history)
         self.strat.evaluate(q)
         self.assertEqual(len(self.strat._history), before)
+
+    def test_pre_market_can_evaluate(self) -> None:
+        q = FakeQuote(bid=500.0, ask=500.10, session_type="pre_market")
+        sig = self.strat.evaluate(q)
+        self.assertEqual(sig.session_type, "pre_market")
 
     def test_unknown_data_lane_returns_hold(self) -> None:
         q = FakeQuote(bid=500.0, ask=500.10, data_lane="UNKNOWN")

@@ -7,7 +7,7 @@
 # Stateless between calls — no internal state maintained.
 #
 # Check order:
-#   1. session_check       — non-regular session → block
+#   1. session_check       — market closed / unknown session → block
 #   2. data_lane_check     — UNKNOWN lane → block
 #   3. hold_passthrough    — hold signal passes without further checks
 #   4. daily_loss_cap      — total realized P&L loss exceeds limit → block
@@ -40,7 +40,7 @@ class RiskCheckResult:
 # ── Defaults ─────────────────────────────────────────────────────────────────
 
 _DEFAULT_DAILY_LOSS_CAP    = 500.0   # max realized loss per day (absolute USD)
-_DEFAULT_MAX_ORDERS_PER_DAY = 50     # max orders placed in a single trading day
+_DEFAULT_MAX_ORDERS_PER_DAY = 100    # config-backed backstop; pacing should bite first
 _DEFAULT_MAX_QTY_PER_ORDER  = 100    # max shares per single order
 _DEFAULT_MIN_CASH_BUFFER    = 100.0  # minimum cash to maintain after a buy
 
@@ -65,10 +65,10 @@ class RiskGuardrails:
 
     def __init__(
         self,
-        daily_loss_cap:     float = _DEFAULT_DAILY_LOSS_CAP,
-        max_orders_per_day: int   = _DEFAULT_MAX_ORDERS_PER_DAY,
-        max_qty_per_order:  int   = _DEFAULT_MAX_QTY_PER_ORDER,
-        min_cash_buffer:    float = _DEFAULT_MIN_CASH_BUFFER,
+        daily_loss_cap:     float | None = _DEFAULT_DAILY_LOSS_CAP,
+        max_orders_per_day: int | None   = None,
+        max_qty_per_order:  int | None   = _DEFAULT_MAX_QTY_PER_ORDER,
+        min_cash_buffer:    float | None = _DEFAULT_MIN_CASH_BUFFER,
     ) -> None:
         self._daily_loss_cap     = daily_loss_cap
         self._max_orders_per_day = max_orders_per_day
@@ -95,12 +95,20 @@ class RiskGuardrails:
             )
 
     def _run_checks(self, signal: BelfortSignal, portfolio: dict) -> RiskCheckResult:
+        from app.strategy.config import get_config
+
+        cfg = get_config()
+        daily_loss_cap = float(self._daily_loss_cap if self._daily_loss_cap is not None else cfg.get("DAILY_LOSS_CAP", _DEFAULT_DAILY_LOSS_CAP))
+        max_orders_per_day = int(self._max_orders_per_day if self._max_orders_per_day is not None else cfg.get("BELFORT_MAX_ORDERS_PER_DAY", _DEFAULT_MAX_ORDERS_PER_DAY))
+        max_qty_per_order = int(self._max_qty_per_order if self._max_qty_per_order is not None else cfg.get("MAX_QTY_PER_ORDER", _DEFAULT_MAX_QTY_PER_ORDER))
+        min_cash_buffer = float(self._min_cash_buffer if self._min_cash_buffer is not None else cfg.get("MIN_CASH_BUFFER", _DEFAULT_MIN_CASH_BUFFER))
+
         # 1. session_check
-        if signal.session_type != "regular":
+        if signal.session_type not in ("regular", "pre_market", "after_hours"):
             return self._block(
                 signal,
                 check_name   = "session_check",
-                block_reason = f"Non-regular session ({signal.session_type}) — order blocked",
+                block_reason = f"Paper-tradeable session is closed ({signal.session_type}) — order blocked",
             )
 
         # 2. data_lane_check
@@ -122,34 +130,34 @@ class RiskGuardrails:
 
         # 4. daily_loss_cap
         realized_pnl = float(portfolio.get("realized_pnl_today", 0.0))
-        if realized_pnl < 0 and abs(realized_pnl) >= self._daily_loss_cap:
+        if realized_pnl < 0 and abs(realized_pnl) >= daily_loss_cap:
             return self._block(
                 signal,
                 check_name   = "daily_loss_cap",
                 block_reason = (
                     f"Daily loss cap reached: realized P&L today = ${realized_pnl:.2f}, "
-                    f"cap = ${self._daily_loss_cap:.2f}"
+                    f"cap = ${daily_loss_cap:.2f}"
                 ),
             )
 
         # 5. daily_order_count
         orders_today = int(portfolio.get("orders_placed_today", 0))
-        if orders_today >= self._max_orders_per_day:
+        if orders_today >= max_orders_per_day:
             return self._block(
                 signal,
                 check_name   = "daily_order_count",
                 block_reason = (
-                    f"Max daily order count reached: {orders_today}/{self._max_orders_per_day}"
+                    f"Max daily order count reached: {orders_today}/{max_orders_per_day}"
                 ),
             )
 
         # 6. position_size
-        if signal.qty > self._max_qty_per_order:
+        if signal.qty > max_qty_per_order:
             return self._block(
                 signal,
                 check_name   = "position_size",
                 block_reason = (
-                    f"Order qty {signal.qty} exceeds max per-order size {self._max_qty_per_order}"
+                    f"Order qty {signal.qty} exceeds max per-order size {max_qty_per_order}"
                 ),
             )
 
@@ -157,14 +165,14 @@ class RiskGuardrails:
         if signal.action == "buy":
             cash        = float(portfolio.get("cash", 0.0))
             order_cost  = signal.limit_price * signal.qty
-            required    = order_cost + self._min_cash_buffer
+            required    = order_cost + min_cash_buffer
             if cash < required:
                 return self._block(
                     signal,
                     check_name   = "cash_sufficiency",
                     block_reason = (
                         f"Insufficient cash: have ${cash:.2f}, "
-                        f"need ${required:.2f} (order ${order_cost:.2f} + buffer ${self._min_cash_buffer:.2f})"
+                        f"need ${required:.2f} (order ${order_cost:.2f} + buffer ${min_cash_buffer:.2f})"
                     ),
                 )
 

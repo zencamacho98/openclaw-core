@@ -4,8 +4,8 @@
 #
 # Market regimes:
 #   "regular"    — NYSE regular hours; paper trading active
-#   "closed_sim" — Market closed or extended hours; sim practice only
-#   "extended"   — Pre/after hours (paper NOT supported — honest label)
+#   "closed_sim" — Closed-session sim practice
+#   "extended"   — Pre/after hours paper activity and learning
 #
 # Auto-snapshot: called from trading_loop every N ticks.
 # Writes to data/learning_history.jsonl (same append-only schema).
@@ -39,17 +39,17 @@ def compute_regime_metrics(today_only: bool = True) -> dict:
     Returns:
         regular:    dict — {submitted, gated, errored, total}
         closed_sim: dict — {fills, buys, sells, holds, ticks}
-        extended:   str  — "not_supported"
+        extended:   dict — {submitted, gated, errored, total}
     """
     today = date.today().isoformat() if today_only else None
     return {
-        "regular":    _paper_metrics(today),
+        "regular":    _paper_metrics(today, sessions=("regular",)),
         "closed_sim": _sim_metrics(today),
-        "extended":   "not_supported",
+        "extended":   _paper_metrics(today, sessions=("pre_market", "after_hours")),
     }
 
 
-def _paper_metrics(today: str | None) -> dict:
+def _paper_metrics(today: str | None, sessions: tuple[str, ...] = ("regular", "pre_market", "after_hours")) -> dict:
     stats = {"submitted": 0, "gated": 0, "errored": 0, "total": 0}
     if not _PAPER_EXEC_LOG.exists():
         return stats
@@ -63,6 +63,8 @@ def _paper_metrics(today: str | None) -> dict:
             except (json.JSONDecodeError, ValueError):
                 continue
             if today and not rec.get("written_at", "").startswith(today):
+                continue
+            if str(rec.get("session_type", "") or "") not in sessions:
                 continue
             stats["total"] += 1
             status = rec.get("execution_status", "")
@@ -113,12 +115,12 @@ def current_strategy_profile() -> dict:
 
     Returns:
         current_regime:  str — actual market session type from market_time
-        paper_regime:    "regular"
+        paper_regime:    "regular + extended"
         sim_regime:      "closed_sim"
         regime_metrics:  dict from compute_regime_metrics()
         fitness_regular: str — human note for regular-hours paper performance
         fitness_sim:     str — human note for sim/closed performance
-        extended_hours:  "not_supported"
+        extended_hours:  "supported_limit_only"
     """
     try:
         from app.market_time import session_type as _st
@@ -129,6 +131,7 @@ def current_strategy_profile() -> dict:
     metrics = compute_regime_metrics()
     reg     = metrics["regular"]
     sim     = metrics["closed_sim"]
+    ext     = metrics["extended"]
 
     if reg["total"] == 0:
         fitness_regular = "No paper data today — run paper trading during regular hours."
@@ -144,14 +147,21 @@ def current_strategy_profile() -> dict:
     else:
         fitness_sim = f"{sim['ticks']} sim tick(s) today — no fills yet."
 
+    if ext["total"] == 0:
+        extended_hours = "supported_limit_only"
+    elif ext["submitted"] > 0:
+        extended_hours = f"supported_limit_only ({ext['submitted']} extended-hours paper order(s) submitted today)"
+    else:
+        extended_hours = f"supported_limit_only ({ext['gated']} extended-hours order(s) gated today)"
+
     return {
         "current_regime":  cur,
-        "paper_regime":    "regular",
+        "paper_regime":    "regular + extended",
         "sim_regime":      "closed_sim",
         "regime_metrics":  metrics,
         "fitness_regular": fitness_regular,
         "fitness_sim":     fitness_sim,
-        "extended_hours":  "not_supported",
+        "extended_hours":  extended_hours,
     }
 
 

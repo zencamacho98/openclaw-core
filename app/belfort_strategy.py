@@ -8,7 +8,7 @@
 # MeanReversionV1:
 #   - Rolling window (in-memory, resets on restart)
 #   - Hard overrides run BEFORE any state mutation:
-#       session_type != "regular"   → hold, "outside regular hours — no execution"
+#       session_type outside {"regular","pre_market","after_hours"} → hold
 #       data_lane == "UNKNOWN"      → hold, "data lane unknown — signal suppressed"
 #   - Signals from bid/ask mid price, never from last-trade
 #   - Window tracks mid prices over last N ticks (default 20)
@@ -80,7 +80,7 @@ class MeanReversionV1(StrategyBase):
         qty:       fixed order size (default 1)
 
     Override order (checked before any state mutation):
-      1. session_type != "regular"  → hold
+      1. session_type outside {"regular","pre_market","after_hours"}  → hold
       2. data_lane == "UNKNOWN"     → hold
       3. insufficient window data   → hold (need at least window/2 ticks)
       4. mid below mean by > threshold → buy (marketable_limit at ask)
@@ -109,14 +109,14 @@ class MeanReversionV1(StrategyBase):
         now_str = datetime.now(timezone.utc).isoformat()
 
         # ── Hard overrides (run before any state mutation) ────────────────────
-        if session_type != "regular":
+        if session_type not in ("regular", "pre_market", "after_hours"):
             return BelfortSignal(
                 symbol       = symbol,
                 action       = "hold",
                 qty          = 0,
                 order_type   = "none",
                 limit_price  = 0.0,
-                rationale    = "outside regular hours — no execution",
+                rationale    = "paper-tradeable session is closed — no execution",
                 data_lane    = data_lane,
                 session_type = session_type,
                 generated_at = now_str,

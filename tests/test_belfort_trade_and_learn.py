@@ -81,6 +81,25 @@ class TestSimQuoteProxy:
         assert proxy.ask == 100.10
         assert proxy.symbol == "SPY"
 
+    def test_invalid_ask_is_sanitized_for_sim_training(self):
+        """Sim proxy must repair broken overnight books so practice can continue."""
+        from app.belfort_sim import _SimQuoteProxy
+        import types
+
+        q = types.SimpleNamespace(
+            bid=686.0,
+            ask=0.0,
+            last=685.75,
+            symbol="SPY",
+            data_lane="IEX_ONLY",
+            session_type="closed",
+        )
+        proxy = _SimQuoteProxy(q)
+        assert proxy.quote_sanitized is True
+        assert proxy.bid > 0
+        assert proxy.ask > 0
+        assert proxy.ask >= proxy.bid
+
     def test_strategy_sees_regular_session(self):
         """MeanReversionV1 must not gate on session_type when given a SimQuoteProxy."""
         from app.belfort_sim import _SimQuoteProxy
@@ -353,6 +372,25 @@ class TestObservabilitySimBridge:
         assert stats["fills"] == 0
         assert stats["ticks"] == 0
 
+    def test_read_latest_sim_record_includes_holds(self, tmp_path):
+        """read_latest_sim_record() must expose the latest hold tick for UI feedback."""
+        import observability.belfort_summary as bs
+        sim_log = tmp_path / "sim_log.jsonl"
+        records = [
+            {"action": "buy", "written_at": "2026-04-12T00:00:00+00:00", "sim": True},
+            {"action": "hold", "written_at": "2026-04-12T00:01:00+00:00", "sim": True, "rationale": "quote quality gate blocked evaluation"},
+        ]
+        sim_log.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+        orig = bs._SIM_LOG
+        bs._SIM_LOG = sim_log
+        try:
+            result = bs.read_latest_sim_record(today_only=False)
+        finally:
+            bs._SIM_LOG = orig
+        assert result is not None
+        assert result["action"] == "hold"
+        assert "quote quality" in result["rationale"]
+
 
 # ── E. _belfort_state() includes sim fields ───────────────────────────────────
 
@@ -378,6 +416,14 @@ class TestBelfortStateSim:
         import app.routes.neighborhood as _nb
         state = _nb._belfort_state()
         assert "belfort_latest_sim_trade" in state
+
+    def test_belfort_state_has_sim_runtime_fields(self):
+        """_belfort_state() must include sim runtime heartbeat fields."""
+        import app.routes.neighborhood as _nb
+        state = _nb._belfort_state()
+        assert "sim_ticks" in state
+        assert "sim_interval" in state
+        assert "sim_started_at" in state
 
 
 # ── F. Peter handle_belfort_status includes sim ───────────────────────────────

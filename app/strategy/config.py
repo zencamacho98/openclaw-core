@@ -46,6 +46,26 @@ DEFAULTS: dict[str, Any] = {
     "STOP_ATR_MULT":          0.0,   # stop_pct = ATR*mult/entry_price (0 = use STOP_LOSS_PCT)
     "RISK_PER_TRADE_PCT":     0.0,   # equity fraction to risk per trade (0 = use POSITION_SIZE)
     "MAX_TRADES_PER_SESSION": 0,     # hard BUY cap per session/run (0 = unlimited)
+    # Belfort brokerage-ready desk controls
+    "BELFORT_MAX_ORDERS_PER_DAY": 100,      # final safety backstop; pacing should bite first
+    "BELFORT_MAX_ORDERS_PER_HOUR": 16,      # rolling hourly pace limit to keep fees/churn under control
+    "BELFORT_GLOBAL_COOLDOWN_SECONDS": 90,  # minimum time between new paper entries
+    "BELFORT_SYMBOL_COOLDOWN_SECONDS": 300, # minimum time before re-entering the same symbol
+    "BELFORT_MIN_HOLD_SECONDS": 180,        # minimum hold before a fresh same-symbol re-entry
+    "BELFORT_TURNOVER_BUDGET_PCT": 2.0,     # max submitted notional as a fraction of equity per day
+    "BELFORT_MAX_SYMBOL_EXPOSURE_PCT": 0.2, # cap each new name to 20% of equity
+    "BELFORT_MAX_TOTAL_EXPOSURE_PCT": 0.65, # keep some dry powder in the book
+    "BELFORT_MAX_ACTIVE_POSITIONS": 4,      # avoid one-click over-diversification
+    "BELFORT_COST_EDGE_RATIO_LIMIT": 0.25,  # estimated trading cost must stay below 25% of expected edge
+    "BELFORT_TRAINING_COMMISSION_PER_ORDER": 0.75, # fee reserve to keep paper behavior realistic for live broker costs
+    "BELFORT_MIN_NET_EDGE_PCT": 0.0035,     # expected net edge after round-trip costs must still be worth the trade
+    "BELFORT_MIN_MARKET_CAP_USD": 300_000_000.0,   # allow more volatile names, but avoid true micro-caps
+    "BELFORT_MIN_FLOAT_SHARES": 15_000_000.0,      # avoid ultra-low-float chaos in paper phase
+    "BELFORT_MIN_AVG_VOLUME": 800_000.0,           # require a reasonable tape before paper entries
+    "BELFORT_MIN_RELATIVE_VOLUME": 0.8,            # do not paper-trade sleepy names just because they are moving a little
+    "BELFORT_MIN_FLOAT_TURNOVER_PCT": 0.001,       # require at least some meaningful participation versus float
+    "BELFORT_MAX_VOLATILE_SPREAD_PCT": 0.015,      # widened spread tolerance for controlled volatile names
+    "BELFORT_MAX_VOLATILE_TAPE_PCT": 0.18,         # block names already moving too wildly for this phase
     # High-quality MR entry confirmation (experiment-path only — not wired to live mean_reversion.py)
     "MR_CONFIRM_TICKS": 0,    # ticks to look back for a confirmed overshoot low; 0 = off (original)
     "MR_REBOUND_CAP":   0.5,  # max rebound from that low in std-dev units; beyond = entry blocked
